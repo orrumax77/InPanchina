@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Distinta from './components/Distinta';
 import Cronometro from './components/Cronometro';
 import { salvaDistintaSuDb } from './services/db';
-import { ArrowLeft, CloudCheck, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('distinta');
@@ -10,12 +10,10 @@ export default function App() {
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  // Dati di gioco
   const [tempoGara, setTempoGara] = useState(1);
   const [golCasa, setGolCasa] = useState(0);
   const [golOspiti, setGolOspiti] = useState(0);
 
-  // Identificativo univoco della partita (puoi personalizzarlo in seguito)
   const [partitaId] = useState('PARTITA_OGGI');
 
   const handleConfermaDistinta = async ({ partitaInfo, giocatori }) => {
@@ -23,7 +21,6 @@ export default function App() {
     setPartitaInfo(partitaInfo);
     setRosa(giocatori);
 
-    // Salvataggio effettivo su Supabase
     const risultato = await salvaDistintaSuDb(partitaId, partitaInfo, giocatori);
 
     setSalvataggioInCorso(false);
@@ -32,8 +29,7 @@ export default function App() {
       alert('Distinta salvata con successo sul Database Cloud!');
       setFaseApp('partita');
     } else {
-      alert('Attenzione: Errore di rete o di connessione con Supabase. Controlla la console.');
-      // Passa comunque alla partita per non bloccare il dirigente sul campo
+      alert('Nota: Salvataggio locale ok. Connessione cloud non riuscita.');
       setFaseApp('partita');
     }
   };
@@ -42,8 +38,8 @@ export default function App() {
     <div className="bg-slate-950 min-h-screen text-slate-100 p-3 md:p-6">
       {salvataggioInCorso && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <p className="text-emerald-400 font-bold text-lg animate-pulse">
-            Salvataggio su Cloud in corso...
+          <p className="text-emerald-400 font-bold text-lg animate-pulse flex items-center gap-2">
+            <CheckCircle2 className="w-6 h-6 animate-spin" /> Salvataggio su Cloud in corso...
           </p>
         </div>
       )}
