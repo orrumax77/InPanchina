@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import Distinta from './components/Distinta';
 import Cronometro from './components/Cronometro';
+import GestioneEventi from './components/GestioneEventi';
+import FeedEventi from './components/FeedEventi';
 import { getSocieta, creaSocieta, salvaDistintaSuDb } from './services/db';
 import { ArrowLeft, Shield, Building2, Plus, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
-  const [faseApp, setFaseApp] = useState('seleziona_societa'); // 'seleziona_societa' | 'distinta' | 'partita'
+  const [faseApp, setFaseApp] = useState('seleziona_societa');
   
-  // Gestione Società
+  // Società
   const [listaSocieta, setListaSocieta] = useState([]);
   const [societaAttiva, setSocietaAttiva] = useState(() => {
     const salvata = localStorage.getItem('inpanchina_societa');
@@ -20,10 +22,15 @@ export default function App() {
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
   const [tempoGara, setTempoGara] = useState(1);
+  const [minutoCorrente, setMinutoCorrente] = useState(1);
   const [golCasa, setGolCasa] = useState(0);
   const [golOspiti, setGolOspiti] = useState(0);
 
-  // Caricamento società all'avvio
+  // Gestione Eventi e Slot
+  const [eventi, setEventi] = useState([]);
+  const [slotUsati, setSlotUsati] = useState(0);
+  const [cambiEffettuati, setCambiEffettuati] = useState(0);
+
   useEffect(() => {
     async function fetchSocieta() {
       const dati = await getSocieta();
@@ -50,7 +57,7 @@ export default function App() {
       setListaSocieta([...listaSocieta, nuova]);
       selezionaClub(nuova);
       setNuovoNomeSocieta('');
-    } catch (err) {
+    } catch {
       alert('Errore nella creazione della società o nome già esistente.');
     }
   };
@@ -72,10 +79,20 @@ export default function App() {
 
     if (res.success) {
       alert(`Distinta salvata nel cloud per: ${societaAttiva.nome}`);
-    } else {
-      alert('Salvataggio locale completato.');
     }
     setFaseApp('partita');
+  };
+
+  const handleGolSegnato = (isNostraSquadra) => {
+    if (isNostraSquadra) {
+      setGolCasa(prev => prev + 1);
+    } else {
+      setGolOspiti(prev => prev + 1);
+    }
+  };
+
+  const eliminaEvento = (id) => {
+    setEventi(eventi.filter(e => e.id !== id));
   };
 
   return (
@@ -136,7 +153,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. SCHERMATA DISTINTA */}
+      {/* 2. DISTINTA */}
       {faseApp === 'distinta' && (
         <div className="space-y-4">
           <div className="max-w-4xl mx-auto flex justify-between items-center bg-slate-900 border border-slate-800 p-3 rounded-xl">
@@ -154,7 +171,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 3. SCHERMATA LIVE MATCH */}
+      {/* 3. LIVE MATCH */}
       {faseApp === 'partita' && (
         <div className="max-w-2xl mx-auto space-y-5">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -169,26 +186,13 @@ export default function App() {
             </span>
           </div>
 
+          {/* Punteggio */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center">
             <div className="flex-1">
               <h3 className="font-bold text-sm md:text-base text-slate-200 truncate">
                 {partitaInfo?.squadraCasa || 'Casa'}
               </h3>
               <div className="text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
-              <div className="flex justify-center gap-1 mt-2">
-                <button
-                  onClick={() => setGolCasa(golCasa + 1)}
-                  className="bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 px-3 py-1 rounded text-xs font-bold"
-                >
-                  +1
-                </button>
-                <button
-                  onClick={() => setGolCasa(Math.max(0, golCasa - 1))}
-                  className="bg-slate-800 text-slate-400 px-2 py-1 rounded text-xs font-bold"
-                >
-                  -1
-                </button>
-              </div>
             </div>
 
             <div className="px-4 text-slate-600 font-bold text-xl">VS</div>
@@ -198,29 +202,35 @@ export default function App() {
                 {partitaInfo?.squadraOspite || 'Ospite'}
               </h3>
               <div className="text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
-              <div className="flex justify-center gap-1 mt-2">
-                <button
-                  onClick={() => setGolOspiti(golOspiti + 1)}
-                  className="bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 px-3 py-1 rounded text-xs font-bold"
-                >
-                  +1
-                </button>
-                <button
-                  onClick={() => setGolOspiti(Math.max(0, golOspiti - 1))}
-                  className="bg-slate-800 text-slate-400 px-2 py-1 rounded text-xs font-bold"
-                >
-                  -1
-                </button>
-              </div>
             </div>
           </div>
 
+          {/* Cronometro */}
           <Cronometro
             tempo={tempoGara}
             setTempo={setTempoGara}
+            onTick={(min) => setMinutoCorrente(min)}
             onFinePrimoTempo={() => alert('Fine 1° Tempo!')}
             onFinePartita={() => alert('Partita terminata!')}
           />
+
+          {/* Modulo Eventi: Sostituzioni, Cartellini, Gol */}
+          <GestioneEventi
+            giocatori={rosa}
+            setGiocatori={setRosa}
+            eventi={eventi}
+            setEventi={setEventi}
+            minutoCorrente={minutoCorrente}
+            tempoGara={tempoGara}
+            slotUsati={slotUsati}
+            setSlotUsati={setSlotUsati}
+            cambiEffettuati={cambiEffettuati}
+            setCambiEffettuati={setCambiEffettuati}
+            onGolSegnato={handleGolSegnato}
+          />
+
+          {/* Timeline Eventi */}
+          <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
         </div>
       )}
     </div>
