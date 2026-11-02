@@ -20,7 +20,7 @@ import {
   archiviaPartitaEResettaLive
 } from './services/db';
 import { supabase } from './supabaseClient';
-import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight, Archive, RotateCcw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight, Archive, RotateCcw } from 'lucide-react';
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto' | 'archivio'
@@ -213,7 +213,6 @@ export default function App() {
       alert('Fine 1° Tempo! Il cronometro del 2° Tempo è stato azzerato a 00:00 ed è pronto per l\'avvio.');
     } else {
       mettiInPausaTimer();
-      alert('ATTENZIONE: Il tempo è concluso! Verrai indirizzato al referto ufficiale per completare e archiviare la gara.');
       setFaseApp('referto');
     }
   };
@@ -297,7 +296,8 @@ export default function App() {
     const nuovoPInfo = {
       ...partitaInfo,
       squadraCasa: partitaInfo.squadraOspite,
-      squadraOspite: partitaInfo.squadraCasa
+      squadraOspite: partitaInfo.squadraCasa,
+      isNostraCasa: !partitaInfo.isNostraCasa
     };
     const nuovoCasa = golOspiti;
     const nuovoOspiti = golCasa;
@@ -367,9 +367,10 @@ export default function App() {
     }
   };
 
+  const isFinePartitaRaggiunta = tempoGara === 2 && secondiGara >= (2700 + recupero * 60);
+
   const disconnetti = () => {
-    // Controllo di sicurezza se il cronometro è fermo al 90° e non è stato ancora archiviato il referto
-    if (tempoGara === 2 && secondiGara >= 2700 && faseApp === 'partita') {
+    if (isFinePartitaRaggiunta && faseApp === 'partita') {
       const conferma = window.confirm("ATTENZIONE: La partita è terminata ma non hai ancora archiviato il referto finale. Se esci ora la sessione live rimarrà incompleta. Vuoi davvero disconnetterti?");
       if (!conferma) return;
     }
@@ -563,9 +564,13 @@ export default function App() {
 
               <button
                 onClick={() => setFaseApp('referto')}
-                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
+                className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 uppercase transition ${
+                  isFinePartitaRaggiunta
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white animate-bounce shadow-lg shadow-rose-950'
+                    : 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700'
+                }`}
               >
-                <FileText className="w-3.5 h-3.5" /> Referto
+                <FileText className="w-3.5 h-3.5" /> Referto {isFinePartitaRaggiunta && '(!)'}
               </button>
             </div>
           </div>
@@ -595,7 +600,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Cronometro con avviso tempo scaduto senza recupero */}
+          {/* Cronometro con fischio sonoro e modale bloccante a tutto schermo */}
           <Cronometro
             tempo={tempoGara}
             secondi={secondiGara}
