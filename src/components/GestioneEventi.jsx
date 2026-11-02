@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, UserCheck, ArrowRightLeft, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Plus, ArrowRightLeft, ShieldAlert, AlertTriangle, ArrowRight, UserMinus, UserPlus } from 'lucide-react';
 
 export default function GestioneEventi({
   giocatori,
@@ -14,20 +14,18 @@ export default function GestioneEventi({
   cambiEffettuati,
   setCambiEffettuati,
   onGolSegnato,
-  inEsecuzione // Riceve lo stato di marcia del cronometro
+  inEsecuzione
 }) {
   const [modalGol, setModalGol] = useState(false);
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
-  const [modalEspulsione, setModalEspulsione] = useState(false);
   const [modalSostituzione, setModalSostituzione] = useState(false);
 
-  const [giocatoreSelezionato, setGiocatoreSelezionato] = useState('');
   const [giocatoreEsce, setGiocatoreEsce] = useState('');
   const [giocatoreEntra, setGiocatoreEntra] = useState('');
 
   const [avvisoTimerFermo, setAvvisoTimerFermo] = useState(false);
 
-  // Controllo preliminare obbligatorio: se il timer è fermo lancia un alert e blocca l'azione
+  // Controllo timer avviato
   const verificaTimerAvviato = () => {
     if (!inEsecuzione) {
       setAvvisoTimerFermo(true);
@@ -37,7 +35,7 @@ export default function GestioneEventi({
     return true;
   };
 
-  // 1. REGISTRAZIONE GOL NOSTRA SQUADRA
+  // 1. Gol Nostro
   const apriModalGol = () => {
     if (!verificaTimerAvviato()) return;
     setModalGol(true);
@@ -58,10 +56,9 @@ export default function GestioneEventi({
 
     if (onGolSegnato) onGolSegnato(true);
     setModalGol(false);
-    setGiocatoreSelezionato('');
   };
 
-  // 2. REGISTRAZIONE GOL AVVERSARI
+  // 2. Gol Avversari
   const handleGolAvversario = () => {
     if (!verificaTimerAvviato()) return;
 
@@ -77,7 +74,7 @@ export default function GestioneEventi({
     if (onGolSegnato) onGolSegnato(false);
   };
 
-  // 3. REGISTRAZIONE AMMONIZIONE
+  // 3. Cartellino
   const apriModalCartellino = () => {
     if (!verificaTimerAvviato()) return;
     setModalAmmonizione(true);
@@ -114,10 +111,8 @@ export default function GestioneEventi({
     });
 
     setModalAmmonizione(false);
-    setGiocatoreSelezionato('');
   };
 
-  // 4. REGISTRAZIONE ESPULSIONE DIRETTA
   const handleEspulsione = (giocatoreId) => {
     const target = giocatori.find(g => g.id === giocatoreId);
     if (!target) return;
@@ -140,12 +135,13 @@ export default function GestioneEventi({
     });
 
     setModalAmmonizione(false);
-    setGiocatoreSelezionato('');
   };
 
-  // 5. REGISTRAZIONE SOSTITUZIONE
+  // 4. Sostituzione
   const apriModalCambio = () => {
     if (!verificaTimerAvviato()) return;
+    setGiocatoreEsce('');
+    setGiocatoreEntra('');
     setModalSostituzione(true);
   };
 
@@ -180,8 +176,16 @@ export default function GestioneEventi({
     setGiocatoreEntra('');
   };
 
-  const titolariInCampo = giocatori.filter(g => g.isTitolare && !g.espulso);
-  const panchinaDisponibile = giocatori.filter(g => !g.isTitolare && !g.espulso);
+  const titolariInCampo = giocatori
+    .filter(g => g.isTitolare && !g.espulso)
+    .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+
+  const panchinaDisponibile = giocatori
+    .filter(g => !g.isTitolare && !g.espulso)
+    .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+
+  const targetEsce = giocatori.find(g => g.id === giocatoreEsce);
+  const targetEntra = giocatori.find(g => g.id === giocatoreEntra);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-4 relative">
@@ -194,7 +198,6 @@ export default function GestioneEventi({
         )}
       </div>
 
-      {/* BANNER DI AVVISO QUANDO SI TENTA UN INSERIMENTO A TIMER FERMO */}
       {avvisoTimerFermo && (
         <div className="bg-rose-950/90 border-2 border-rose-500 p-3 rounded-xl flex items-center gap-2.5 text-rose-200 text-xs font-bold uppercase animate-bounce shadow-xl">
           <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0" />
@@ -328,45 +331,137 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* Modal Sostituzione */}
+      {/* MODAL SOSTITUZIONE A LISTE SELEZIONABILI */}
       {modalSostituzione && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
-            <h4 className="text-sm font-bold text-white uppercase">Registra Sostituzione</h4>
-            
-            <div>
-              <label className="text-[11px] text-slate-400 font-bold uppercase block mb-1">Esce dal campo:</label>
-              <select
-                value={giocatoreEsce}
-                onChange={(e) => setGiocatoreEsce(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white uppercase"
-              >
-                <option value="">Seleziona titolare</option>
-                {titolariInCampo.map(g => (
-                  <option key={g.id} value={g.id}>#{g.numero} {g.nome}</option>
-                ))}
-              </select>
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 max-w-2xl w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <h4 className="text-sm font-black text-white uppercase flex items-center gap-2">
+                <ArrowRightLeft className="w-4 h-4 text-blue-400" /> Registra Sostituzione (Minuto {minutoCorrente}')
+              </h4>
+              <span className="text-[11px] font-bold text-slate-400 uppercase bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">
+                Slot {slotUsati}/3 • Cambi {cambiEffettuati}/5
+              </span>
             </div>
 
-            <div>
-              <label className="text-[11px] text-slate-400 font-bold uppercase block mb-1">Entra dalla panchina:</label>
-              <select
-                value={giocatoreEntra}
-                onChange={(e) => setGiocatoreEntra(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white uppercase"
-              >
-                <option value="">Seleziona riserva</option>
-                {panchinaDisponibile.map(g => (
-                  <option key={g.id} value={g.id}>#{g.numero} {g.nome}</option>
-                ))}
-              </select>
+            {/* Griglia a 2 colonne di liste */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Colonna 1: Chi ESCE (Titolari) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold uppercase text-rose-400 bg-rose-950/30 border border-rose-900/40 p-2 rounded-lg">
+                  <span className="flex items-center gap-1.5"><UserMinus className="w-3.5 h-3.5" /> 1. Seleziona chi ESCE</span>
+                  <span className="text-[10px] font-mono text-slate-400">({titolariInCampo.length})</span>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+                  {titolariInCampo.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 uppercase text-center py-6">Nessun titolare disponibile</p>
+                  ) : (
+                    titolariInCampo.map(g => {
+                      const isSel = giocatoreEsce === g.id;
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => setGiocatoreEsce(g.id)}
+                          className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer ${
+                            isSel
+                              ? 'bg-rose-950/70 border-rose-500 text-white shadow-md shadow-rose-950/50'
+                              : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800 text-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 ${
+                              isSel ? 'bg-rose-600 text-white' : 'bg-slate-900 text-rose-400 border border-rose-900/40'
+                            }`}>
+                              {g.numero}
+                            </span>
+                            <span className="text-xs font-semibold uppercase truncate">{g.nome}</span>
+                          </div>
+                          {isSel && (
+                            <span className="text-[10px] font-bold text-rose-300 bg-rose-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
+                              ESCE
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Colonna 2: Chi ENTRA (Panchina) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2 rounded-lg">
+                  <span className="flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5" /> 2. Seleziona chi ENTRA</span>
+                  <span className="text-[10px] font-mono text-slate-400">({panchinaDisponibile.length})</span>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+                  {panchinaDisponibile.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 uppercase text-center py-6">Nessuna riserva disponibile</p>
+                  ) : (
+                    panchinaDisponibile.map(g => {
+                      const isSel = giocatoreEntra === g.id;
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => setGiocatoreEntra(g.id)}
+                          className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer ${
+                            isSel
+                              ? 'bg-emerald-950/70 border-emerald-500 text-white shadow-md shadow-emerald-950/50'
+                              : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800 text-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 ${
+                              isSel ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-emerald-400 border border-emerald-900/40'
+                            }`}>
+                              {g.numero}
+                            </span>
+                            <span className="text-xs font-semibold uppercase truncate">{g.nome}</span>
+                          </div>
+                          {isSel && (
+                            <span className="text-[10px] font-bold text-emerald-300 bg-emerald-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
+                              ENTRA
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            {/* Anteprima grafica del cambio selezionato */}
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs">
+              <div className="flex-1 truncate">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Esce:</span>
+                <span className="font-bold uppercase text-rose-400 truncate block">
+                  {targetEsce ? `#${targetEsce.numero} ${targetEsce.nome}` : 'Seleziona dalla lista a sinistra'}
+                </span>
+              </div>
+
+              <div className="px-3 text-slate-600">
+                <ArrowRight className="w-4 h-4" />
+              </div>
+
+              <div className="flex-1 text-right truncate">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Entra:</span>
+                <span className="font-bold uppercase text-emerald-400 truncate block">
+                  {targetEntra ? `#${targetEntra.numero} ${targetEntra.nome}` : 'Seleziona dalla lista a destra'}
+                </span>
+              </div>
+            </div>
+
+            {/* Pulsanti Azione */}
+            <div className="flex gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={() => setModalSostituzione(false)}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold uppercase"
+                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase transition"
               >
                 Annulla
               </button>
@@ -374,9 +469,9 @@ export default function GestioneEventi({
                 type="button"
                 onClick={handleSostituzione}
                 disabled={!giocatoreEsce || !giocatoreEntra}
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded-lg text-xs font-bold uppercase transition"
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-black uppercase transition shadow-lg shadow-blue-950 cursor-pointer disabled:cursor-not-allowed"
               >
-                Conferma
+                Conferma Sostituzione
               </button>
             </div>
           </div>
