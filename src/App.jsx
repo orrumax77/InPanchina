@@ -391,7 +391,7 @@ export default function App() {
               Esci / Disconnetti
             </button>
           </div>
-          <Distinta onConfermaDistinta={handleConfermaDistinta} />
+          <Distinta onConfermaDistinta={handleConfermaDistinta} societa={societaAttiva} />
         </div>
       )}
 
