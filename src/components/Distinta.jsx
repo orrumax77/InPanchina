@@ -40,6 +40,15 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const infoDebounceRef = useRef(null);
   const isLoaded = useRef(false);
 
+  // Funzione di utilità per ordinare i calciatori per numero crescente
+  const ordinaPerNumeroMaglia = (lista) => {
+    return [...lista].sort((a, b) => {
+      const numA = parseInt(a.numero, 10) || 0;
+      const numB = parseInt(b.numero, 10) || 0;
+      return numA - numB;
+    });
+  };
+
   useEffect(() => {
     const staffSalvato = societa?.staff_base || {};
     const allenatoreBase = (societa?.allenatore_predefinito || staffSalvato.allenatore || partitaIniziale?.allenatore || '').toUpperCase();
@@ -68,10 +77,11 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         : [];
 
     if (rosaDaCaricare.length > 0) {
-      setGiocatori(rosaDaCaricare.map(g => ({
+      const formattati = rosaDaCaricare.map(g => ({
         ...g,
         nome: (g.nome || '').toUpperCase()
-      })));
+      }));
+      setGiocatori(ordinaPerNumeroMaglia(formattati));
     }
 
     setTimeout(() => {
@@ -162,7 +172,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     }
 
     const aggiornato = { ...target, isTitolare: !target.isTitolare };
-    const nuovaLista = giocatori.map(g => (g.id === id ? aggiornato : g));
+    const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
     setGiocatori(nuovaLista);
     await dbModificaGiocatore(societa.id, aggiornato);
     await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined);
@@ -173,11 +183,11 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     const target = giocatori.find(g => g.id === id);
     if (!target) return;
 
-    const nuovaLista = giocatori.map(g => ({
+    const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => ({
       ...g,
       isCapitano: g.id === id ? !g.isCapitano : false,
       isVice: g.id === id ? false : g.isVice
-    }));
+    })));
     setGiocatori(nuovaLista);
 
     for (const g of nuovaLista) {
@@ -191,11 +201,11 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     const target = giocatori.find(g => g.id === id);
     if (!target) return;
 
-    const nuovaLista = giocatori.map(g => ({
+    const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => ({
       ...g,
       isVice: g.id === id ? !g.isVice : false,
       isCapitano: g.id === id ? false : g.isCapitano
-    }));
+    })));
     setGiocatori(nuovaLista);
 
     for (const g of nuovaLista) {
@@ -239,7 +249,8 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isVice: false
     };
 
-    const nuovaRosa = [...giocatori, nuovo];
+    // Ordina immediatamente la lista dopo l'inserimento
+    const nuovaRosa = ordinaPerNumeroMaglia([...giocatori, nuovo]);
     setGiocatori(nuovaRosa);
     setNuovoNome('');
     setNuovoNumero('');
@@ -250,7 +261,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   };
 
   const rimuoviGiocatore = async (id) => {
-    const nuovaRosa = giocatori.filter(g => g.id !== id);
+    const nuovaRosa = ordinaPerNumeroMaglia(giocatori.filter(g => g.id !== id));
     setGiocatori(nuovaRosa);
     if (editingId === id) setEditingId(null);
 
@@ -296,7 +307,8 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       nome: editNome.trim().toUpperCase()
     };
 
-    const nuovaRosa = giocatori.map(g => (g.id === id ? aggiornato : g));
+    // Riordina la lista in base al nuovo numero assegnato
+    const nuovaRosa = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
     setGiocatori(nuovaRosa);
     setEditingId(null);
 
@@ -316,10 +328,13 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       alert("Inserisci il nome di entrambe le squadre!");
       return;
     }
-    onConfermaDistinta({ partitaInfo, giocatori });
+    onConfermaDistinta({ partitaInfo, giocatori: ordinaPerNumeroMaglia(giocatori) });
   };
 
   const numeroSuggeritoPlaceholder = trovaPrimoNumeroLibero();
+
+  // Lista costantemente ordinata per numero per il rendering
+  const giocatoriOrdinati = ordinaPerNumeroMaglia(giocatori);
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
@@ -428,7 +443,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </div>
         </div>
 
-        {/* SEZIONE COMPLETA STAFF TECNICO E DIRIGENZIALE UFFICIALE */}
+        {/* Staff Tecnico & Dirigenziale */}
         <div className="pt-3 border-t border-slate-700/70 space-y-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase">
             <UserCog className="w-4 h-4 text-emerald-400" /> Staff Tecnico & Dirigenziale Ufficiale
@@ -525,27 +540,27 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </button>
       </form>
 
-      {/* Elenco Rosa Giocatori */}
+      {/* Elenco Rosa Giocatori Ordinato per Numero di Maglia */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-lg font-bold flex items-center gap-2 uppercase">
-              <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatori.length})
+              <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatoriOrdinati.length})
             </h2>
-            <p className="text-[11px] text-emerald-400 mt-0.5">● Memorizzata stabilmente per tutte le partite</p>
+            <p className="text-[11px] text-emerald-400 mt-0.5">● Elenco ordinato per N° di maglia</p>
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
             Titolari: {titolariCount} / 11
           </span>
         </div>
 
-        {giocatori.length === 0 ? (
+        {giocatoriOrdinati.length === 0 ? (
           <div className="text-center py-8 text-slate-500 text-xs border border-dashed border-slate-700 rounded-xl uppercase">
             Nessun giocatore registrato per questa società. Aggiungili dal form in alto.
           </div>
         ) : (
           <div className="divide-y divide-slate-700 max-h-[480px] overflow-y-auto">
-            {giocatori.map((g) => {
+            {giocatoriOrdinati.map((g) => {
               const inModifica = editingId === g.id;
 
               return (
@@ -587,7 +602,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                   ) : (
                     <>
                       <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400">
+                        <span className="w-8 h-8 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400 font-mono">
                           {g.numero}
                         </span>
                         <span className="font-semibold text-white text-sm uppercase">{g.nome}</span>
