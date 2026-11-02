@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Plus, Clock, ArrowRight, FastForward, Gauge, AlertOctagon, Volume2 } from 'lucide-react';
+import { Play, Pause, Plus, Clock, ArrowRight, FastForward, Gauge } from 'lucide-react';
 
-// Generatore Audio Web Audio API del Fischio Arbitro Realistico (Nessun file esterno necessario)
+// Generatore Audio Web Audio API del Fischio Arbitro
 function riproduciFischioArbitro(tipo = 'fine_gara') {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -9,7 +9,6 @@ function riproduciFischioArbitro(tipo = 'fine_gara') {
     const ctx = new AudioContext();
 
     const emettiSingoloFischio = (startTime, duration, isLong = false) => {
-      // Oscillatore per la frequenza portante del fischietto (circa 2800Hz / 3200Hz tipica Fox 40)
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();
       const gainNode = ctx.createGain();
@@ -20,7 +19,6 @@ function riproduciFischioArbitro(tipo = 'fine_gara') {
       osc1.frequency.setValueAtTime(2850, startTime);
       osc2.frequency.setValueAtTime(3120, startTime);
 
-      // Modulazione vibrato interna del fischietto (la classica pallina che vibra a 28Hz)
       const lfo = ctx.createOscillator();
       const lfoGain = ctx.createGain();
       lfo.frequency.setValueAtTime(32, startTime);
@@ -28,7 +26,6 @@ function riproduciFischioArbitro(tipo = 'fine_gara') {
       lfo.connect(osc1.frequency);
       lfo.connect(osc2.frequency);
 
-      // Inviluppo Volume
       gainNode.gain.setValueAtTime(0, startTime);
       gainNode.gain.linearRampToValueAtTime(0.35, startTime + 0.03);
       gainNode.gain.setValueAtTime(0.35, startTime + duration - 0.04);
@@ -50,17 +47,15 @@ function riproduciFischioArbitro(tipo = 'fine_gara') {
     const now = ctx.currentTime + 0.05;
 
     if (tipo === 'primo_tempo') {
-      // Duplice fischio fine 1° Tempo: breve, lungo
       emettiSingoloFischio(now, 0.22);
       emettiSingoloFischio(now + 0.32, 0.65, true);
     } else {
-      // Triplice fischio fine gara: breve, breve, lunghissimo
       emettiSingoloFischio(now, 0.20);
       emettiSingoloFischio(now + 0.28, 0.20);
       emettiSingoloFischio(now + 0.56, 0.85, true);
     }
   } catch (err) {
-    console.warn("Impossibile riprodurre l'audio del fischietto:", err);
+    console.warn("Audio fischietto non disponibile:", err);
   }
 }
 
@@ -75,12 +70,12 @@ export default function Cronometro({
   onFinePartita,
   recupero,
   setRecupero,
-  onTick
+  onTick,
+  onTriggerScadenzaTempo // Notifica App.jsx per aprire il modale persistente
 }) {
-  const [moltiplicatore, setMoltiplicatore] = useState(1); // 1x | 2x | 5x | 10x
-  const [mostraModaleBlocco, setMostraModaleBlocco] = useState(false);
+  const [moltiplicatore, setMoltiplicatore] = useState(1);
 
-  const SECONDI_45_MIN = 45 * 60; // 2700 sec
+  const SECONDI_45_MIN = 45 * 60;
   const LIMITE_MASSIMO_CON_RECUPERO = SECONDI_45_MIN + (recupero * 60);
 
   const secondiTrascorsi = Math.max(0, secondi);
@@ -91,7 +86,7 @@ export default function Cronometro({
   const minutoTotalePartita = offsetMinutiPartita + minutiTempo;
 
   const tempoScaduto = secondiTrascorsi >= LIMITE_MASSIMO_CON_RECUPERO;
-  const fischioGiaSuonato = useRef(false);
+  const fischioGiaEseguito = useRef(false);
 
   const onTickRef = useRef(onTick);
   useEffect(() => {
@@ -103,11 +98,15 @@ export default function Cronometro({
     onPausaRef.current = onPausa;
   }, [onPausa]);
 
-  // Reset del trigger sonoro se si resetta il tempo o si aggiunge recupero
+  const onTriggerScadenzaRef = useRef(onTriggerScadenzaTempo);
+  useEffect(() => {
+    onTriggerScadenzaRef.current = onTriggerScadenzaTempo;
+  }, [onTriggerScadenzaTempo]);
+
+  // Se viene aggiunto recupero, riarma il fischio
   useEffect(() => {
     if (!tempoScaduto) {
-      fischioGiaSuonato.current = false;
-      setMostraModaleBlocco(false);
+      fischioGiaEseguito.current = false;
     }
   }, [tempoScaduto, recupero]);
 
@@ -131,11 +130,10 @@ export default function Cronometro({
           if (prox >= LIMITE_MASSIMO_CON_RECUPERO) {
             if (onPausaRef.current) onPausaRef.current();
 
-            // SCATTA IL FISCHIO DELL'ARBITRO E IL BLOCCO MODALE
-            if (!fischioGiaSuonato.current) {
-              fischioGiaSuonato.current = true;
+            if (!fischioGiaEseguito.current) {
+              fischioGiaEseguito.current = true;
               riproduciFischioArbitro(tempo === 1 ? 'primo_tempo' : 'fine_gara');
-              setMostraModaleBlocco(true);
+              if (onTriggerScadenzaRef.current) onTriggerScadenzaRef.current(tempo);
             }
           }
 
@@ -157,10 +155,10 @@ export default function Cronometro({
 
       if (nuovo >= LIMITE_MASSIMO_CON_RECUPERO) {
         if (onPausaRef.current) onPausaRef.current();
-        if (!fischioGiaSuonato.current) {
-          fischioGiaSuonato.current = true;
+        if (!fischioGiaEseguito.current) {
+          fischioGiaEseguito.current = true;
           riproduciFischioArbitro(tempo === 1 ? 'primo_tempo' : 'fine_gara');
-          setMostraModaleBlocco(true);
+          if (onTriggerScadenzaRef.current) onTriggerScadenzaRef.current(tempo);
         }
       }
 
@@ -169,18 +167,11 @@ export default function Cronometro({
   };
 
   const cambiaFase = () => {
-    setMostraModaleBlocco(false);
     if (tempo === 1) {
       if (onFinePrimoTempo) onFinePrimoTempo();
     } else if (tempo === 2) {
       if (onFinePartita) onFinePartita();
     }
-  };
-
-  const sbloccaConAltroRecupero = () => {
-    setRecupero((prev) => prev + 1);
-    setMostraModaleBlocco(false);
-    fischioGiaSuonato.current = false;
   };
 
   return (
@@ -299,7 +290,7 @@ export default function Cronometro({
         </button>
       </div>
 
-      {/* Pulsante Termina Gara / Passa al 2° Tempo */}
+      {/* Pulsante Termina Gara / Passa a 2° Tempo */}
       <div className="pt-1">
         <button
           type="button"
@@ -314,62 +305,6 @@ export default function Cronometro({
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
-
-      {/* ============================================================ */}
-      {/* BLOCCO MODALE FORZATO A TUTTO SCHERMO A TEMPO CONCLUSO        */}
-      {/* ============================================================ */}
-      {mostraModaleBlocco && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-200">
-          <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-rose-950">
-            {/* Icona Allerta Pulsante con Suono */}
-            <div className="w-20 h-20 mx-auto rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center text-rose-400 animate-pulse">
-              <AlertOctagon className="w-10 h-10" />
-            </div>
-
-            <div className="space-y-2">
-              <span className="text-xs font-bold font-mono text-rose-400 bg-rose-950/60 border border-rose-500/40 px-3 py-1 rounded-full uppercase inline-flex items-center gap-1.5">
-                <Volume2 className="w-3.5 h-3.5" /> 
-                {tempo === 1 ? 'Duplice Fischio' : 'Triplice Fischio Finale'}
-              </span>
-
-              <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-                {tempo === 1 ? 'Fine 1° Tempo!' : 'Partita Terminata!'}
-              </h2>
-
-              <p className="text-xs text-slate-300 leading-relaxed uppercase font-medium">
-                {tempo === 1 ? (
-                  <>Il tempo regolamentare della prima frazione è scaduto. Passa al 2° tempo per azzerare il cronometro a 00:00 o aggiungi eventuale recupero.</>
-                ) : (
-                  <>
-                    Il tempo regolamentare è concluso. Per salvare e validare ufficialmente il match devi accedere al <strong className="text-white">Referto Finale</strong>, altrimenti la sessione live non verrà archiviata!
-                  </>
-                )}
-              </p>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              {/* Tasto Primario Obbligatorio */}
-              <button
-                type="button"
-                onClick={cambiaFase}
-                className="w-full py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-rose-950 transition active:scale-95"
-              >
-                {tempo === 1 ? 'Azzera e Passa al 2° Tempo' : 'Procedi al Referto Ufficiale (Obbligatorio)'}
-                <ArrowRight className="w-5 h-5" />
-              </button>
-
-              {/* Tasto Secondario per aggiungere recupero extra non inserito */}
-              <button
-                type="button"
-                onClick={sbloccaConAltroRecupero}
-                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-xs uppercase transition"
-              >
-                + Aggiungi 1 Minuto di Recupero Extra
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
