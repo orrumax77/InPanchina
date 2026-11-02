@@ -15,7 +15,7 @@ import {
   aggiornaGiocatoriCloud 
 } from './services/db';
 import { supabase } from './supabaseClient';
-import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2 } from 'lucide-react';
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto'
@@ -52,7 +52,7 @@ export default function App() {
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
   const isSyncingFromRemote = useRef(false);
 
-  // Pulisce vecchi residui di localStorage creati in precedenza
+  // Pulisce vecchi residui di localStorage
   useEffect(() => {
     Object.keys(localStorage).forEach(key => {
       if (key !== 'inpanchina_username') {
@@ -119,7 +119,6 @@ export default function App() {
         setFaseApp('distinta');
       }
     } else {
-      // Squadra appena creata o senza partite
       setPartitaInfo({
         squadraCasa: soc.nome || '',
         squadraOspite: '',
@@ -138,7 +137,6 @@ export default function App() {
     setLoginError('');
     setSalvataggioInCorso(true);
 
-    // Memorizza esclusivamente l'username per il prossimo accesso
     localStorage.setItem('inpanchina_username', loginUser.trim());
 
     const res = await loginSistema(loginUser, loginPassword);
@@ -369,13 +367,13 @@ export default function App() {
         />
       )}
 
-      {/* 3. DISTINTA (caricata direttamente dal Cloud) */}
+      {/* 3. DISTINTA */}
       {faseApp === 'distinta' && (
         <div className="space-y-4">
-          <div className="max-w-4xl mx-auto flex justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl">
+          <div className="max-w-4xl mx-auto flex flex-wrap justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl gap-3">
             <div className="flex items-center gap-3">
               {societaAttiva?.logo_url && (
-                <img src={societaAttiva.logo_url} alt="Logo" className="w-8 h-8 rounded-full object-cover" />
+                <img src={societaAttiva.logo_url} alt="Logo" className="w-9 h-9 rounded-full object-cover border border-slate-700" />
               )}
               <div>
                 <span className="text-sm font-bold text-white block">{societaAttiva?.nome}</span>
@@ -384,13 +382,27 @@ export default function App() {
                 </span>
               </div>
             </div>
+
             <div className="flex items-center gap-3">
+              {/* BADGE UTENTE CONNESSO IN EVIDENZA */}
+              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
+                <UserCircle2 className="w-4 h-4 text-emerald-400" />
+                <div className="text-left">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block leading-none">
+                    {isSuperAdmin ? 'SuperAdmin' : 'Utente Connesso'}
+                  </span>
+                  <span className="text-xs font-bold text-white font-mono leading-tight">
+                    {utenteConnesso?.username || loginUser}
+                  </span>
+                </div>
+              </div>
+
               {isSuperAdmin && (
                 <button
                   onClick={() => setFaseApp('admin')}
                   className="text-xs text-blue-400 hover:underline"
                 >
-                  Torna ad Admin
+                  Pannello Admin
                 </button>
               )}
               <button
@@ -401,6 +413,7 @@ export default function App() {
               </button>
             </div>
           </div>
+
           <Distinta
             onConfermaDistinta={handleConfermaDistinta}
             societa={societaAttiva}
@@ -420,10 +433,20 @@ export default function App() {
             >
               <ArrowLeft className="w-4 h-4" /> Distinta
             </button>
+            
             <div className="flex items-center gap-2">
+              {/* BADGE UTENTE LIVE */}
+              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-xs">
+                <UserCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-slate-300 font-semibold font-mono">
+                  {utenteConnesso?.username || loginUser}
+                </span>
+              </div>
+
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
                 <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live {stagioneSelezionata}
               </span>
+
               <button
                 onClick={() => setFaseApp('referto')}
                 className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
