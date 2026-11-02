@@ -12,10 +12,11 @@ import {
   syncStatoPartitaSuDb, 
   registraEventoCloud, 
   eliminaEventoCloud, 
-  aggiornaGiocatoriCloud 
+  aggiornaGiocatoriCloud,
+  salvaRosaBaseSocieta 
 } from './services/db';
 import { supabase } from './supabaseClient';
-import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2 } from 'lucide-react';
+import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight } from 'lucide-react';
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto'
@@ -31,7 +32,7 @@ export default function App() {
   const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
   const [loginError, setLoginError] = useState('');
 
-  // Partita e Dati Live provenienti esclusivamente da Supabase
+  // Partita e Dati Live provenienti da Supabase
   const [partitaInfo, setPartitaInfo] = useState(null);
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
@@ -52,7 +53,7 @@ export default function App() {
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
   const isSyncingFromRemote = useRef(false);
 
-  // Pulisce qualsiasi residuo da localStorage all'avvio eccetto il nome utente
+  // Pulisce qualsiasi residuo da localStorage all'avvio eccetto l'username
   useEffect(() => {
     Object.keys(localStorage).forEach(key => {
       if (key !== 'inpanchina_username') {
@@ -61,18 +62,23 @@ export default function App() {
     });
   }, []);
 
-  // Caricamento partita direttamente dal Database Cloud
+  // Caricamento partita direttamente dal Cloud
   const avviaSessioneSocieta = async (soc) => {
     setSocietaAttiva(soc);
     const idPartita = `${soc.id}_PARTITA_LIVE`;
     const stato = await caricaStatoPartita(idPartita);
 
-    if (stato && stato.partita) {
+    // Se esiste già una rosa permanente memorizzata per la società, la usiamo come base
+    const rosaBaseSocieta = (soc.rosa_base && soc.rosa_base.length > 0)
+      ? soc.rosa_base.map(g => ({ ...g, nome: (g.nome || '').toUpperCase() }))
+      : [];
+
+    if (stato && stato.partita && stato.partita.stato === 'in-corso') {
       const pInfo = {
         squadraCasa: (stato.partita.squadra_casa || soc.nome || '').toUpperCase(),
         squadraOspite: (stato.partita.squadra_ospite || '').toUpperCase(),
-        allenatore: (stato.partita.allenatore || '').toUpperCase(),
-        dirigente: (stato.partita.dirigente || '').toUpperCase()
+        allenatore: (stato.partita.allenatore || soc.staff_base?.allenatore || '').toUpperCase(),
+        dirigente: (stato.partita.dirigente || soc.staff_base?.dirigente || '').toUpperCase()
       };
       setPartitaInfo(pInfo);
       setGolCasa(stato.partita.gol_casa || 0);
@@ -104,34 +110,26 @@ export default function App() {
           espulso: g.espulso
         })));
       } else {
-        setRosa([]);
+        setRosa(rosaBaseSocieta);
       }
 
-      if (stato.eventi && stato.eventi.length > 0) {
-        setEventi(stato.eventi);
-      } else {
-        setEventi([]);
-      }
-
-      if (stato.partita.stato === 'in-corso') {
-        setFaseApp('partita');
-      } else {
-        setFaseApp('distinta');
-      }
+      setEventi(stato.eventi || []);
+      setFaseApp('partita');
     } else {
+      // Nuova gara: la rosa base e lo staff rimangono, l'avversario è vuoto
       setPartitaInfo({
         squadraCasa: (soc.nome || '').toUpperCase(),
         squadraOspite: '',
-        allenatore: '',
-        dirigente: ''
+        allenatore: (soc.staff_base?.allenatore || '').toUpperCase(),
+        dirigente: (soc.staff_base?.dirigente || '').toUpperCase()
       });
-      setRosa([]);
+      setRosa(rosaBaseSocieta);
       setEventi([]);
       setFaseApp('distinta');
     }
   };
 
-  // Login: supporta il password manager nativo del browser
+  // Login
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -238,12 +236,21 @@ export default function App() {
     }
   };
 
-  const handleConfermaDistinta = async ({ partitaInfo, giocatori }) => {
+  // Conferma Distinta: salva la partita live E memorizza la rosa e lo staff in modo permanente
+  const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
-    setPartitaInfo(partitaInfo);
+    setPartitaInfo(pInfo);
     setRosa(giocatori);
 
-    await salvaDistintaSuDb(societaAttiva.id, partitaId, partitaInfo, giocatori);
+    // 1. Salva la distinta per il live match
+    await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatori);
+
+    // 2. Salva la rosa e lo staff come predefiniti per tutte le partite future
+    await salvaRosaBaseSocieta(societaAttiva.id, giocatori, {
+      allenatore: pInfo.allenatore,
+      dirigente: pInfo.dirigente
+    });
+
     setSalvataggioInCorso(false);
     setFaseApp('partita');
   };
@@ -275,7 +282,35 @@ export default function App() {
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
   };
 
-  // Disconnessione: resetta lo stato React (il browser gestirà le credenziali salvate)
+  // Inversione squadre rapida anche durante il Live Match
+  const invertiSquadreLive = () => {
+    if (!partitaInfo) return;
+    const nuovoPInfo = {
+      ...partitaInfo,
+      squadraCasa: partitaInfo.squadraOspite,
+      squadraOspite: partitaInfo.squadraCasa
+    };
+    const nuovoCasa = golOspiti;
+    const nuovoOspiti = golCasa;
+
+    setPartitaInfo(nuovoPInfo);
+    setGolCasa(nuovoCasa);
+    setGolOspiti(nuovoOspiti);
+
+    syncStatoPartitaSuDb(partitaId, {
+      golCasa: nuovoCasa,
+      golOspiti: nuovoOspiti,
+      tempoGara,
+      secondiGara,
+      inEsecuzione,
+      timerAvviatoIl,
+      recupero,
+      minutoCorrente,
+      slotUsati,
+      cambiEffettuati
+    });
+  };
+
   const disconnetti = () => {
     setUtenteConnesso(null);
     setSocietaAttiva(null);
@@ -327,7 +362,6 @@ export default function App() {
               </select>
             </div>
 
-            {/* Input con attributi standard per password manager */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Username</label>
               <input
@@ -343,7 +377,6 @@ export default function App() {
               />
             </div>
 
-            {/* Input password con current-password per permettere il recupero automatico */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Password</label>
               <input
@@ -464,12 +497,24 @@ export default function App() {
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center">
+          {/* Tabellone Segnapunti con Pulsante Inversione Rapida */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center relative">
             <div className="flex-1">
               <h3 className="font-bold text-sm md:text-base text-slate-200 truncate uppercase">{partitaInfo?.squadraCasa || 'CASA'}</h3>
               <div className="text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
             </div>
-            <div className="px-4 text-slate-600 font-bold text-xl">VS</div>
+
+            <div className="px-3 flex flex-col items-center">
+              <button
+                onClick={invertiSquadreLive}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition text-xs mb-1"
+                title="Inverti Squadra Casa / Ospiti"
+              >
+                <ArrowLeftRight className="w-4 h-4" />
+              </button>
+              <span className="text-slate-600 font-bold text-sm">VS</span>
+            </div>
+
             <div className="flex-1">
               <h3 className="font-bold text-sm md:text-base text-slate-200 truncate uppercase">{partitaInfo?.squadraOspite || 'OSPITE'}</h3>
               <div className="text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
