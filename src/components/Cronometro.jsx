@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Plus, Clock, ArrowRight, FastForward, Gauge } from 'lucide-react';
+import { Play, Pause, Plus, Clock, ArrowRight, FastForward, Gauge, AlertOctagon } from 'lucide-react';
 
 export default function Cronometro({
   tempo,
@@ -16,23 +16,19 @@ export default function Cronometro({
 }) {
   const [moltiplicatore, setMoltiplicatore] = useState(1); // 1x | 2x | 5x | 10x
 
-  // Ogni tempo regolamentare dura 45 minuti (2700 secondi)
   const SECONDI_45_MIN = 45 * 60; // 2700 sec
   const LIMITE_MASSIMO_CON_RECUPERO = SECONDI_45_MIN + (recupero * 60);
 
-  // Calcolo tempo della frazione corrente (00:00 -> 45:00)
   const secondiTrascorsi = Math.max(0, secondi);
   const minutiTempo = Math.floor(secondiTrascorsi / 60);
   const secondiTempo = secondiTrascorsi % 60;
 
-  // Minuto assoluto di partita (1° tempo: 1-45, 2° tempo: 46-90)
   const offsetMinutiPartita = tempo === 2 ? 45 : 0;
   const minutoTotalePartita = offsetMinutiPartita + minutiTempo;
 
-  const isInRecupero = secondiTrascorsi >= SECONDI_45_MIN;
-  const secondiExtra = isInRecupero ? secondiTrascorsi - SECONDI_45_MIN : 0;
-  const minutiExtra = Math.floor(secondiExtra / 60);
-  const secondiExtraRimanenti = secondiExtra % 60;
+  // Rilevazione tempo scaduto: raggiunto il 45° o esaurito il recupero
+  const tempoScaduto = secondiTrascorsi >= LIMITE_MASSIMO_CON_RECUPERO;
+  const nessunRecuperoAggiunto = recupero === 0;
 
   const onTickRef = useRef(onTick);
   useEffect(() => {
@@ -44,7 +40,6 @@ export default function Cronometro({
     onPausaRef.current = onPausa;
   }, [onPausa]);
 
-  // Timer continuo con blocco automatico al raggiungimento dei 45' (o dei 45' + recupero)
   useEffect(() => {
     let timer = null;
 
@@ -53,7 +48,6 @@ export default function Cronometro({
 
       timer = setInterval(() => {
         setSecondi((prev) => {
-          // Se stiamo raggiungendo il limite dei 45' (o 45' + recupero), ci fermiamo
           if (prev >= LIMITE_MASSIMO_CON_RECUPERO) {
             if (onPausaRef.current) onPausaRef.current();
             return LIMITE_MASSIMO_CON_RECUPERO;
@@ -63,7 +57,6 @@ export default function Cronometro({
           const minAttuale = offsetMinutiPartita + Math.floor(prox / 60);
           if (onTickRef.current) onTickRef.current(minAttuale);
 
-          // Raggiunto il traguardo esattamente ora: stoppa il cronometro
           if (prox >= LIMITE_MASSIMO_CON_RECUPERO) {
             if (onPausaRef.current) onPausaRef.current();
           }
@@ -78,7 +71,6 @@ export default function Cronometro({
 
   const formatNumero = (num) => String(num).padStart(2, '0');
 
-  // Avanzamento rapido che non supera il limite prefissato dei 45' (+ eventuale recupero)
   const avanzaSecondi = (secAggiuntivi) => {
     setSecondi((prev) => {
       const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, prev + secAggiuntivi);
@@ -125,29 +117,41 @@ export default function Cronometro({
         </div>
       </div>
 
-      {/* Cifre del Timer: azzerato a 00:00 per ciascun tempo */}
+      {/* Cifre del Timer */}
       <div className="py-1 select-none">
         <div className={`font-mono text-6xl md:text-7xl font-black tracking-tight ${
-          isInRecupero ? 'text-amber-400' : 'text-white'
+          tempoScaduto ? 'text-rose-400' : 'text-white'
         }`}>
           {formatNumero(minutiTempo)}:{formatNumero(secondiTempo)}
         </div>
 
-        {/* Indicazione di contesto gara assoluto */}
         <p className="text-xs text-slate-500 font-mono mt-1 uppercase font-semibold">
-          Minuto di Gara Totale: <strong className="text-emerald-400">{minutoTotalePartita}'</strong>
+          Minuto Totale Gara: <strong className="text-emerald-400">{minutoTotalePartita}'</strong>
         </p>
-
-        {/* Notifica di Recupero se oltre i 45 minuti della frazione */}
-        {isInRecupero && (
-          <div className="mt-2 text-xs font-mono font-bold text-amber-400 bg-amber-950/40 border border-amber-500/30 inline-block px-3 py-1 rounded-full uppercase">
-            Recupero Giocato: +{formatNumero(minutiExtra)}:{formatNumero(secondiExtraRimanenti)}
-            {recupero > 0 && ` / ${recupero}'`}
-          </div>
-        )}
       </div>
 
-      {/* Selettore Velocità (1x, 2x, 5x, 10x) */}
+      {/* BANNER PROMEMORIA SCADENZA: NESSUN RECUPERO / TEMPO CONCLUSO */}
+      {tempoScaduto && (
+        <div className="bg-rose-950/80 border-2 border-rose-500 p-3 rounded-xl flex items-center gap-3 text-left animate-pulse">
+          <AlertOctagon className="w-6 h-6 text-rose-400 flex-shrink-0" />
+          <div className="text-xs text-rose-200">
+            <p className="font-bold uppercase tracking-wide">
+              {tempo === 2 
+                ? 'Tempo regolamentare scaduto! Termina la sessione live' 
+                : '1° Tempo concluso!'}
+            </p>
+            <p className="text-[11px] text-rose-300/90 mt-0.5">
+              {tempo === 2 
+                ? (nessunRecuperoAggiunto 
+                    ? 'Nessun recupero inserito. Clicca su "Termina Partita" per salvare e generare il referto, altrimenti i dati non verranno archiviati.' 
+                    : 'Recupero esaurito. Clicca su "Termina Partita" per completare il referto.')
+                : 'Clicca su "Passa al 2° Tempo" per resettare il cronometro e proseguire.'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Selettore Velocità */}
       <div className="flex items-center justify-between bg-slate-950 p-2 rounded-xl border border-slate-800 text-xs">
         <span className="text-slate-400 font-bold flex items-center gap-1.5 pl-1 uppercase text-[11px]">
           <Gauge className="w-4 h-4 text-emerald-400" /> Velocità:
@@ -170,7 +174,7 @@ export default function Cronometro({
         </div>
       </div>
 
-      {/* Controlli Principali: Avvia / Stoppa + Aggiunta Recupero */}
+      {/* Controlli Principali */}
       <div className="grid grid-cols-3 gap-2">
         {inEsecuzione ? (
           <button
@@ -184,7 +188,12 @@ export default function Cronometro({
           <button
             type="button"
             onClick={onAvvia}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-base col-span-2 shadow-lg shadow-emerald-950 uppercase"
+            disabled={tempoScaduto}
+            className={`py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-base col-span-2 uppercase shadow-lg ${
+              tempoScaduto
+                ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950 cursor-pointer'
+            }`}
           >
             <Play className="w-5 h-5 fill-current" /> Avvia
           </button>
@@ -200,12 +209,13 @@ export default function Cronometro({
         </button>
       </div>
 
-      {/* Avanzamento Rapido Manuale (+1 Minuto e +5 Minuti) */}
+      {/* Avanzamento Rapido Manuale */}
       <div className="grid grid-cols-2 gap-2 pt-1">
         <button
           type="button"
           onClick={() => avanzaSecondi(60)}
-          className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase"
+          disabled={tempoScaduto}
+          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase"
         >
           <FastForward className="w-3.5 h-3.5 text-blue-400" /> +1 Minuto
         </button>
@@ -213,20 +223,25 @@ export default function Cronometro({
         <button
           type="button"
           onClick={() => avanzaSecondi(300)}
-          className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase"
+          disabled={tempoScaduto}
+          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase"
         >
           <FastForward className="w-3.5 h-3.5 text-blue-400" /> +5 Minuti
         </button>
       </div>
 
-      {/* Passaggio al 2° Tempo (con azzeramento) o Termina Gara */}
+      {/* Pulsante Termina Gara / Passa a 2° Tempo */}
       <div className="pt-1">
         <button
           type="button"
           onClick={cambiaFase}
-          className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 py-2.5 rounded-xl font-medium text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition"
+          className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg ${
+            tempo === 2 && tempoScaduto
+              ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950 animate-bounce'
+              : 'bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200'
+          }`}
         >
-          {tempo === 1 ? 'Azzera e Passa al 2° Tempo (da 00:00)' : 'Termina Partita (Referto)'}
+          {tempo === 1 ? 'Azzera e Passa al 2° Tempo (da 00:00)' : 'Termina Partita e Vai al Referto'}
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
