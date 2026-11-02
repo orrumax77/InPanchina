@@ -3,56 +3,41 @@ import { Play, Pause, Plus, Clock, ArrowRight } from 'lucide-react';
 
 export default function Cronometro({
   tempo,
-  setTempo,
   secondi,
   setSecondi,
   inEsecuzione,
-  setInEsecuzione,
+  timerAvviatoIl,
+  onAvvia,
+  onPausa,
+  onCambiaTempo,
   recupero,
   setRecupero,
-  onTick,
-  onFinePrimoTempo,
-  onFinePartita
+  onTick
 }) {
   const baseMinuti = tempo === 2 ? 45 : 0;
   const minutiTotali = baseMinuti + Math.floor(secondi / 60);
   const secondiRimanenti = secondi % 60;
 
+  // Calcolo del tempo reale
   useEffect(() => {
     let interval = null;
-    if (inEsecuzione) {
+    if (inEsecuzione && timerAvviatoIl) {
       interval = setInterval(() => {
-        setSecondi((prev) => {
-          const prox = prev + 1;
-          const minAttuale = baseMinuti + Math.floor(prox / 60);
-          if (onTick) onTick(minAttuale);
-          return prox;
-        });
-      }, 1000);
+        // Calcola la differenza in secondi tra ORA e il timestamp di avvio
+        const adesso = Date.now();
+        const diffSecondi = Math.floor((adesso - timerAvviatoIl) / 1000);
+        setSecondi(diffSecondi);
+        
+        const minAttuale = baseMinuti + Math.floor(diffSecondi / 60);
+        if (onTick) onTick(minAttuale);
+      }, 500);
     } else {
       clearInterval(interval);
     }
     return () => clearInterval(interval);
-  }, [inEsecuzione, baseMinuti, onTick, setSecondi]);
+  }, [inEsecuzione, timerAvviatoIl, baseMinuti, onTick, setSecondi]);
 
   const formatNumero = (num) => String(num).padStart(2, '0');
-
-  const toggleTimer = () => {
-    setInEsecuzione(!inEsecuzione);
-  };
-
-  const cambiaFase = () => {
-    if (tempo === 1) {
-      setInEsecuzione(false);
-      setTempo(2);
-      setSecondi(0);
-      setRecupero(0);
-      if (onFinePrimoTempo) onFinePrimoTempo();
-    } else if (tempo === 2) {
-      setInEsecuzione(false);
-      if (onFinePartita) onFinePartita();
-    }
-  };
 
   const aggiungiRecupero = (min) => {
     setRecupero((prev) => prev + min);
@@ -77,24 +62,21 @@ export default function Cronometro({
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <button
-          onClick={toggleTimer}
-          className={`py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-base col-span-2 ${
-            inEsecuzione
-              ? 'bg-amber-600 hover:bg-amber-500 text-white'
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950'
-          }`}
-        >
-          {inEsecuzione ? (
-            <>
-              <Pause className="w-5 h-5 fill-current" /> Pausa
-            </>
-          ) : (
-            <>
-              <Play className="w-5 h-5 fill-current" /> Avvia
-            </>
-          )}
-        </button>
+        {inEsecuzione ? (
+          <button
+            onClick={onPausa}
+            className="bg-amber-600 hover:bg-amber-500 text-white py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-base col-span-2"
+          >
+            <Pause className="w-5 h-5 fill-current" /> Pausa
+          </button>
+        ) : (
+          <button
+            onClick={onAvvia}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-base col-span-2 shadow-lg shadow-emerald-950"
+          >
+            <Play className="w-5 h-5 fill-current" /> Avvia
+          </button>
+        )}
 
         <button
           onClick={() => aggiungiRecupero(1)}
@@ -106,7 +88,7 @@ export default function Cronometro({
 
       <div className="pt-1">
         <button
-          onClick={cambiaFase}
+          onClick={onCambiaTempo}
           className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 py-2.5 rounded-xl font-medium text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition"
         >
           {tempo === 1 ? 'Passa al 2° Tempo' : 'Termina Partita'}
