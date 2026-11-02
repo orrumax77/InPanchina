@@ -6,7 +6,7 @@ import FeedEventi from './components/FeedEventi';
 import RefertoGara from './components/RefertoGara';
 import AdminPanel from './components/AdminPanel';
 import { 
-  loginDirigente, 
+  loginSistema, 
   salvaDistintaSuDb, 
   caricaStatoPartita, 
   syncStatoPartitaSuDb, 
@@ -15,24 +15,21 @@ import {
   aggiornaGiocatoriCloud 
 } from './services/db';
 import { supabase } from './supabaseClient';
-import { ArrowLeft, Shield, LogIn, Lock, FileText, Radio, MapPin, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto'
   
-  // Dati Autenticazione Dirigente
+  // Dati Autenticazione
   const [utenteConnesso, setUtenteConnesso] = useState(null);
   const [societaAttiva, setSocietaAttiva] = useState(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
-  // Campi Form Login
+  // Form Login Unificato
   const [loginUser, setLoginUser] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
   const [loginError, setLoginError] = useState('');
-
-  // Accesso Admin Protetto
-  const [mostraModalAdmin, setMostraModalAdmin] = useState(false);
-  const [pinAdmin, setPinAdmin] = useState('');
 
   // Partita e Dati Live
   const [partitaInfo, setPartitaInfo] = useState(null);
@@ -55,83 +52,89 @@ export default function App() {
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
   const isSyncingFromRemote = useRef(false);
 
-  // 1. LOGIN DIRIGENTE
+  // Carica i dati della partita per una specifica società
+  const avviaSessioneSocieta = async (soc) => {
+    setSocietaAttiva(soc);
+    const idPartita = `${soc.id}_PARTITA_LIVE`;
+    const stato = await caricaStatoPartita(idPartita);
+
+    if (stato && stato.partita && stato.partita.stato === 'in-corso') {
+      setPartitaInfo({
+        squadraCasa: stato.partita.squadra_casa,
+        squadraOspite: stato.partita.squadra_ospite,
+        allenatore: stato.partita.allenatore,
+        dirigente: stato.partita.dirigente
+      });
+      setGolCasa(stato.partita.gol_casa || 0);
+      setGolOspiti(stato.partita.gol_ospite || 0);
+      setTempoGara(stato.partita.tempo || 1);
+      setInEsecuzione(stato.partita.in_esecuzione || false);
+      setTimerAvviatoIl(stato.partita.timer_avviato_il || null);
+      setRecupero(stato.partita.recupero || 0);
+      setMinutoCorrente(stato.partita.minuto_corrente || 1);
+      setSlotUsati(stato.partita.slot_usati || 0);
+      setCambiEffettuati(stato.partita.cambi_effettuati || 0);
+
+      if (stato.partita.in_esecuzione && stato.partita.timer_avviato_il) {
+        setSecondiGara(Math.floor((Date.now() - stato.partita.timer_avviato_il) / 1000));
+      } else {
+        setSecondiGara(stato.partita.secondi_gara || 0);
+      }
+
+      if (stato.giocatori.length > 0) {
+        setRosa(stato.giocatori.map(g => ({
+          id: g.id.replace(`${idPartita}_`, ''),
+          numero: g.numero,
+          nome: g.nome,
+          ruolo: g.ruolo,
+          isTitolare: g.is_titolare,
+          isCapitano: g.is_capitano,
+          isVice: g.is_vice,
+          ammonizioni: g.ammonizioni,
+          espulso: g.espulso
+        })));
+      }
+
+      if (stato.eventi.length > 0) {
+        setEventi(stato.eventi);
+      }
+
+      setFaseApp('partita');
+    } else {
+      setFaseApp('distinta');
+    }
+  };
+
+  // 1. UNICO FORM LOGIN (riconosce Dirigente o Admin automaticamente)
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
     setSalvataggioInCorso(true);
-    const res = await loginDirigente(loginUser, loginPassword);
+    const res = await loginSistema(loginUser, loginPassword);
     setSalvataggioInCorso(false);
 
     if (res.success) {
-      setUtenteConnesso(res.utente);
-      setSocietaAttiva(res.societa);
-      
-      const idPartita = `${res.societa.id}_PARTITA_LIVE`;
-      const stato = await caricaStatoPartita(idPartita);
-      if (stato && stato.partita && stato.partita.stato === 'in-corso') {
-        setPartitaInfo({
-          squadraCasa: stato.partita.squadra_casa,
-          squadraOspite: stato.partita.squadra_ospite,
-          allenatore: stato.partita.allenatore,
-          dirigente: stato.partita.dirigente
-        });
-        setGolCasa(stato.partita.gol_casa || 0);
-        setGolOspiti(stato.partita.gol_ospite || 0);
-        setTempoGara(stato.partita.tempo || 1);
-        setInEsecuzione(stato.partita.in_esecuzione || false);
-        setTimerAvviatoIl(stato.partita.timer_avviato_il || null);
-        setRecupero(stato.partita.recupero || 0);
-        setMinutoCorrente(stato.partita.minuto_corrente || 1);
-        setSlotUsati(stato.partita.slot_usati || 0);
-        setCambiEffettuati(stato.partita.cambi_effettuati || 0);
-
-        if (stato.partita.in_esecuzione && stato.partita.timer_avviato_il) {
-          setSecondiGara(Math.floor((Date.now() - stato.partita.timer_avviato_il) / 1000));
-        } else {
-          setSecondiGara(stato.partita.secondi_gara || 0);
-        }
-
-        if (stato.giocatori.length > 0) {
-          setRosa(stato.giocatori.map(g => ({
-            id: g.id.replace(`${idPartita}_`, ''),
-            numero: g.numero,
-            nome: g.nome,
-            ruolo: g.ruolo,
-            isTitolare: g.is_titolare,
-            isCapitano: g.is_capitano,
-            isVice: g.is_vice,
-            ammonizioni: g.ammonizioni,
-            espulso: g.espulso
-          })));
-        }
-
-        if (stato.eventi.length > 0) {
-          setEventi(stato.eventi);
-        }
-
-        setFaseApp('partita');
+      if (res.isAdmin) {
+        setIsSuperAdmin(true);
+        setUtenteConnesso(res.utente);
+        setFaseApp('admin');
       } else {
-        setFaseApp('distinta');
+        setIsSuperAdmin(false);
+        setUtenteConnesso(res.utente);
+        // Squadra selezionata automaticamente dal profilo utente
+        await avviaSessioneSocieta(res.societa);
       }
     } else {
       setLoginError(res.messaggio);
     }
   };
 
-  // 2. ACCESSO ADMIN MASTER
-  const verificaPinAdmin = (e) => {
-    e.preventDefault();
-    if (pinAdmin === 'admin2026') {
-      setMostraModalAdmin(false);
-      setPinAdmin('');
-      setFaseApp('admin');
-    } else {
-      alert('PIN Amministratore non corretto!');
-    }
+  // Admin sceglie di entrare direttamente nella panchina di un club
+  const handleAdminEntraInSquadra = async (soc) => {
+    await avviaSessioneSocieta(soc);
   };
 
-  // 3. ASCOLTATORE REALTIME SUPABASE
+  // 2. REALTIME SUPABASE
   useEffect(() => {
     if (!partitaId) return;
 
@@ -246,6 +249,13 @@ export default function App() {
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
   };
 
+  const disconnetti = () => {
+    setUtenteConnesso(null);
+    setSocietaAttiva(null);
+    setIsSuperAdmin(false);
+    setFaseApp('login');
+  };
+
   return (
     <div className="bg-slate-950 min-h-screen text-slate-100 p-3 md:p-6">
       {salvataggioInCorso && (
@@ -256,7 +266,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN DIRIGENTI */}
+      {/* 1. LOGIN ACCESSO IMMEDIATO */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
@@ -290,7 +300,7 @@ export default function App() {
               <label className="text-xs font-semibold text-slate-400 uppercase">Username</label>
               <input
                 type="text"
-                placeholder="es. mister_rossi"
+                placeholder="Nome utente"
                 value={loginUser}
                 onChange={(e) => setLoginUser(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500"
@@ -314,62 +324,21 @@ export default function App() {
               type="submit"
               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition text-sm shadow-lg shadow-emerald-950"
             >
-              <LogIn className="w-4 h-4" /> Accedi alla Panchina
+              <LogIn className="w-4 h-4" /> Accedi
             </button>
-          </form>
-
-          <div className="text-center pt-4">
-            <button
-              onClick={() => setMostraModalAdmin(true)}
-              className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1 mx-auto"
-            >
-              <Lock className="w-3.5 h-3.5" /> Area Riservata Amministratore
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* POPUP LOGIN ADMIN */}
-      {mostraModalAdmin && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <form onSubmit={verificaPinAdmin} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm space-y-4">
-            <h3 className="font-bold text-white flex items-center gap-2 text-sm">
-              <Lock className="w-4 h-4 text-rose-400" /> Inserisci Password Master Admin
-            </h3>
-            <input
-              type="password"
-              placeholder="Password Admin (es. admin2026)"
-              value={pinAdmin}
-              onChange={(e) => setPinAdmin(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm outline-none"
-              autoFocus
-              required
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setMostraModalAdmin(false)}
-                className="px-3 py-2 bg-slate-800 text-slate-300 rounded-lg text-xs"
-              >
-                Annulla
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold"
-              >
-                Accedi
-              </button>
-            </div>
           </form>
         </div>
       )}
 
-      {/* 2. PANNELLO ADMIN */}
+      {/* 2. PANNELLO SUPERADMIN GLOBALE */}
       {faseApp === 'admin' && (
-        <AdminPanel onEsci={() => setFaseApp('login')} />
+        <AdminPanel
+          onEsci={disconnetti}
+          onSelezionaSquadraDaAdmin={handleAdminEntraInSquadra}
+        />
       )}
 
-      {/* 3. DISTINTA */}
+      {/* 3. DISTINTA (Logo e Nome caricati in automatico per quella squadra) */}
       {faseApp === 'distinta' && (
         <div className="space-y-4">
           <div className="max-w-4xl mx-auto flex justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl">
@@ -384,12 +353,22 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <button
-              onClick={() => { setUtenteConnesso(null); setSocietaAttiva(null); setFaseApp('login'); }}
-              className="text-xs text-rose-400 hover:underline"
-            >
-              Esci / Disconnetti
-            </button>
+            <div className="flex items-center gap-3">
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setFaseApp('admin')}
+                  className="text-xs text-blue-400 hover:underline"
+                >
+                  Torna ad Admin
+                </button>
+              )}
+              <button
+                onClick={disconnetti}
+                className="text-xs text-rose-400 hover:underline"
+              >
+                Disconnetti
+              </button>
+            </div>
           </div>
           <Distinta onConfermaDistinta={handleConfermaDistinta} societa={societaAttiva} />
         </div>
