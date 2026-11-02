@@ -334,8 +334,12 @@ export default function App() {
   };
 
   // TERMINA LIVE: ARCHIVIA E PREPARA LA PROSSIMA GARA
-  const handleTerminaLiveEResetta = async () => {
+  const handleTerminaLiveEResetta = async (giocatoriConMinuti) => {
     setSalvataggioInCorso(true);
+
+    const giocatoriDaArchiviare = (giocatoriConMinuti && giocatoriConMinuti.length > 0) 
+      ? giocatoriConMinuti 
+      : rosa;
 
     const res = await archiviaPartitaEResettaLive(
       societaAttiva.id,
@@ -343,13 +347,13 @@ export default function App() {
       partitaInfo,
       { golCasa, golOspiti },
       eventi,
-      rosa
+      giocatoriDaArchiviare
     );
 
     setSalvataggioInCorso(false);
 
     if (res.success) {
-      alert("Partita archiviata con successo! Punteggio ed eventi azzerati per la prossima gara.");
+      alert("Partita archiviata con successo nello storico con tutti i minuti giocati! Live azzerato per la prossima gara.");
 
       // Reset stati locali
       setGolCasa(0);
@@ -640,7 +644,7 @@ export default function App() {
           <div className="pt-2">
             <button
               type="button"
-              onClick={handleTerminaLiveEResetta}
+              onClick={() => handleTerminaLiveEResetta()}
               className="w-full py-3 rounded-xl border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition"
             >
               <RotateCcw className="w-4 h-4" /> Termina Live e Archivia per Prossima Gara
@@ -658,6 +662,8 @@ export default function App() {
           golOspiti={golOspiti}
           eventi={eventi}
           giocatori={rosa}
+          minutoCorrente={minutoCorrente}
+          tempoGara={tempoGara}
           onChiudi={() => setFaseApp('partita')}
           onTerminaEResetta={handleTerminaLiveEResetta}
         />
