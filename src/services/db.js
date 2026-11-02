@@ -20,21 +20,107 @@ export async function caricaStatoPartita(partitaId) {
       .eq('id', partitaId)
       .single();
 
-    const { data: giocatori } = await supabase
-      .from('giocatori')
-      .select('*')
-      .eq('partita_id', partitaId);
-
     const { data: eventi } = await supabase
       .from('eventi')
       .select('*')
       .eq('partita_id', partitaId)
       .order('created_at', { ascending: false });
 
-    return { partita, giocatori: giocatori || [], eventi: eventi || [] };
+    return { partita, eventi: eventi || [] };
   } catch (error) {
     console.error('Errore caricamento partita:', error);
     return null;
+  }
+}
+
+// Carica l'intera rosa salvata per la società (persistente sempre)
+export async function caricaRosaSocieta(societaId) {
+  try {
+    const { data, error } = await supabase
+      .from('giocatori')
+      .select('*')
+      .eq('societa_id', societaId)
+      .order('numero', { ascending: true });
+
+    if (error) {
+      console.error('Errore caricaRosaSocieta:', error);
+      return [];
+    }
+
+    return (data || []).map(g => ({
+      id: g.id.replace(`${societaId}_`, ''),
+      numero: String(g.numero),
+      nome: (g.nome || '').toUpperCase(),
+      ruolo: g.ruolo || '',
+      isTitolare: g.is_titolare,
+      isCapitano: g.is_capitano,
+      isVice: g.is_vice,
+      ammonizioni: g.ammonizioni || 0,
+      espulso: g.espulso || false
+    }));
+  } catch (err) {
+    console.error('Errore caricaRosaSocieta:', err);
+    return [];
+  }
+}
+
+// 1. INSERIMENTO DIRETTO GIOCATORE SU SUPABASE
+export async function dbAggiungiGiocatore(societaId, giocatore) {
+  try {
+    const riga = {
+      id: `${societaId}_${giocatore.id}`,
+      societa_id: societaId,
+      partita_id: `${societaId}_PARTITA_LIVE`,
+      numero: giocatore.numero,
+      nome: giocatore.nome.trim().toUpperCase(),
+      ruolo: '',
+      is_titolare: giocatore.isTitolare ?? false,
+      is_capitano: giocatore.isCapitano ?? false,
+      is_vice: giocatore.isVice ?? false,
+      ammonizioni: 0,
+      espulso: false
+    };
+
+    const { error } = await supabase.from('giocatori').upsert(riga);
+    if (error) console.error('Errore dbAggiungiGiocatore:', error);
+  } catch (err) {
+    console.error('Errore dbAggiungiGiocatore:', err);
+  }
+}
+
+// 2. MODIFICA DIRETTA GIOCATORE SU SUPABASE
+export async function dbModificaGiocatore(societaId, giocatore) {
+  try {
+    const payload = {
+      numero: giocatore.numero,
+      nome: giocatore.nome.trim().toUpperCase(),
+      is_titolare: giocatore.isTitolare,
+      is_capitano: giocatore.isCapitano,
+      is_vice: giocatore.isVice
+    };
+
+    const { error } = await supabase
+      .from('giocatori')
+      .update(payload)
+      .eq('id', `${societaId}_${giocatore.id}`);
+
+    if (error) console.error('Errore dbModificaGiocatore:', error);
+  } catch (err) {
+    console.error('Errore dbModificaGiocatore:', err);
+  }
+}
+
+// 3. CANCELLAZIONE DIRETTA GIOCATORE SU SUPABASE
+export async function dbEliminaGiocatore(societaId, giocatoreId) {
+  try {
+    const { error } = await supabase
+      .from('giocatori')
+      .delete()
+      .eq('id', `${societaId}_${giocatoreId}`);
+
+    if (error) console.error('Errore dbEliminaGiocatore:', error);
+  } catch (err) {
+    console.error('Errore dbEliminaGiocatore:', err);
   }
 }
 
@@ -52,12 +138,12 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
     });
 
     const righeGiocatori = giocatori.map((g) => ({
-      id: `${partitaId}_${g.id}`,
+      id: `${societaId}_${g.id}`,
       partita_id: partitaId,
       societa_id: societaId,
       numero: g.numero,
       nome: g.nome,
-      ruolo: g.ruolo || '',
+      ruolo: '',
       is_titolare: g.isTitolare,
       is_capitano: g.isCapitano,
       is_vice: g.isVice,
@@ -70,6 +156,28 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   } catch (error) {
     console.error('Errore salvataggio distinta:', error);
     return { success: false, error };
+  }
+}
+
+export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
+  try {
+    const { data, error } = await supabase.from('partite').upsert({
+      id: partitaId,
+      societa_id: societaId,
+      squadra_casa: partitaInfo.squadraCasa || '',
+      squadra_ospite: partitaInfo.squadraOspite || '',
+      allenatore: partitaInfo.allenatore || '',
+      dirigente: partitaInfo.dirigente || '',
+      data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
+      is_nostra_casa: partitaInfo.isNostraCasa ?? true,
+      updated_at: new Date()
+    }).select().single();
+
+    if (error) console.error('Errore salvaBozzaPartitaSuDb:', error);
+    return data;
+  } catch (err) {
+    console.error('Errore salvaBozzaPartitaSuDb:', err);
+    return null;
   }
 }
 
@@ -111,12 +219,12 @@ export async function eliminaEventoCloud(eventoId) {
 
 export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
   const righe = giocatori.map(g => ({
-    id: `${partitaId}_${g.id}`,
+    id: `${societaId}_${g.id}`,
     partita_id: partitaId,
     societa_id: societaId,
     numero: g.numero,
     nome: g.nome,
-    ruolo: g.ruolo || '',
+    ruolo: '',
     is_titolare: g.isTitolare,
     is_capitano: g.isCapitano,
     is_vice: g.isVice,
@@ -126,13 +234,15 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
   await supabase.from('giocatori').upsert(righe);
 }
 
-// Salva immediatamente rosa e staff base sulla società
 export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
   try {
-    const payload = {};
-    if (giocatori !== undefined) payload.rosa_base = giocatori;
-    if (staff !== undefined) payload.staff_base = staff;
-    payload.updated_at = new Date();
+    const payload = { updated_at: new Date() };
+
+    if (staff !== undefined) {
+      payload.staff_base = staff;
+      if (staff.allenatore !== undefined) payload.allenatore_predefinito = staff.allenatore;
+      if (staff.dirigente !== undefined) payload.dirigente_predefinito = staff.dirigente;
+    }
 
     const { data, error } = await supabase
       .from('societa')
@@ -141,10 +251,7 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
       .select()
       .single();
 
-    if (error) {
-      console.error('Errore update salvaRosaBaseSocieta:', error);
-      return null;
-    }
+    if (error) console.error('Errore salvaRosaBaseSocieta:', error);
     return data;
   } catch (error) {
     console.error('Errore salvaRosaBaseSocieta:', error);
@@ -152,7 +259,6 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
   }
 }
 
-// Recupera la singola società sempre aggiornata
 export async function getSocietaById(societaId) {
   const { data, error } = await supabase
     .from('societa')
@@ -223,7 +329,6 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
     logo_url: logoUrl || '',
     data_scadenza_prova: dataScadenza.toISOString(),
     attiva: true,
-    rosa_base: [],
     staff_base: {}
   }).select().single();
 
@@ -296,30 +401,4 @@ export async function adminModificaPasswordUtente(utenteId, nuovaPassword) {
     .eq('id', utenteId);
   if (error) throw error;
   return { success: true };
-}
-
-// Salva immediatamente le informazioni della partita di oggi (anche in bozza)
-export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
-  try {
-    const { data, error } = await supabase.from('partite').upsert({
-      id: partitaId,
-      societa_id: societaId,
-      squadra_casa: partitaInfo.squadraCasa || '',
-      squadra_ospite: partitaInfo.squadraOspite || '',
-      allenatore: partitaInfo.allenatore || '',
-      dirigente: partitaInfo.dirigente || '',
-      data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
-      is_nostra_casa: partitaInfo.isNostraCasa ?? true,
-      updated_at: new Date()
-    }).select().single();
-
-    if (error) {
-      console.error('Errore salvaBozzaPartitaSuDb:', error);
-      return null;
-    }
-    return data;
-  } catch (err) {
-    console.error('Errore salvaBozzaPartitaSuDb:', err);
-    return null;
-  }
 }
