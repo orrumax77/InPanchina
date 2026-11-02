@@ -41,12 +41,11 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const [nuovoLogo, setNuovoLogo] = useState('');
   const fileInputRef = useRef(null);
 
-  // Modal Gestione Credenziali e Utenti (Case-sensitive originale)
+  // Modal Gestione Credenziali e Utenti
   const [squadraSelezionata, setSquadraSelezionata] = useState(null);
   const [utentiSquadra, setUtentiSquadra] = useState([]);
   const [nuovoUsername, setNuovoUsername] = useState('');
   const [nuovaPassword, setNuovaPassword] = useState('');
-  const [ruoloNuovoUtente, setRuoloNuovoUtente] = useState('dirigente');
   const [copiatoId, setCopiatoId] = useState(null);
 
   // Modifica password rapida
@@ -144,7 +143,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     setNuovaPassword('');
   };
 
-  // Creazione utente: NESSUNA conversione in maiuscolo
+  // Creazione utente senza campo ruolo
   const handleCreaUtente = async (e) => {
     e.preventDefault();
     if (!nuovoUsername.trim() || !nuovaPassword.trim()) return;
@@ -152,9 +151,9 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     try {
       await adminCreaUtente({
         societaId: squadraSelezionata.id,
-        username: nuovoUsername.trim(), // Valore originale esatto
-        password: nuovaPassword.trim(), // Valore originale esatto
-        ruolo: ruoloNuovoUtente
+        username: nuovoUsername.trim(),
+        password: nuovaPassword.trim(),
+        ruolo: 'dirigente'
       });
       setNuovoUsername('');
       setNuovaPassword('');
@@ -218,7 +217,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     }
   };
 
-  // Modifica password: NESSUNA conversione in maiuscolo
   const handleSalvaNuovaPassword = async (utenteId) => {
     if (!tempPass.trim()) return;
     try {
@@ -318,7 +316,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
             />
           </div>
 
-          {/* Caricamento Logo da Immagine Dispositivo */}
           <div>
             <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Logo Società</label>
             <div className="flex items-center gap-2">
@@ -507,7 +504,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         )}
       </div>
 
-      {/* MODAL GESTIONE UTENTI E CREDENZIALI - NO MAIUSCOLE FORZATE */}
+      {/* MODAL GESTIONE CREDENZIALI (RUOLO RIMOSSO) */}
       {squadraSelezionata && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 max-w-2xl w-full max-h-[92vh] overflow-y-auto space-y-5 shadow-2xl">
@@ -530,13 +527,13 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               </button>
             </div>
 
-            {/* Form Aggiunta Nuovo Dirigente: NO uppercase sui campi utente/password */}
+            {/* Form Aggiunta Nuovo Utente: Solo Username e Password */}
             <form onSubmit={handleCreaUtente} className="bg-slate-950 p-3.5 sm:p-4 rounded-xl border border-slate-800 space-y-3">
               <h4 className="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
                 <Plus className="w-3.5 h-3.5 text-emerald-400" /> Rilascia Nuovo Profilo Dirigente
               </h4>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Username Accesso</label>
                   <input
@@ -566,18 +563,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                     required
                   />
                 </div>
-
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Ruolo</label>
-                  <select
-                    value={ruoloNuovoUtente}
-                    onChange={(e) => setRuoloNuovoUtente(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white uppercase outline-none focus:border-blue-500"
-                  >
-                    <option value="dirigente">Dirigente Ufficiale</option>
-                    <option value="allenatore">Mister / Staff</option>
-                  </select>
-                </div>
               </div>
 
               <button
@@ -588,7 +573,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               </button>
             </form>
 
-            {/* Elenco Utenti: Mostrati esattamente come memorizzati */}
+            {/* Elenco Utenti: Mostrati senza badge del ruolo */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center justify-between">
                 <span>Account Configurati ({utentiSquadra.length})</span>
@@ -610,12 +595,9 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                         className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                       >
                         <div className="space-y-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            {/* Username in formato originale normal-case */}
-                            <span className="font-bold text-white normal-case font-mono truncate">{u.username}</span>
-                            <span className="text-[10px] px-2 py-0.5 bg-slate-900 border border-slate-700 text-slate-400 rounded uppercase flex-shrink-0">
-                              {u.ruolo || 'dirigente'}
-                            </span>
+                          {/* Username senza badge del ruolo */}
+                          <div className="font-bold text-white normal-case font-mono truncate text-sm">
+                            {u.username}
                           </div>
                           
                           {inModifica ? (
@@ -648,7 +630,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                             </div>
                           ) : (
                             <div className="flex items-center gap-2 font-mono text-xs text-emerald-400">
-                              {/* Password in formato originale normal-case */}
                               <span>Password: <strong className="normal-case">{u.password_chiaro}</strong></span>
                               <button
                                 type="button"
@@ -656,7 +637,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                                   setModificaPassId(u.id);
                                   setTempPass(u.password_chiaro);
                                 }}
-                                className="text-slate-500 hover:text-amber-400 p-1 rounded"
+                                className="text-slate-500 hover:text-amber-400 p-1 rounded cursor-pointer"
                                 title="Cambia password"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
