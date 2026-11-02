@@ -4,7 +4,7 @@ import { Trash2, Clock } from 'lucide-react';
 export default function FeedEventi({ eventi, onEliminaEvento }) {
   if (!eventi || eventi.length === 0) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center text-xs text-slate-500">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center text-xs text-slate-500 uppercase">
         Nessun evento registrato finora.
       </div>
     );
@@ -23,7 +23,7 @@ export default function FeedEventi({ eventi, onEliminaEvento }) {
               <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-700 font-mono text-xs font-bold text-emerald-400">
                 {ev.minuto}' ({ev.tempo}°T)
               </span>
-              <span className="text-slate-200">{ev.dettagli}</span>
+              <span className="text-slate-200 uppercase">{ev.dettagli}</span>
             </div>
             <button
               onClick={() => onEliminaEvento(ev.id)}
