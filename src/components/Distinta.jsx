@@ -11,11 +11,11 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
   const [giocatori, setGiocatori] = useState([]);
 
+  // Campi per nuovo giocatore (senza ruolo)
   const [nuovoNome, setNuovoNome] = useState('');
   const [nuovoNumero, setNuovoNumero] = useState('');
-  const [nuovoRuolo, setNuovoRuolo] = useState('CEN');
 
-  // Popola la distinta solo con i dati provenienti dal Database Cloud
+  // Sincronizza i dati ricevuti dal Cloud
   useEffect(() => {
     if (partitaIniziale) {
       setPartitaInfo({
@@ -77,7 +77,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       id: Date.now().toString(),
       numero: nuovoNumero.trim(),
       nome: nuovoNome.trim(),
-      ruolo: nuovoRuolo,
+      ruolo: '', // Ruolo non più richiesto
       isTitolare: titolariCount < 11,
       isCapitano: false,
       isVice: false
@@ -94,7 +94,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
-      {/* Banner Logo e Società */}
+      {/* Banner Intestazione con Logo e Società */}
       <div className="flex items-center gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
         {societa?.logo_url ? (
           <img
@@ -116,7 +116,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
       </div>
 
-      {/* Dati Partita */}
+      {/* Configurazione Partita */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md">
         <h2 className="text-lg font-bold flex items-center gap-2 mb-4 text-emerald-400">
           <Shield className="w-5 h-5" /> Configurazione Partita
@@ -165,50 +165,39 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
       </div>
 
-      {/* Aggiunta Giocatore */}
+      {/* Inserimento Rapido Giocatore: Solo N° e Nome */}
       <form onSubmit={aggiungiGiocatore} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap gap-3 items-end">
-        <div className="w-20">
-          <label className="text-xs text-slate-400">N°</label>
+        <div className="w-24">
+          <label className="text-xs text-slate-400">N° Maglia</label>
           <input
             type="number"
             placeholder="10"
             value={nuovoNumero}
             onChange={(e) => setNuovoNumero(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-bold text-center text-sm"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-bold text-center text-sm"
+            required
           />
         </div>
-        <div className="flex-1 min-w-[180px]">
+        <div className="flex-1 min-w-[220px]">
           <label className="text-xs text-slate-400">Nome e Cognome Giocatore</label>
           <input
             type="text"
             placeholder="es. Rossi Marco"
             value={nuovoNome}
             onChange={(e) => setNuovoNome(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white text-sm"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-sm"
+            required
           />
-        </div>
-        <div className="w-28">
-          <label className="text-xs text-slate-400">Ruolo</label>
-          <select
-            value={nuovoRuolo}
-            onChange={(e) => setNuovoRuolo(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white text-sm"
-          >
-            <option value="POR">POR</option>
-            <option value="DIF">DIF</option>
-            <option value="CEN">CEN</option>
-            <option value="ATT">ATT</option>
-          </select>
         </div>
         <button
           type="submit"
-          className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-1 transition text-sm"
+          className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-1.5 transition text-sm shadow-md"
         >
           <Plus className="w-4 h-4" /> Aggiungi
         </button>
       </form>
 
-      {/* Tabella Rosa */}
+      {/* Lista Rosa Giocatori */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold flex items-center gap-2">
@@ -231,10 +220,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                   <span className="w-8 h-8 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400">
                     {g.numero}
                   </span>
-                  <div>
-                    <span className="font-semibold text-white block text-sm">{g.nome}</span>
-                    <span className="text-xs text-slate-400 uppercase font-mono">{g.ruolo}</span>
-                  </div>
+                  <span className="font-semibold text-white text-sm">{g.nome}</span>
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -254,6 +240,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                     className={`p-1.5 rounded text-xs font-bold ${
                       g.isCapitano ? 'bg-amber-500 text-black' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                     }`}
+                    title="Capitano"
                   >
                     C
                   </button>
@@ -264,6 +251,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                     className={`p-1.5 rounded text-xs font-bold ${
                       g.isVice ? 'bg-sky-500 text-black' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                     }`}
+                    title="Vice Capitano"
                   >
                     VC
                   </button>
@@ -272,6 +260,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                     type="button"
                     onClick={() => rimuoviGiocatore(g.id)}
                     className="p-1.5 rounded bg-slate-700 text-rose-400 hover:bg-rose-950 transition"
+                    title="Rimuovi dalla distinta"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
