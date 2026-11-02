@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
-import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 
 export default function ArchivioReferti({ societa, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
   const [caricamento, setCaricamento] = useState(true);
   const [partitaApertaId, setPartitaApertaId] = useState(null);
   const [copiatoId, setCopiatoId] = useState(null);
+  const [eventiDbDettaglio, setEventiDbDettaglio] = useState({});
 
   const ricaricaStorico = async () => {
     if (!societa?.id) return;
@@ -20,8 +22,22 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
     ricaricaStorico();
   }, [societa?.id]);
 
-  const toggleDettaglio = (id) => {
-    setPartitaApertaId(prev => (prev === id ? null : id));
+  // All'apertura della singola partita carica anche gli eventi vivi salvati nella tabella eventi
+  const toggleDettaglio = async (id) => {
+    const nuovoStato = partitaApertaId === id ? null : id;
+    setPartitaApertaId(nuovoStato);
+
+    if (nuovoStato && !eventiDbDettaglio[id]) {
+      const { data } = await supabase
+        .from('eventi')
+        .select('*')
+        .eq('partita_id', id)
+        .order('minuto', { ascending: true });
+
+      if (data && data.length > 0) {
+        setEventiDbDettaglio(prev => ({ ...prev, [id]: data }));
+      }
+    }
   };
 
   const generaTestoReferto = (p) => {
@@ -35,7 +51,8 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
     t += `• Allenatore: ${(p.allenatore || '-').toUpperCase()}\n`;
     t += `• Dirigente: ${(p.dirigente || '-').toUpperCase()}\n\n`;
 
-    const eventi = p.referto_eventi || [];
+    // Legge gli eventi dalla tabella o dallo snapshot salvato
+    const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
     const reti = eventi.filter(e => e.tipo === 'GOL');
     const amm = (p.referto_giocatori || []).filter(g => g.ammonizioni > 0 && !g.espulso);
     const esp = (p.referto_giocatori || []).filter(g => g.espulso);
