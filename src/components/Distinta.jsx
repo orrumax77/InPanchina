@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar, CheckCircle2 } from 'lucide-react';
+import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar, CheckCircle2, UserCog } from 'lucide-react';
 import { 
   salvaRosaBaseSocieta, 
   salvaBozzaPartitaSuDb, 
@@ -17,7 +17,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     squadraCasa: (partitaIniziale?.squadraCasa || societa?.nome || '').toUpperCase(),
     squadraOspite: (partitaIniziale?.squadraOspite || '').toUpperCase(),
     allenatore: (partitaIniziale?.allenatore || societa?.allenatore_predefinito || '').toUpperCase(),
+    allenatoreSeconda: (partitaIniziale?.allenatoreSeconda || societa?.allenatore_seconda_predefinito || '').toUpperCase(),
     dirigente: (partitaIniziale?.dirigente || societa?.dirigente_predefinito || '').toUpperCase(),
+    dirigenteUfficiali: (partitaIniziale?.dirigenteUfficiali || societa?.dirigente_ufficiali_predefinito || '').toUpperCase(),
+    assistenteArbitro: (partitaIniziale?.assistenteArbitro || societa?.assistente_arbitro_predefinito || '').toUpperCase(),
     dataPartita: partitaIniziale?.dataPartita || oggiISO,
     isNostraCasa: partitaIniziale?.isNostraCasa ?? true
   });
@@ -37,23 +40,27 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const infoDebounceRef = useRef(null);
   const isLoaded = useRef(false);
 
-  // Caricamento e ripristino sicuro di Rosa e Dirigenti all'avvio
   useEffect(() => {
     const staffSalvato = societa?.staff_base || {};
     const allenatoreBase = (societa?.allenatore_predefinito || staffSalvato.allenatore || partitaIniziale?.allenatore || '').toUpperCase();
+    const allenatoreSecondaBase = (societa?.allenatore_seconda_predefinito || staffSalvato.allenatoreSeconda || partitaIniziale?.allenatoreSeconda || '').toUpperCase();
     const dirigenteBase = (societa?.dirigente_predefinito || staffSalvato.dirigente || partitaIniziale?.dirigente || '').toUpperCase();
+    const dirigenteUfficialiBase = (societa?.dirigente_ufficiali_predefinito || staffSalvato.dirigenteUfficiali || partitaIniziale?.dirigenteUfficiali || '').toUpperCase();
+    const assistenteArbitroBase = (societa?.assistente_arbitro_predefinito || staffSalvato.assistenteArbitro || partitaIniziale?.assistenteArbitro || '').toUpperCase();
 
     setPartitaInfo(prev => ({
       ...prev,
       squadraCasa: (partitaIniziale?.squadraCasa || societa?.nome || '').toUpperCase(),
       squadraOspite: (partitaIniziale?.squadraOspite || '').toUpperCase(),
       allenatore: allenatoreBase,
+      allenatoreSeconda: allenatoreSecondaBase,
       dirigente: dirigenteBase,
+      dirigenteUfficiali: dirigenteUfficialiBase,
+      assistenteArbitro: assistenteArbitroBase,
       dataPartita: partitaIniziale?.dataPartita || prev.dataPartita || oggiISO,
       isNostraCasa: partitaIniziale?.isNostraCasa ?? prev.isNostraCasa ?? true
     }));
 
-    // Determina la rosa: priorità assoluta a rosaIniziale (caricata da tabella giocatori), poi rosa_base
     const rosaDaCaricare = (rosaIniziale && rosaIniziale.length > 0)
       ? rosaIniziale
       : (societa?.rosa_base && societa.rosa_base.length > 0)
@@ -77,7 +84,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setTimeout(() => setSalvataggioNotifica(false), 2000);
   };
 
-  // Funzione per trovare il primo numero di maglia libero a partire dall'1
   const trovaPrimoNumeroLibero = (idDaEscludere = null) => {
     const numeriOccupati = new Set(
       giocatori
@@ -93,7 +99,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     return String(num);
   };
 
-  // Autosave continuo su Supabase per le informazioni di gara
   const salvaInfoPartitaCloud = (nuoveInfo) => {
     if (!societa?.id || !partitaId || !isLoaded.current) return;
 
@@ -102,7 +107,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       await salvaBozzaPartitaSuDb(societa.id, partitaId, nuoveInfo);
       await salvaRosaBaseSocieta(societa.id, undefined, {
         allenatore: nuoveInfo.allenatore,
-        dirigente: nuoveInfo.dirigente
+        allenatoreSeconda: nuoveInfo.allenatoreSeconda,
+        dirigente: nuoveInfo.dirigente,
+        dirigenteUfficiali: nuoveInfo.dirigenteUfficiali,
+        assistenteArbitro: nuoveInfo.assistenteArbitro
       });
       mostraNotificaSalvataggio();
     }, 300);
@@ -197,7 +205,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     mostraNotificaSalvataggio();
   };
 
-  // AGGIUNTA GIOCATORE CON PERSISTENZA IMMEDIATA
   const aggiungiGiocatore = async (e) => {
     e.preventDefault();
     if (!nuovoNome.trim()) return;
@@ -242,7 +249,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     mostraNotificaSalvataggio();
   };
 
-  // ELIMINAZIONE GIOCATORE CON PERSISTENZA IMMEDIATA
   const rimuoviGiocatore = async (id) => {
     const nuovaRosa = giocatori.filter(g => g.id !== id);
     setGiocatori(nuovaRosa);
@@ -259,7 +265,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setEditNome(g.nome);
   };
 
-  // MODIFICA GIOCATORE CON PERSISTENZA IMMEDIATA
   const salvaModifica = async (id) => {
     if (!editNome.trim()) return;
     const target = giocatori.find(g => g.id === id);
@@ -318,7 +323,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
-      {/* Banner Intestazione con Logo e Notifica di Salvataggio */}
+      {/* Banner Intestazione */}
       <div className="flex items-center gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
         {societa?.logo_url ? (
           <img
@@ -379,7 +384,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </span>
         </div>
 
-        {/* Squadre con Inversione e Autosave */}
+        {/* Squadre */}
         <div className="grid grid-cols-1 md:grid-cols-9 gap-3 items-end">
           <div className="md:col-span-4">
             <label className="text-xs uppercase text-slate-400 font-semibold block mb-1">
@@ -423,27 +428,67 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </div>
         </div>
 
-        {/* Staff Tecnico con Autosave continuo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-          <div>
-            <label className="text-xs uppercase text-slate-400 font-semibold">Allenatore</label>
-            <input
-              type="text"
-              placeholder="ES. MARIO ROSSI"
-              value={partitaInfo.allenatore}
-              onChange={(e) => handleAggiornaCampo('allenatore', e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
-            />
+        {/* SEZIONE COMPLETA STAFF TECNICO E DIRIGENZIALE UFFICIALE */}
+        <div className="pt-3 border-t border-slate-700/70 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase">
+            <UserCog className="w-4 h-4 text-emerald-400" /> Staff Tecnico & Dirigenziale Ufficiale
           </div>
-          <div>
-            <label className="text-xs uppercase text-slate-400 font-semibold">Dirigente Accompagnatore</label>
-            <input
-              type="text"
-              placeholder="ES. LUIGI BIANCHI"
-              value={partitaInfo.dirigente}
-              onChange={(e) => handleAggiornaCampo('dirigente', e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
-            />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs uppercase text-slate-400 font-semibold">Allenatore</label>
+              <input
+                type="text"
+                placeholder="ES. MARIO ROSSI"
+                value={partitaInfo.allenatore}
+                onChange={(e) => handleAggiornaCampo('allenatore', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs uppercase text-slate-400 font-semibold">Allenatore in Seconda</label>
+              <input
+                type="text"
+                placeholder="ES. PAOLO VERDI"
+                value={partitaInfo.allenatoreSeconda}
+                onChange={(e) => handleAggiornaCampo('allenatoreSeconda', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-xs uppercase text-slate-400 font-semibold">Dirigente Accompagnatore Ufficiale della Squadra</label>
+              <input
+                type="text"
+                placeholder="ES. LUIGI BIANCHI"
+                value={partitaInfo.dirigente}
+                onChange={(e) => handleAggiornaCampo('dirigente', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs uppercase text-slate-400 font-semibold">Dirigente Addetto Ufficiali di Gara</label>
+              <input
+                type="text"
+                placeholder="ES. ANDREA NERI"
+                value={partitaInfo.dirigenteUfficiali}
+                onChange={(e) => handleAggiornaCampo('dirigenteUfficiali', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs uppercase text-slate-400 font-semibold">Assistente all'Arbitro</label>
+              <input
+                type="text"
+                placeholder="ES. GIOVANNI FERRARI"
+                value={partitaInfo.assistenteArbitro}
+                onChange={(e) => handleAggiornaCampo('assistenteArbitro', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              />
+            </div>
           </div>
         </div>
       </div>
