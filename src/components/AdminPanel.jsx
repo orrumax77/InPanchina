@@ -31,16 +31,15 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const [societaSelezionata, setSocietaSelezionata] = useState(null);
   const [utentiSocieta, setUtentiSocieta] = useState([]);
 
-  // Form Nuova Squadra
+  // Form Nuova Squadra (Campi testuali in Maiuscolo)
   const [codice, setCodice] = useState('');
   const [nome, setNome] = useState('');
   const [indirizzo, setIndirizzo] = useState('');
   const [logoBase64, setLogoBase64] = useState('');
 
-  // Form Nuovo Utente
+  // Form Nuovo Utente (Username e Password mantengono maiuscolo/minuscolo digitato)
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [ruolo, setRuolo] = useState('dirigente');
   const [stagione, setStagione] = useState('2026/2027');
 
   // Modale Modifica Password
@@ -73,21 +72,24 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   // CANCELLAZIONE COMPLETA SQUADRA
   const handleEliminaSquadra = async () => {
     if (!societaSelezionata) return;
+    const socId = societaSelezionata.id;
+    const socNome = societaSelezionata.nome;
+
     const conferma = window.prompt(
-      `ATTENZIONE: Stai per eliminare ${societaSelezionata.nome} e TUTTI i suoi dati (giocatori, partite, referti, cronologie e dirigenti associati).\n\nPer confermare, scrivi il nome della società: "${societaSelezionata.nome}"`
+      `ATTENZIONE: Stai per eliminare ${socNome} e TUTTI i suoi dati (giocatori, partite, referti, dirigenti).\n\nPer confermare, scrivi il nome esatto: "${socNome}"`
     );
 
-    if (conferma !== societaSelezionata.nome) {
+    if (conferma?.trim().toUpperCase() !== socNome.trim().toUpperCase()) {
       alert("Eliminazione annullata: il nome inserito non corrisponde.");
       return;
     }
 
     try {
-      await adminEliminaSocietaCompleta(societaSelezionata.id);
-      setMessaggio(`Squadra ${societaSelezionata.nome} eliminata definitivamente con tutto il suo archivio.`);
+      await adminEliminaSocietaCompleta(socId);
+      setMessaggio(`Squadra ${socNome} eliminata definitivamente con tutto il suo archivio.`);
       setSocietaSelezionata(null);
       ricaricaDati();
-    } catch (err) {
+    } catch {
       alert("Errore durante l'eliminazione della società.");
     }
   };
@@ -105,7 +107,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     }
   };
 
-  // MODIFICA PASSWORD UTENTE
+  // MODIFICA PASSWORD UTENTE (mantiene case-sensitive esatto)
   const handleSalvaNuovaPassword = async (e) => {
     e.preventDefault();
     if (!nuovaPasswordInput.trim()) return;
@@ -160,7 +162,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         attiva: false
       });
       setSocietaSelezionata(aggiornata);
-      setMessaggio(`Accesso BLOCCATO per ${aggiornata.nome}. I dirigenti non potranno accedere.`);
+      setMessaggio(`Accesso BLOCCATO per ${aggiornata.nome}.`);
       ricaricaDati();
     } catch {
       alert("Errore durante l'aggiornamento.");
@@ -208,9 +210,9 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     if (!codice || !nome) return;
     try {
       const nuova = await adminCreaSquadra({
-        codice,
-        nome,
-        indirizzoCampo: indirizzo,
+        codice: codice.trim().toUpperCase(),
+        nome: nome.trim().toUpperCase(),
+        indirizzoCampo: indirizzo.trim().toUpperCase(),
         logoUrl: logoBase64
       });
       setMessaggio(`Squadra ${nuova.nome} registrata con 30 giorni di prova!`);
@@ -231,12 +233,12 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     try {
       await adminCreaUtente({
         societaId: societaSelezionata.id,
-        username,
-        password,
-        ruolo,
+        username: username.trim(), // username preserva il case
+        password: password.trim(), // password preserva il case
+        ruolo: 'dirigente',
         stagione
       });
-      setMessaggio(`Utente ${username} creato per ${societaSelezionata.nome}!`);
+      setMessaggio(`Utente ${username.trim()} creato per ${societaSelezionata.nome}!`);
       setUsername('');
       setPassword('');
       const u = await adminGetUtentiSocieta(societaSelezionata.id);
@@ -259,20 +261,20 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         >
           <ArrowLeft className="w-4 h-4" /> Disconnetti Admin
         </button>
-        <span className="text-xs font-bold px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
+        <span className="text-xs font-bold px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase">
           SuperAdmin Globale
         </span>
       </div>
 
       {messaggio && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-semibold rounded-xl flex items-center gap-2">
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-semibold rounded-xl flex items-center gap-2 uppercase">
           <CheckCircle2 className="w-4 h-4" /> {messaggio}
         </div>
       )}
 
       {/* 1. SELEZIONE SQUADRA E GESTIONE INTEGRALE */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2 uppercase">
           <Users className="w-5 h-5 text-blue-400" /> Gestione Squadre & Credenziali Dirigenti
         </h2>
 
@@ -281,9 +283,9 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
           <select
             value={societaSelezionata?.id || ''}
             onChange={(e) => setSocietaSelezionata(societaList.find(s => s.id === e.target.value))}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1"
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1 uppercase"
           >
-            <option value="">-- Seleziona una squadra da gestire --</option>
+            <option value="">-- SELEZIONA UNA SQUADRA DA GESTIRE --</option>
             {societaList.map(s => (
               <option key={s.id} value={s.id}>
                 {s.nome} ({s.codice_societa || s.id}) - {s.attiva ? 'ATTIVA' : 'BLOCCATA'}
@@ -302,8 +304,8 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                     <img src={societaSelezionata.logo_url} alt="Logo" className="w-12 h-12 rounded-full object-cover border border-slate-700" />
                   )}
                   <div>
-                    <h4 className="font-bold text-white text-base">{societaSelezionata.nome}</h4>
-                    <p className="text-xs text-slate-400">Codice: {societaSelezionata.codice_societa || societaSelezionata.id}</p>
+                    <h4 className="font-bold text-white text-base uppercase">{societaSelezionata.nome}</h4>
+                    <p className="text-xs text-slate-400 uppercase">Codice: {societaSelezionata.codice_societa || societaSelezionata.id}</p>
                   </div>
                 </div>
 
@@ -316,7 +318,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                     {societaSelezionata.attiva ? '● Attiva' : '✕ Bloccata'}
                   </span>
 
-                  <span className="px-2.5 py-1 rounded bg-slate-800 text-xs font-semibold text-slate-300">
+                  <span className="px-2.5 py-1 rounded bg-slate-800 text-xs font-semibold text-slate-300 uppercase">
                     {isIllimitata(societaSelezionata.data_scadenza_prova)
                       ? 'Licenza: Illimitata'
                       : `Scadenza: ${new Date(societaSelezionata.data_scadenza_prova).toLocaleDateString()}`}
@@ -324,12 +326,12 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                 </div>
               </div>
 
-              {/* PULSANTI CONTROLLO E AZIONI SULLA SQUADRA */}
+              {/* PULSANTI CONTROLLO E AZIONI */}
               <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={handleSbloccaIllimitato}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
                 >
                   <InfinityIcon className="w-4 h-4" /> Sblocca Illimitata
                 </button>
@@ -337,7 +339,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                 <button
                   type="button"
                   onClick={handleProroga30Giorni}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
                 >
                   <Calendar className="w-4 h-4 text-emerald-400" /> +30 Giorni
                 </button>
@@ -346,7 +348,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                   <button
                     type="button"
                     onClick={handleBloccaSquadra}
-                    className="bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/30 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                    className="bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/30 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
                   >
                     <Lock className="w-4 h-4" /> Blocca
                   </button>
@@ -354,7 +356,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                   <button
                     type="button"
                     onClick={handleProroga30Giorni}
-                    className="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                    className="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
                   >
                     <Unlock className="w-4 h-4" /> Sblocca
                   </button>
@@ -363,18 +365,17 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                 <button
                   type="button"
                   onClick={() => onSelezionaSquadraDaAdmin(societaSelezionata)}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
                 >
                   <ExternalLink className="w-4 h-4" /> Entra in Panchina
                 </button>
 
-                {/* PULSANTE ELIMINAZIONE TOTALE DELLA SQUADRA */}
                 <button
                   type="button"
                   onClick={handleEliminaSquadra}
-                  className="ml-auto bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/40 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                  className="ml-auto bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/40 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
                 >
-                  <Trash2 className="w-4 h-4" /> Elimina Squadra Definitivamente
+                  <Trash2 className="w-4 h-4" /> Elimina Squadra
                 </button>
               </div>
             </div>
@@ -383,15 +384,14 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
             <div className="pt-2 border-t border-slate-800 space-y-3">
               <h4 className="text-xs font-bold uppercase text-slate-400">Dirigenti Abilitati per {societaSelezionata.nome}:</h4>
 
-              {/* Elenco Utenti con Modifica Password ed Eliminazione */}
               <div className="space-y-1.5">
                 {utentiSocieta.length === 0 ? (
-                  <p className="text-xs text-slate-500">Nessun dirigente configurato per questa squadra.</p>
+                  <p className="text-xs text-slate-500 uppercase">Nessun dirigente configurato per questa squadra.</p>
                 ) : (
                   utentiSocieta.map(u => (
                     <div key={u.id} className="p-2.5 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between gap-2 text-xs">
                       <div>
-                        <span className="font-bold text-white">{u.username}</span>
+                        <span className="font-bold text-white font-mono">{u.username}</span>
                         <span className="text-slate-400 ml-3">Password: <code className="text-emerald-400 font-mono">{u.password_chiaro}</code></span>
                         <span className="ml-2 px-1.5 py-0.5 rounded bg-slate-800 text-blue-400 font-semibold">{u.stagione}</span>
                       </div>
@@ -403,7 +403,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                             setModalPasswordUtente(u);
                             setNuovaPasswordInput(u.password_chiaro || '');
                           }}
-                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 font-semibold"
+                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 font-semibold uppercase"
                           title="Modifica Password"
                         >
                           <KeyRound className="w-3.5 h-3.5 text-amber-400" /> Cambia Password
@@ -423,62 +423,63 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                 )}
               </div>
 
-              {/* Form Aggiunta Nuovo Dirigente */}
-              <form onSubmit={handleCreaUtente} className="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end pt-2">
+              {/* Form Aggiunta Dirigente: Username e Password non forzati in maiuscolo */}
+              <form onSubmit={handleCreaUtente} className="grid grid-cols-1 md:grid-cols-3 gap-2.5 items-end pt-2">
                 <div>
-                  <label className="text-xs text-slate-400">Nuovo Username</label>
+                  <label className="text-xs text-slate-400 uppercase font-semibold">Nuovo Username</label>
                   <input
                     type="text"
                     placeholder="es. mister_rossi"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm font-medium"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-400">Password Assegnata</label>
+                  <label className="text-xs text-slate-400 uppercase font-semibold">Password Assegnata</label>
                   <input
                     type="text"
-                    placeholder="es. Pass2026!"
+                    placeholder="Pass2026!"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm font-mono"
                     required
                   />
                 </div>
 
-                <div>
-                  <label className="text-xs text-slate-400">Stagione</label>
-                  <select
-                    value={stagione}
-                    onChange={(e) => setStagione(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm"
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Stagione</label>
+                    <select
+                      value={stagione}
+                      onChange={(e) => setStagione(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm uppercase"
+                    >
+                      <option value="2026/2027">2026/2027</option>
+                      <option value="2027/2028">2027/2028</option>
+                    </select>
+                  </div>
+                  <button
+                    type="submit"
+                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2.5 rounded-lg text-sm flex items-center justify-center gap-1 self-end uppercase"
                   >
-                    <option value="2026/2027">2026/2027</option>
-                    <option value="2027/2028">2027/2028</option>
-                  </select>
+                    <Plus className="w-4 h-4" /> Aggiungi
+                  </button>
                 </div>
-
-                <button
-                  type="submit"
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2.5 rounded-lg text-sm flex items-center justify-center gap-1"
-                >
-                  <Plus className="w-4 h-4" /> Aggiungi Dirigente
-                </button>
               </form>
             </div>
           </div>
         )}
       </div>
 
-      {/* POPUP MODALE MODIFICA PASSWORD DIRIGENTE */}
+      {/* POPUP MODALE MODIFICA PASSWORD */}
       {modalPasswordUtente && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <form onSubmit={handleSalvaNuovaPassword} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-              <h3 className="font-bold text-white flex items-center gap-2 text-sm">
+              <h3 className="font-bold text-white flex items-center gap-2 text-sm uppercase">
                 <KeyRound className="w-4 h-4 text-amber-400" /> Nuova Password per {modalPasswordUtente.username}
               </h3>
               <button type="button" onClick={() => setModalPasswordUtente(null)} className="text-slate-400 hover:text-white">
@@ -487,7 +488,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
             </div>
 
             <div>
-              <label className="text-xs text-slate-400">Inserisci la nuova password:</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Inserisci la nuova password:</label>
               <input
                 type="text"
                 value={nuovaPasswordInput}
@@ -502,13 +503,13 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               <button
                 type="button"
                 onClick={() => setModalPasswordUtente(null)}
-                className="px-3 py-2 bg-slate-800 text-slate-300 rounded-lg text-xs"
+                className="px-3 py-2 bg-slate-800 text-slate-300 rounded-lg text-xs uppercase font-semibold"
               >
                 Annulla
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold uppercase"
               >
                 Salva Password
               </button>
@@ -517,9 +518,9 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         </div>
       )}
 
-      {/* 2. REGISTRAZIONE NUOVA SQUADRA */}
+      {/* REGISTRAZIONE NUOVA SQUADRA (Campi Società forzati in Maiuscolo) */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2 uppercase">
           <Shield className="w-5 h-5 text-emerald-400" /> Registra Nuova Squadra (Prova 30 Giorni)
         </h2>
 
@@ -528,10 +529,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
             <label className="text-xs text-slate-400 uppercase font-semibold">Codice Società</label>
             <input
               type="text"
-              placeholder="es. FULGOR_2026"
+              placeholder="ES. FULGOR_2026"
               value={codice}
-              onChange={(e) => setCodice(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white uppercase text-sm mt-1"
+              onChange={(e) => setCodice(e.target.value.toUpperCase())}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white uppercase text-sm mt-1 font-semibold"
               required
             />
           </div>
@@ -540,10 +541,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
             <label className="text-xs text-slate-400 uppercase font-semibold">Nome Società</label>
             <input
               type="text"
-              placeholder="es. ASD Fulgor Calcio"
+              placeholder="ES. ASD FULGOR CALCIO"
               value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1"
+              onChange={(e) => setNome(e.target.value.toUpperCase())}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1 uppercase font-semibold"
               required
             />
           </div>
@@ -552,17 +553,17 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
             <label className="text-xs text-slate-400 uppercase font-semibold">Indirizzo Campo</label>
             <input
               type="text"
-              placeholder="es. Via dello Sport 12, Milano"
+              placeholder="ES. VIA DELLO SPORT 12, MILANO"
               value={indirizzo}
-              onChange={(e) => setIndirizzo(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1"
+              onChange={(e) => setIndirizzo(e.target.value.toUpperCase())}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1 uppercase font-semibold"
             />
           </div>
 
           <div>
             <label className="text-xs text-slate-400 uppercase font-semibold block mb-1">Logo Squadra</label>
             <div className="flex items-center gap-3">
-              <label className="flex-1 cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg p-2 flex items-center justify-center gap-2 text-xs text-slate-300">
+              <label className="flex-1 cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg p-2 flex items-center justify-center gap-2 text-xs text-slate-300 uppercase">
                 <ImageIcon className="w-4 h-4 text-emerald-400" />
                 <span>{logoBase64 ? 'Cambia Immagine' : 'Carica Logo (File)'}</span>
                 <input type="file" accept="image/*" onChange={handleCaricaLogo} className="hidden" />
@@ -578,7 +579,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
           <div className="md:col-span-2 pt-2">
             <button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 transition text-sm"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 transition text-sm uppercase"
             >
               <Plus className="w-4 h-4" /> Attiva Squadra (Inizia Prova 30 Giorni)
             </button>
