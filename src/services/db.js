@@ -85,9 +85,9 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-// Sincronizza lo stato in tempo reale della partita
+// Sincronizza lo stato di gioco e il timestamp di avvio
 export async function syncStatoPartitaSuDb(partitaId, dati) {
-  await supabase.from('partite').update({
+  const updateData = {
     gol_casa: dati.golCasa,
     gol_ospite: dati.golOspiti,
     tempo: dati.tempoGara,
@@ -98,7 +98,13 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
     slot_usati: dati.slotUsati,
     cambi_effettuati: dati.cambiEffettuati,
     updated_at: new Date()
-  }).eq('id', partitaId);
+  };
+
+  if (dati.timerAvviatoIl !== undefined) {
+    updateData.timer_avviato_il = dati.timerAvviatoIl;
+  }
+
+  await supabase.from('partite').update(updateData).eq('id', partitaId);
 }
 
 // Inserisce un evento live sul cloud
