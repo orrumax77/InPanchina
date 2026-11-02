@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminCreaSquadra, adminCreaUtente, adminGetUtentiSocieta, getSocieta } from '../services/db';
-import { Shield, Plus, Users, MapPin, Image, Key, Calendar, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Shield, Plus, Users, MapPin, Image as ImageIcon, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 export default function AdminPanel({ onEsci }) {
   const [societaList, setSocietaList] = useState([]);
@@ -11,7 +11,7 @@ export default function AdminPanel({ onEsci }) {
   const [codice, setCodice] = useState('');
   const [nome, setNome] = useState('');
   const [indirizzo, setIndirizzo] = useState('');
-  const [logoUrl, setLogoUrl] = useState('');
+  const [logoBase64, setLogoBase64] = useState('');
 
   // Form Nuovo Utente
   const [username, setUsername] = useState('');
@@ -36,6 +36,51 @@ export default function AdminPanel({ onEsci }) {
     }
   }, [societaSelezionata]);
 
+  // Gestione caricamento file immagine e conversione in Base64
+  const handleCaricaLogo = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Seleziona un formato immagine valido (PNG, JPG, WEBP).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Ridimensionamento su Canvas per mantenere il database leggero e veloce
+        const canvas = document.createElement('canvas');
+        const maxDim = 200; // max 200x200 px
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedBase64 = canvas.toDataURL('image/png');
+        setLogoBase64(compressedBase64);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCreaSquadra = async (e) => {
     e.preventDefault();
     if (!codice || !nome) return;
@@ -44,16 +89,16 @@ export default function AdminPanel({ onEsci }) {
         codice,
         nome,
         indirizzoCampo: indirizzo,
-        logoUrl
+        logoUrl: logoBase64
       });
-      setMessaggio(`Squadra ${nuova.nome} creata con prova di 30 giorni!`);
+      setMessaggio(`Squadra ${nuova.nome} registrata con successo!`);
       setCodice('');
       setNome('');
       setIndirizzo('');
-      setLogoUrl('');
+      setLogoBase64('');
       ricaricaDati();
       setSocietaSelezionata(nuova);
-    } catch (err) {
+    } catch {
       alert('Errore: Codice società già esistente.');
     }
   };
@@ -74,7 +119,7 @@ export default function AdminPanel({ onEsci }) {
       setPassword('');
       const u = await adminGetUtentiSocieta(societaSelezionata.id);
       setUtentiSocieta(u);
-    } catch (err) {
+    } catch {
       alert('Errore: Username già utilizzato.');
     }
   };
@@ -99,8 +144,8 @@ export default function AdminPanel({ onEsci }) {
         </div>
       )}
 
-      {/* 1. SEZIONE CREAZIONE NUOVA SQUADRA */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+      {/* 1. SEZIONE REGISTRAZIONE SQUADRA CON UPLOAD LOGO */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
           <Shield className="w-5 h-5 text-emerald-400" /> Registra Nuova Squadra (Prova 30 Giorni)
         </h2>
@@ -141,15 +186,29 @@ export default function AdminPanel({ onEsci }) {
             />
           </div>
 
+          {/* Caricamento File Immagine */}
           <div>
-            <label className="text-xs text-slate-400 uppercase font-semibold">URL Logo Squadra (Opzionale)</label>
-            <input
-              type="url"
-              placeholder="https://link-al-tuo-logo.png"
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1"
-            />
+            <label className="text-xs text-slate-400 uppercase font-semibold block mb-1">
+              Logo Squadra (Carica File)
+            </label>
+            <div className="flex items-center gap-3">
+              <label className="flex-1 cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg p-2 flex items-center justify-center gap-2 text-xs text-slate-300">
+                <ImageIcon className="w-4 h-4 text-emerald-400" />
+                <span>{logoBase64 ? 'Cambia Immagine' : 'Seleziona Logo (PNG, JPG)'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleCaricaLogo}
+                  className="hidden"
+                />
+              </label>
+
+              {logoBase64 && (
+                <div className="w-10 h-10 rounded-full border border-slate-700 overflow-hidden bg-slate-950 flex-shrink-0">
+                  <img src={logoBase64} alt="Anteprima Logo" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="md:col-span-2 pt-2">
@@ -163,8 +222,8 @@ export default function AdminPanel({ onEsci }) {
         </form>
       </div>
 
-      {/* 2. GESTIONE UTENTI PER SQUADRA */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+      {/* 2. GESTIONE UTENTI */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
           <Users className="w-5 h-5 text-blue-400" /> Abilita Utenti per Società
         </h2>
@@ -179,7 +238,7 @@ export default function AdminPanel({ onEsci }) {
             <option value="">-- Seleziona una squadra --</option>
             {societaList.map(s => (
               <option key={s.id} value={s.id}>
-                {s.nome} ({s.codice_societa || s.id}) - Scadenza: {new Date(s.data_scadenza_prova).toLocaleDateString()}
+                {s.nome} ({s.codice_societa || s.id})
               </option>
             ))}
           </select>
@@ -187,6 +246,16 @@ export default function AdminPanel({ onEsci }) {
 
         {societaSelezionata && (
           <div className="pt-3 border-t border-slate-800 space-y-4">
+            <div className="flex items-center gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+              {societaSelezionata.logo_url && (
+                <img src={societaSelezionata.logo_url} alt="Logo" className="w-10 h-10 rounded-full object-cover border border-slate-700" />
+              )}
+              <div>
+                <h4 className="font-bold text-white text-sm">{societaSelezionata.nome}</h4>
+                <p className="text-xs text-slate-400">Codice: {societaSelezionata.codice_societa || societaSelezionata.id}</p>
+              </div>
+            </div>
+
             <form onSubmit={handleCreaUtente} className="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
               <div>
                 <label className="text-xs text-slate-400">Username</label>
@@ -201,7 +270,7 @@ export default function AdminPanel({ onEsci }) {
               </div>
 
               <div>
-                <label className="text-xs text-slate-400">Password da Assegnare</label>
+                <label className="text-xs text-slate-400">Password</label>
                 <input
                   type="text"
                   placeholder="es. Fulgor2026!"
@@ -213,7 +282,7 @@ export default function AdminPanel({ onEsci }) {
               </div>
 
               <div>
-                <label className="text-xs text-slate-400">Campionato / Stagione</label>
+                <label className="text-xs text-slate-400">Stagione</label>
                 <select
                   value={stagione}
                   onChange={(e) => setStagione(e.target.value)}
@@ -232,7 +301,6 @@ export default function AdminPanel({ onEsci }) {
               </button>
             </form>
 
-            {/* Elenco Utenti Attivi per questa società */}
             <div className="pt-2">
               <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">Credenziali attive per {societaSelezionata.nome}:</h4>
               {utentiSocieta.length === 0 ? (
