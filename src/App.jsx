@@ -53,8 +53,11 @@ export default function App() {
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
   
+  // Stati Cronometro Sincronizzato Multi-Dispositivo
   const [tempoGara, setTempoGara] = useState(1);
   const [secondiGara, setSecondiGara] = useState(0);
+  const [secondiBase, setSecondiBase] = useState(0);
+  const [avviatoAlle, setAvviatoAlle] = useState(null);
   const [inEsecuzione, setInEsecuzione] = useState(false);
   const [recupero, setRecupero] = useState(0);
   const [minutoCorrente, setMinutoCorrente] = useState(1);
@@ -68,7 +71,6 @@ export default function App() {
   const [modaleBloccoTempo, setModaleBloccoTempo] = useState(null);
 
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
-  const isSyncingFromRemote = useRef(false);
 
   useEffect(() => {
     Object.keys(localStorage).forEach(key => {
@@ -121,8 +123,22 @@ export default function App() {
       setGolCasa(stato.partita.gol_casa || 0);
       setGolOspiti(stato.partita.gol_ospite || 0);
       setTempoGara(stato.partita.tempo || 1);
-      setInEsecuzione(stato.partita.in_esecuzione || false);
-      setSecondiGara(stato.partita.secondi_gara || 0);
+      
+      const inEsec = stato.partita.in_esecuzione || false;
+      const secGara = stato.partita.secondi_gara || 0;
+      const avvAlle = stato.partita.avviato_alle || null;
+      
+      setInEsecuzione(inEsec);
+      setAvviatoAlle(avvAlle);
+      setSecondiBase(secGara);
+      
+      if (inEsec && avvAlle) {
+        const trascorsi = Math.max(0, Math.floor((Date.now() - new Date(avvAlle).getTime()) / 1000));
+        setSecondiGara(secGara + trascorsi);
+      } else {
+        setSecondiGara(secGara);
+      }
+
       setRecupero(stato.partita.recupero || 0);
       setMinutoCorrente(stato.partita.minuto_corrente || 1);
       setSlotUsati(stato.partita.slot_usati || 0);
@@ -149,6 +165,8 @@ export default function App() {
       setGolOspiti(0);
       setTempoGara(1);
       setSecondiGara(0);
+      setSecondiBase(0);
+      setAvviatoAlle(null);
       setInEsecuzione(false);
       setRecupero(0);
       setMinutoCorrente(1);
@@ -193,25 +211,32 @@ export default function App() {
     await avviaSessioneSocieta(soc);
   };
 
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO
   useEffect(() => {
     if (!partitaId) return;
 
     const channel = supabase
       .channel(`realtime-partita-${partitaId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partite', filter: `id=eq.${partitaId}` }, (payload) => {
-        isSyncingFromRemote.current = true;
         const p = payload.new;
         setGolCasa(p.gol_casa);
         setGolOspiti(p.gol_ospite);
         setTempoGara(p.tempo);
         setInEsecuzione(p.in_esecuzione);
-        setSecondiGara(p.secondi_gara);
+        setAvviatoAlle(p.avviato_alle);
+        setSecondiBase(p.secondi_gara);
+
+        if (p.in_esecuzione && p.avviato_alle) {
+          const trascorsi = Math.max(0, Math.floor((Date.now() - new Date(p.avviato_alle).getTime()) / 1000));
+          setSecondiGara(p.secondi_gara + trascorsi);
+        } else {
+          setSecondiGara(p.secondi_gara);
+        }
+
         setRecupero(p.recupero);
         setMinutoCorrente(p.minuto_corrente);
         setSlotUsati(p.slot_usati);
         setCambiEffettuati(p.cambi_effettuati);
-
-        setTimeout(() => { isSyncingFromRemote.current = false; }, 400);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'eventi', filter: `partita_id=eq.${partitaId}` }, async () => {
         const stato = await caricaStatoPartita(partitaId);
@@ -224,21 +249,45 @@ export default function App() {
     };
   }, [partitaId]);
 
+  // AVVIO CON TIMESTAMP ASSOLUTO CONDIVISO
   const avviaTimer = () => {
+    const adessoISO = new Date().toISOString();
     setInEsecuzione(true);
+    setAvviatoAlle(adessoISO);
+    setSecondiBase(secondiGara);
 
     syncStatoPartitaSuDb(partitaId, {
-      golCasa, golOspiti, tempoGara, secondiGara, inEsecuzione: true,
-      recupero, minutoCorrente, slotUsati, cambiEffettuati
+      golCasa,
+      golOspiti,
+      tempoGara,
+      secondiGara,
+      inEsecuzione: true,
+      avviatoAlle: adessoISO,
+      recupero,
+      minutoCorrente,
+      slotUsati,
+      cambiEffettuati
     });
   };
 
-  const mettiInPausaTimer = () => {
+  // STOP CON CONGELAMENTO DEI SECONDI ACCUMULATI
+  const mettiInPausaTimer = (secondiFinali = secondiGara) => {
     setInEsecuzione(false);
+    setAvviatoAlle(null);
+    setSecondiBase(secondiFinali);
+    setSecondiGara(secondiFinali);
 
     syncStatoPartitaSuDb(partitaId, {
-      golCasa, golOspiti, tempoGara, secondiGara, inEsecuzione: false,
-      recupero, minutoCorrente, slotUsati, cambiEffettuati
+      golCasa,
+      golOspiti,
+      tempoGara,
+      secondiGara: secondiFinali,
+      inEsecuzione: false,
+      avviatoAlle: null,
+      recupero,
+      minutoCorrente,
+      slotUsati,
+      cambiEffettuati
     });
   };
 
@@ -247,8 +296,10 @@ export default function App() {
 
     if (nuovoTempo === 2) {
       setInEsecuzione(false);
+      setAvviatoAlle(null);
       setTempoGara(2);
       setSecondiGara(0);
+      setSecondiBase(0);
       setRecupero(0);
       setMinutoCorrente(46);
 
@@ -258,13 +309,14 @@ export default function App() {
         tempoGara: 2,
         secondiGara: 0,
         inEsecuzione: false,
+        avviatoAlle: null,
         recupero: 0,
         minutoCorrente: 46,
         slotUsati,
         cambiEffettuati
       });
 
-      alert('Fine 1° Tempo! Il cronometro del 2° Tempo è stato azzerato a 00:00 ed è pronto per l\'avvio.');
+      alert("Fine 1° Tempo! Il cronometro del 2° Tempo è azzerato a 00:00 e sincronizzato.");
     } else {
       mettiInPausaTimer();
       setFaseApp('referto');
@@ -301,8 +353,16 @@ export default function App() {
     setGolOspiti(nuovoOspiti);
 
     syncStatoPartitaSuDb(partitaId, {
-      golCasa: nuovoCasa, golOspiti: nuovoOspiti, tempoGara, secondiGara,
-      inEsecuzione, recupero, minutoCorrente, slotUsati, cambiEffettuati
+      golCasa: nuovoCasa,
+      golOspiti: nuovoOspiti,
+      tempoGara,
+      secondiGara,
+      inEsecuzione,
+      avviatoAlle,
+      recupero,
+      minutoCorrente,
+      slotUsati,
+      cambiEffettuati
     });
   };
 
@@ -332,6 +392,7 @@ export default function App() {
         tempoGara,
         secondiGara,
         inEsecuzione,
+        avviatoAlle,
         recupero,
         minutoCorrente,
         slotUsati,
@@ -373,6 +434,8 @@ export default function App() {
       setGolOspiti(0);
       setTempoGara(1);
       setSecondiGara(0);
+      setSecondiBase(0);
+      setAvviatoAlle(null);
       setInEsecuzione(false);
       setRecupero(0);
       setMinutoCorrente(1);
@@ -610,7 +673,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Tabellone Segnapunti senza pulsante freccette bidirezionali */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center relative">
             <div className="flex-1">
               <h3 className="font-bold text-sm md:text-base text-slate-200 truncate uppercase">{partitaInfo?.squadraCasa || 'CASA'}</h3>
@@ -627,11 +689,14 @@ export default function App() {
             </div>
           </div>
 
+          {/* CRONOMETRO MULTI-DEVICE SINCRONIZZATO */}
           <Cronometro
             tempo={tempoGara}
             secondi={secondiGara}
             setSecondi={setSecondiGara}
             inEsecuzione={inEsecuzione}
+            avviatoAlle={avviatoAlle}
+            secondiBase={secondiBase}
             onAvvia={avviaTimer}
             onPausa={mettiInPausaTimer}
             onFinePrimoTempo={() => cambiaFaseGara(2)}
@@ -696,7 +761,7 @@ export default function App() {
         />
       )}
 
-      {/* MODALE FORZATO PERSISTENTE A TEMPO CONCLUSO */}
+      {/* MODALE DI BLOCCO A FINE TEMPO */}
       {modaleBloccoTempo && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[99999] select-none">
           <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-rose-950">
