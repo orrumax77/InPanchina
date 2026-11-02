@@ -14,7 +14,8 @@ import {
   eliminaEventoCloud, 
   aggiornaGiocatoriCloud,
   salvaRosaBaseSocieta,
-  getSocietaById
+  getSocietaById,
+  caricaRosaSocieta
 } from './services/db';
 import { supabase } from './supabaseClient';
 import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight } from 'lucide-react';
@@ -63,19 +64,17 @@ export default function App() {
     });
   }, []);
 
-  // Caricamento partita direttamente dal Cloud con ripristino di bozza, rosa e staff
+  // Caricamento partita direttamente dal Cloud con lettura garantita della rosa dal DB
   const avviaSessioneSocieta = async (soc) => {
-    // 1. Rileggi i dati freschi della società dal DB
+    // 1. Ricarica i dati freschi della società dal DB
     const socFresca = await getSocietaById(soc.id) || soc;
     setSocietaAttiva(socFresca);
 
     const idPartita = `${socFresca.id}_PARTITA_LIVE`;
+    
+    // 2. Carica sia lo stato partita sia la rosa direttamente dalla tabella giocatori
     const stato = await caricaStatoPartita(idPartita);
-
-    // 2. Prendi la rosa base salvata
-    const rosaBaseSocieta = (socFresca.rosa_base && socFresca.rosa_base.length > 0)
-      ? socFresca.rosa_base.map(g => ({ ...g, nome: (g.nome || '').toUpperCase() }))
-      : [];
+    const rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id);
 
     const staffBase = socFresca.staff_base || {};
     const allenatoreBase = (socFresca.allenatore_predefinito || staffBase.allenatore || '').toUpperCase();
@@ -108,22 +107,7 @@ export default function App() {
         setSecondiGara(stato.partita.secondi_gara || 0);
       }
 
-      if (stato.giocatori && stato.giocatori.length > 0) {
-        setRosa(stato.giocatori.map(g => ({
-          id: g.id.replace(`${idPartita}_`, ''),
-          numero: g.numero,
-          nome: (g.nome || '').toUpperCase(),
-          ruolo: g.ruolo || '',
-          isTitolare: g.is_titolare,
-          isCapitano: g.is_capitano,
-          isVice: g.is_vice,
-          ammonizioni: g.ammonizioni || 0,
-          espulso: g.espulso || false
-        })));
-      } else {
-        setRosa(rosaBaseSocieta);
-      }
-
+      setRosa(rosaSalvataNelDb);
       setEventi(stato.eventi || []);
 
       if (stato.partita.stato === 'in-corso') {
@@ -132,7 +116,7 @@ export default function App() {
         setFaseApp('distinta');
       }
     } else {
-      // Prima volta assoluta
+      // Nessuna partita in corso: inizializza con i dati della società e la rosa persistente
       setPartitaInfo({
         squadraCasa: (socFresca.nome || '').toUpperCase(),
         squadraOspite: '',
@@ -141,7 +125,7 @@ export default function App() {
         dataPartita: new Date().toISOString().split('T')[0],
         isNostraCasa: true
       });
-      setRosa(rosaBaseSocieta);
+      setRosa(rosaSalvataNelDb);
       setEventi([]);
       setFaseApp('distinta');
     }
@@ -254,7 +238,7 @@ export default function App() {
     }
   };
 
-  // Conferma Distinta: salva per la gara live E memorizza permanentemente la rosa e lo staff
+  // Conferma Distinta: salva per la gara live E memorizza permanentemente staff e rosa
   const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
@@ -263,7 +247,7 @@ export default function App() {
     // 1. Salva la distinta per il live match
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatori);
 
-    // 2. Salva stabilmente la rosa e lo staff per tutte le partite future
+    // 2. Salva stabilmente staff e preferenze per tutte le partite future
     await salvaRosaBaseSocieta(societaAttiva.id, giocatori, {
       allenatore: pInfo.allenatore,
       dirigente: pInfo.dirigente
