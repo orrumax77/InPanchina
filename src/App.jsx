@@ -25,13 +25,13 @@ export default function App() {
   const [societaAttiva, setSocietaAttiva] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
-  // Form Login Unificato
-  const [loginUser, setLoginUser] = useState('');
+  // UNICO dato salvato in localStorage: il nome utente per comodità di accesso
+  const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
   const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
   const [loginError, setLoginError] = useState('');
 
-  // Partita e Dati Live
+  // Partita e Dati Live provenienti esclusivamente da Supabase
   const [partitaInfo, setPartitaInfo] = useState(null);
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
@@ -52,19 +52,29 @@ export default function App() {
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
   const isSyncingFromRemote = useRef(false);
 
-  // Carica i dati della partita per una specifica società
+  // Pulisce vecchi residui di localStorage creati in precedenza
+  useEffect(() => {
+    Object.keys(localStorage).forEach(key => {
+      if (key !== 'inpanchina_username') {
+        localStorage.removeItem(key);
+      }
+    });
+  }, []);
+
+  // Caricamento partita direttamente dal Database
   const avviaSessioneSocieta = async (soc) => {
     setSocietaAttiva(soc);
     const idPartita = `${soc.id}_PARTITA_LIVE`;
     const stato = await caricaStatoPartita(idPartita);
 
-    if (stato && stato.partita && stato.partita.stato === 'in-corso') {
-      setPartitaInfo({
-        squadraCasa: stato.partita.squadra_casa,
-        squadraOspite: stato.partita.squadra_ospite,
-        allenatore: stato.partita.allenatore,
-        dirigente: stato.partita.dirigente
-      });
+    if (stato && stato.partita) {
+      const pInfo = {
+        squadraCasa: stato.partita.squadra_casa || soc.nome || '',
+        squadraOspite: stato.partita.squadra_ospite || '',
+        allenatore: stato.partita.allenatore || '',
+        dirigente: stato.partita.dirigente || ''
+      };
+      setPartitaInfo(pInfo);
       setGolCasa(stato.partita.gol_casa || 0);
       setGolOspiti(stato.partita.gol_ospite || 0);
       setTempoGara(stato.partita.tempo || 1);
@@ -81,7 +91,7 @@ export default function App() {
         setSecondiGara(stato.partita.secondi_gara || 0);
       }
 
-      if (stato.giocatori.length > 0) {
+      if (stato.giocatori && stato.giocatori.length > 0) {
         setRosa(stato.giocatori.map(g => ({
           id: g.id.replace(`${idPartita}_`, ''),
           numero: g.numero,
@@ -93,23 +103,44 @@ export default function App() {
           ammonizioni: g.ammonizioni,
           espulso: g.espulso
         })));
+      } else {
+        setRosa([]);
       }
 
-      if (stato.eventi.length > 0) {
+      if (stato.eventi && stato.eventi.length > 0) {
         setEventi(stato.eventi);
+      } else {
+        setEventi([]);
       }
 
-      setFaseApp('partita');
+      if (stato.partita.stato === 'in-corso') {
+        setFaseApp('partita');
+      } else {
+        setFaseApp('distinta');
+      }
     } else {
+      // Squadra appena creata o senza partite
+      setPartitaInfo({
+        squadraCasa: soc.nome || '',
+        squadraOspite: '',
+        allenatore: '',
+        dirigente: ''
+      });
+      setRosa([]);
+      setEventi([]);
       setFaseApp('distinta');
     }
   };
 
-  // 1. UNICO FORM LOGIN (riconosce Dirigente o Admin automaticamente)
+  // Login
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
     setSalvataggioInCorso(true);
+
+    // Memorizza esclusivamente l'username per il prossimo accesso
+    localStorage.setItem('inpanchina_username', loginUser.trim());
+
     const res = await loginSistema(loginUser, loginPassword);
     setSalvataggioInCorso(false);
 
@@ -121,7 +152,6 @@ export default function App() {
       } else {
         setIsSuperAdmin(false);
         setUtenteConnesso(res.utente);
-        // Squadra selezionata automaticamente dal profilo utente
         await avviaSessioneSocieta(res.societa);
       }
     } else {
@@ -129,12 +159,11 @@ export default function App() {
     }
   };
 
-  // Admin sceglie di entrare direttamente nella panchina di un club
   const handleAdminEntraInSquadra = async (soc) => {
     await avviaSessioneSocieta(soc);
   };
 
-  // 2. REALTIME SUPABASE
+  // Realtime Supabase
   useEffect(() => {
     if (!partitaId) return;
 
@@ -172,7 +201,6 @@ export default function App() {
     };
   }, [partitaId]);
 
-  // Controlli Cronometro
   const avviaTimer = () => {
     const timestampInizio = Date.now() - (secondiGara * 1000);
     setTimerAvviatoIl(timestampInizio);
@@ -253,6 +281,9 @@ export default function App() {
     setUtenteConnesso(null);
     setSocietaAttiva(null);
     setIsSuperAdmin(false);
+    setPartitaInfo(null);
+    setRosa([]);
+    setEventi([]);
     setFaseApp('login');
   };
 
@@ -338,7 +369,7 @@ export default function App() {
         />
       )}
 
-      {/* 3. DISTINTA (Logo e Nome caricati in automatico per quella squadra) */}
+      {/* 3. DISTINTA (caricata direttamente dal Cloud) */}
       {faseApp === 'distinta' && (
         <div className="space-y-4">
           <div className="max-w-4xl mx-auto flex justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl">
@@ -370,7 +401,12 @@ export default function App() {
               </button>
             </div>
           </div>
-          <Distinta onConfermaDistinta={handleConfermaDistinta} societa={societaAttiva} />
+          <Distinta
+            onConfermaDistinta={handleConfermaDistinta}
+            societa={societaAttiva}
+            partitaIniziale={partitaInfo}
+            rosaIniziale={rosa}
+          />
         </div>
       )}
 
