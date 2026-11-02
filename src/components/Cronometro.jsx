@@ -1,11 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Play, Pause, Plus, Clock, ArrowRight } from 'lucide-react';
 
-export default function Cronometro({ tempo, setTempo, onTick, onFinePrimoTempo, onFinePartita }) {
-  const [secondi, setSecondi] = useState(0);
-  const [inEsecuzione, setInEsecuzione] = useState(false);
-  const [recupero, setRecupero] = useState(0);
-
+export default function Cronometro({
+  tempo,
+  setTempo,
+  secondi,
+  setSecondi,
+  inEsecuzione,
+  setInEsecuzione,
+  recupero,
+  setRecupero,
+  onTick,
+  onFinePrimoTempo,
+  onFinePartita
+}) {
   const baseMinuti = tempo === 2 ? 45 : 0;
   const minutiTotali = baseMinuti + Math.floor(secondi / 60);
   const secondiRimanenti = secondi % 60;
@@ -25,7 +33,7 @@ export default function Cronometro({ tempo, setTempo, onTick, onFinePrimoTempo, 
       clearInterval(interval);
     }
     return () => clearInterval(interval);
-  }, [inEsecuzione, baseMinuti, onTick]);
+  }, [inEsecuzione, baseMinuti, onTick, setSecondi]);
 
   const formatNumero = (num) => String(num).padStart(2, '0');
 
