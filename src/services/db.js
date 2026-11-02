@@ -132,7 +132,7 @@ export async function loginSistema(username, password) {
   const u = username.trim().toLowerCase();
   const p = password.trim();
 
-  // 1. Check SuperAdmin Globale: entra sempre e ovunque
+  // 1. SuperAdmin Globale: entra sempre
   if (u === 'admin' && p === 'admin2026') {
     return {
       success: true,
@@ -141,7 +141,7 @@ export async function loginSistema(username, password) {
     };
   }
 
-  // 2. Login Utente Normale legato alla Squadra
+  // 2. Utente della Società
   const { data: utente, error } = await supabase
     .from('utenti_panchina')
     .select('*, societa(*)')
@@ -157,7 +157,6 @@ export async function loginSistema(username, password) {
     return { success: false, messaggio: 'Nessuna società associata a questo profilo.' };
   }
 
-  // Verifica Scadenza Prova 30 giorni
   const scadenza = new Date(utente.societa.data_scadenza_prova);
   if (!utente.societa.attiva || new Date() > scadenza) {
     return {
@@ -173,6 +172,9 @@ export async function loginSistema(username, password) {
     societa: utente.societa
   };
 }
+
+// Alias esportato per compatibilità
+export const loginDirigente = loginSistema;
 
 export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }) {
   const societaId = codice.toLowerCase().replace(/[^a-z0-9]/g, '-');
