@@ -1,14 +1,79 @@
 import React, { useState } from 'react';
-import { FileText, Copy, Share2, Check, ArrowLeft, CheckCircle2, RotateCcw } from 'lucide-react';
+import { FileText, Copy, Share2, Check, ArrowLeft, CheckCircle2, RotateCcw, Clock, Users } from 'lucide-react';
 
-export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspiti, eventi, giocatori, onChiudi, onTerminaEResetta }) {
+export default function RefertoGara({ 
+  partitaInfo, 
+  societaNome, 
+  golCasa, 
+  golOspiti, 
+  eventi, 
+  giocatori, 
+  minutoCorrente,
+  tempoGara,
+  onChiudi, 
+  onTerminaEResetta 
+}) {
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  const golEventi = eventi.filter(e => e.tipo === 'GOL');
-  const ammoniti = giocatori.filter(g => g.ammonizioni > 0 && !g.espulso);
-  const espulsi = giocatori.filter(g => g.espulso);
-  const sostituzioni = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
+  // Minuto effettivo di chiusura della partita
+  const minutoFinalePartita = Math.max(90, minutoCorrente || 90);
+
+  // Calcolo dei minuti giocati per ogni calciatore
+  const calcolaMinutiGiocati = (g) => {
+    // 1. Cerca eventuale espulsione
+    const evEspulsione = (eventi || []).find(e => 
+      e.tipo === 'ESPULSIONE' && 
+      (e.dettagli.includes(`#${g.numero} `) || e.dettagli.includes(g.nome))
+    );
+    const minutoRosso = evEspulsione ? evEspulsione.minuto : null;
+
+    // 2. Cerca sostituzione in cui il giocatore è USCITO
+    const evUscita = (eventi || []).find(e => 
+      e.tipo === 'SOSTITUZIONE' && 
+      e.dettagli.includes(`Esce #${g.numero} `)
+    );
+    const minutoUscita = evUscita ? evUscita.minuto : null;
+
+    // 3. Cerca sostituzione in cui il giocatore è ENTRATO
+    const evEntrata = (eventi || []).find(e => 
+      e.tipo === 'SOSTITUZIONE' && 
+      e.dettagli.includes(`Entra #${g.numero} `)
+    );
+    const minutoEntrata = evEntrata ? evEntrata.minuto : null;
+
+    let minuti = 0;
+    let stato = 'Non entrato';
+
+    const eraTitolareAllInizio = !evEntrata && (g.isTitolare || evUscita);
+
+    if (eraTitolareAllInizio) {
+      const fineMinuto = minutoRosso 
+        ? Math.min(minutoRosso, minutoUscita || minutoFinalePartita)
+        : (minutoUscita || minutoFinalePartita);
+
+      minuti = Math.max(0, fineMinuto);
+      stato = evUscita ? `Titolare (Uscito al ${minutoUscita}')` : 'Titolare (Intera gara)';
+      if (minutoRosso) stato += ` [Espulso al ${minutoRosso}']`;
+    } else if (evEntrata) {
+      const fineMinuto = minutoRosso ? Math.min(minutoRosso, minutoFinalePartita) : minutoFinalePartita;
+      minuti = Math.max(0, fineMinuto - minutoEntrata);
+      stato = `Subentrato al ${minutoEntrata}'`;
+      if (minutoRosso) stato += ` [Espulso al ${minutoRosso}']`;
+    }
+
+    return { minuti, stato };
+  };
+
+  const rosaConMinuti = (giocatori || []).map(g => ({
+    ...g,
+    ...calcolaMinutiGiocati(g)
+  })).sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+
+  const golEventi = (eventi || []).filter(e => e.tipo === 'GOL');
+  const ammoniti = (giocatori || []).filter(g => g.ammonizioni > 0 && !g.espulso);
+  const espulsi = (giocatori || []).filter(g => g.espulso);
+  const sostituzioni = (eventi || []).filter(e => e.tipo === 'SOSTITUZIONE');
 
   const generaTestoReferto = () => {
     let t = `📋 *REFERTO GARA - InPanchina*\n`;
@@ -17,11 +82,11 @@ export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspi
     t += `⚽ *${(partitaInfo?.squadraCasa || 'CASA').toUpperCase()} ${golCasa} - ${golOspiti} ${(partitaInfo?.squadraOspite || 'OSPITI').toUpperCase()}*\n\n`;
 
     t += `👤 *STAFF TECNICO:*\n`;
-    t += `• Mister: ${(partitaInfo?.allenatore || '-').toUpperCase()}\n`;
+    t += `• Allenatore: ${(partitaInfo?.allenatore || '-').toUpperCase()}\n`;
     t += `• Dirigente: ${(partitaInfo?.dirigente || '-').toUpperCase()}\n\n`;
 
     if (golEventi.length > 0) {
-      t += `⚽ *RETI:*\n`;
+      t += `⚽ *MARCATURE:*\n`;
       golEventi.forEach(g => {
         t += `• ${g.minuto}' ${g.dettagli.toUpperCase()}\n`;
       });
@@ -49,7 +114,14 @@ export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspi
       sostituzioni.forEach(s => {
         t += `• ${s.minuto}' ${s.dettagli.toUpperCase()}\n`;
       });
+      t += `\n`;
     }
+
+    t += `⏱️ *MINUTAGGIO ROSA GIOCATORI:*\n`;
+    rosaConMinuti.forEach(g => {
+      const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
+      t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}: ${g.minuti}' giocati (${g.stato})\n`;
+    });
 
     return t;
   };
@@ -69,13 +141,13 @@ export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspi
 
   const handleTerminaConferma = async () => {
     const conferma = window.confirm(
-      "Vuoi terminare definitivamente la partita e archiviarla nello storico?\n\nIl live verrà azzerato e preparato per la prossima gara (la rosa rimarrà intatta)."
+      "Vuoi terminare definitivamente la partita e archiviarla con il minutaggio di tutti i giocatori nello storico?\n\nIl live verrà azzerato e preparato per la prossima gara (la rosa base rimarrà salvata)."
     );
     if (!conferma) return;
 
     setSalvataggioInCorso(true);
     if (onTerminaEResetta) {
-      await onTerminaEResetta();
+      await onTerminaEResetta(rosaConMinuti);
     }
     setSalvataggioInCorso(false);
   };
@@ -90,16 +162,46 @@ export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspi
           <ArrowLeft className="w-4 h-4" /> Torna al Live
         </button>
         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
-          Referto Ufficiale
+          Referto con Minutaggio
         </span>
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
         <h2 className="text-lg font-bold flex items-center gap-2 text-white uppercase">
-          <FileText className="w-5 h-5 text-emerald-400" /> Riepilogo Referto Gara
+          <FileText className="w-5 h-5 text-emerald-400" /> Referto Completo di Gara
         </h2>
 
-        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+        {/* Tabella Minutaggio Scannabile a Video */}
+        <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase border-b border-slate-800 pb-2">
+            <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-emerald-400" /> Rosa e Minuti Giocati</span>
+            <span className="text-emerald-400 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Gara: {minutoFinalePartita}'</span>
+          </div>
+
+          <div className="divide-y divide-slate-800/80 max-h-56 overflow-y-auto pr-1">
+            {rosaConMinuti.map(g => (
+              <div key={g.id} className="py-2 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-md bg-slate-900 border border-slate-700 flex items-center justify-center font-bold text-emerald-400 font-mono">
+                    {g.numero}
+                  </span>
+                  <span className="font-semibold text-slate-200 uppercase">
+                    {g.nome} {g.isCapitano && <span className="text-amber-400 font-bold">(C)</span>} {g.isVice && <span className="text-sky-400 font-bold">(VC)</span>}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono font-bold text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+                    {g.minuti}'
+                  </span>
+                  <span className="block text-[10px] text-slate-500 uppercase mt-0.5">{g.stato}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Anteprima Testo da Copiare / Condividere */}
+        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
           {testoReferto}
         </div>
 
@@ -130,7 +232,7 @@ export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspi
           </button>
         </div>
 
-        {/* TASTO TERMINA LIVE E ARCHIVIA */}
+        {/* Termina Live e Archivia */}
         <div className="pt-2 border-t border-slate-800">
           <button
             type="button"
