@@ -26,8 +26,7 @@ import {
   Pencil, 
   MapPin, 
   X,
-  Upload,
-  Image as ImageIcon
+  Upload
 } from 'lucide-react';
 
 export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
@@ -42,7 +41,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const [nuovoLogo, setNuovoLogo] = useState('');
   const fileInputRef = useRef(null);
 
-  // Modal Gestione Credenziali e Utenti
+  // Modal Gestione Credenziali e Utenti (Case-sensitive originale)
   const [squadraSelezionata, setSquadraSelezionata] = useState(null);
   const [utentiSquadra, setUtentiSquadra] = useState([]);
   const [nuovoUsername, setNuovoUsername] = useState('');
@@ -70,7 +69,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     caricaDati();
   }, []);
 
-  // Conversione e compressione immagine da dispositivo in Base64 (max 256x256)
+  // Upload logo da dispositivo in Base64 compresso
   const handleCaricaLogoDaDispositivo = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -105,7 +104,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Esporta in formato PNG compresso
         const base64Compresso = canvas.toDataURL('image/png', 0.85);
         setNuovoLogo(base64Compresso);
         mostraNotifica('Logo caricato dal dispositivo!');
@@ -146,6 +144,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     setNuovaPassword('');
   };
 
+  // Creazione utente: NESSUNA conversione in maiuscolo
   const handleCreaUtente = async (e) => {
     e.preventDefault();
     if (!nuovoUsername.trim() || !nuovaPassword.trim()) return;
@@ -153,8 +152,8 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     try {
       await adminCreaUtente({
         societaId: squadraSelezionata.id,
-        username: nuovoUsername,
-        password: nuovaPassword,
+        username: nuovoUsername.trim(), // Valore originale esatto
+        password: nuovaPassword.trim(), // Valore originale esatto
         ruolo: ruoloNuovoUtente
       });
       setNuovoUsername('');
@@ -219,10 +218,11 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     }
   };
 
+  // Modifica password: NESSUNA conversione in maiuscolo
   const handleSalvaNuovaPassword = async (utenteId) => {
     if (!tempPass.trim()) return;
     try {
-      await adminModificaPasswordUtente(utenteId, tempPass);
+      await adminModificaPasswordUtente(utenteId, tempPass.trim());
       setModificaPassId(null);
       setTempPass('');
       const utenti = await adminGetUtentiSocieta(squadraSelezionata.id);
@@ -276,7 +276,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         </div>
       )}
 
-      {/* Form Creazione Nuova Squadra con UPLOAD LOGO DA DISPOSITIVO */}
+      {/* Form Creazione Nuova Squadra */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
         <h2 className="text-sm font-black text-white uppercase flex items-center gap-2">
           <Plus className="w-4 h-4 text-emerald-400" /> Registra Nuova Squadra / Società
@@ -318,7 +318,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
             />
           </div>
 
-          {/* Caricamento Logo da Immagine Dispositivo o URL */}
+          {/* Caricamento Logo da Immagine Dispositivo */}
           <div>
             <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Logo Società</label>
             <div className="flex items-center gap-2">
@@ -373,7 +373,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         </form>
       </div>
 
-      {/* Lista Società con Pulsantiera Mobile Ottimizzata */}
+      {/* Lista Società */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <h2 className="text-sm font-black text-white uppercase flex items-center gap-2">
@@ -399,9 +399,8 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               return (
                 <div 
                   key={soc.id}
-                  className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 hover:border-slate-700 transition"
+                  className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 hover:border-slate-700 transition"
                 >
-                  {/* Dati Società */}
                   <div className="flex items-start gap-3 min-w-0">
                     {soc.logo_url ? (
                       <img 
@@ -508,7 +507,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         )}
       </div>
 
-      {/* Modal Gestione Utenti */}
+      {/* MODAL GESTIONE UTENTI E CREDENZIALI - NO MAIUSCOLE FORZATE */}
       {squadraSelezionata && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 max-w-2xl w-full max-h-[92vh] overflow-y-auto space-y-5 shadow-2xl">
@@ -531,6 +530,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               </button>
             </div>
 
+            {/* Form Aggiunta Nuovo Dirigente: NO uppercase sui campi utente/password */}
             <form onSubmit={handleCreaUtente} className="bg-slate-950 p-3.5 sm:p-4 rounded-xl border border-slate-800 space-y-3">
               <h4 className="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
                 <Plus className="w-3.5 h-3.5 text-emerald-400" /> Rilascia Nuovo Profilo Dirigente
@@ -541,10 +541,13 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                   <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Username Accesso</label>
                   <input
                     type="text"
-                    placeholder="ES. mister.aurora"
+                    placeholder="mister.aurora"
                     value={nuovoUsername}
                     onChange={(e) => setNuovoUsername(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-medium outline-none focus:border-blue-500"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-medium outline-none focus:border-blue-500 normal-case"
                     required
                   />
                 </div>
@@ -553,10 +556,13 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                   <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Password</label>
                   <input
                     type="text"
-                    placeholder="ES. aurora2026"
+                    placeholder="Aurora_2026!"
                     value={nuovaPassword}
                     onChange={(e) => setNuovaPassword(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono outline-none focus:border-blue-500"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono outline-none focus:border-blue-500 normal-case"
                     required
                   />
                 </div>
@@ -582,10 +588,11 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               </button>
             </form>
 
+            {/* Elenco Utenti: Mostrati esattamente come memorizzati */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center justify-between">
                 <span>Account Configurati ({utentiSquadra.length})</span>
-                <span className="text-[10px] text-slate-500">Credenziali in chiaro</span>
+                <span className="text-[10px] text-slate-500">Credenziali in chiaro (case-sensitive)</span>
               </h4>
 
               {utentiSquadra.length === 0 ? (
@@ -604,7 +611,8 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                       >
                         <div className="space-y-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-white uppercase truncate">{u.username}</span>
+                            {/* Username in formato originale normal-case */}
+                            <span className="font-bold text-white normal-case font-mono truncate">{u.username}</span>
                             <span className="text-[10px] px-2 py-0.5 bg-slate-900 border border-slate-700 text-slate-400 rounded uppercase flex-shrink-0">
                               {u.ruolo || 'dirigente'}
                             </span>
@@ -616,7 +624,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                                 type="text"
                                 value={tempPass}
                                 onChange={(e) => setTempPass(e.target.value)}
-                                className="bg-slate-900 border border-emerald-500 text-white font-mono px-2.5 py-1.5 rounded-lg text-xs outline-none w-36"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck="false"
+                                className="bg-slate-900 border border-emerald-500 text-white font-mono px-2.5 py-1.5 rounded-lg text-xs outline-none w-36 normal-case"
                                 placeholder="Nuova password"
                                 autoFocus
                               />
@@ -637,7 +648,8 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                             </div>
                           ) : (
                             <div className="flex items-center gap-2 font-mono text-xs text-emerald-400">
-                              <span>Password: <strong>{u.password_chiaro}</strong></span>
+                              {/* Password in formato originale normal-case */}
+                              <span>Password: <strong className="normal-case">{u.password_chiaro}</strong></span>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -653,6 +665,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                           )}
                         </div>
 
+                        {/* Pulsanti Azione Utente */}
                         <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60">
                           <button
                             type="button"
