@@ -4,7 +4,10 @@ import {
   adminCreaUtente, 
   adminGetUtentiSocieta, 
   getSocieta, 
-  adminAggiornaStatoSocieta 
+  adminAggiornaStatoSocieta,
+  adminEliminaSocietaCompleta,
+  adminEliminaUtente,
+  adminModificaPasswordUtente
 } from '../services/db';
 import { 
   Shield, 
@@ -17,7 +20,10 @@ import {
   Lock, 
   Unlock, 
   Infinity as InfinityIcon, 
-  Calendar 
+  Calendar,
+  Trash2,
+  KeyRound,
+  X
 } from 'lucide-react';
 
 export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
@@ -37,6 +43,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const [ruolo, setRuolo] = useState('dirigente');
   const [stagione, setStagione] = useState('2026/2027');
 
+  // Modale Modifica Password
+  const [modalPasswordUtente, setModalPasswordUtente] = useState(null);
+  const [nuovaPasswordInput, setNuovaPasswordInput] = useState('');
+
   const [messaggio, setMessaggio] = useState('');
 
   const ricaricaDati = async () => {
@@ -55,13 +65,65 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   useEffect(() => {
     if (societaSelezionata) {
       adminGetUtentiSocieta(societaSelezionata.id).then(setUtentiSocieta);
+    } else {
+      setUtentiSocieta([]);
     }
   }, [societaSelezionata]);
+
+  // CANCELLAZIONE COMPLETA SQUADRA
+  const handleEliminaSquadra = async () => {
+    if (!societaSelezionata) return;
+    const conferma = window.prompt(
+      `ATTENZIONE: Stai per eliminare ${societaSelezionata.nome} e TUTTI i suoi dati (giocatori, partite, referti, cronologie e dirigenti associati).\n\nPer confermare, scrivi il nome della società: "${societaSelezionata.nome}"`
+    );
+
+    if (conferma !== societaSelezionata.nome) {
+      alert("Eliminazione annullata: il nome inserito non corrisponde.");
+      return;
+    }
+
+    try {
+      await adminEliminaSocietaCompleta(societaSelezionata.id);
+      setMessaggio(`Squadra ${societaSelezionata.nome} eliminata definitivamente con tutto il suo archivio.`);
+      setSocietaSelezionata(null);
+      ricaricaDati();
+    } catch (err) {
+      alert("Errore durante l'eliminazione della società.");
+    }
+  };
+
+  // CANCELLAZIONE SINGOLO DIRIGENTE
+  const handleEliminaUtente = async (u) => {
+    if (!window.confirm(`Vuoi rimuovere l'accesso per l'utente "${u.username}"?`)) return;
+    try {
+      await adminEliminaUtente(u.id);
+      setMessaggio(`Utente ${u.username} rimosso con successo.`);
+      const lista = await adminGetUtentiSocieta(societaSelezionata.id);
+      setUtentiSocieta(lista);
+    } catch {
+      alert("Errore durante l'eliminazione dell'utente.");
+    }
+  };
+
+  // MODIFICA PASSWORD UTENTE
+  const handleSalvaNuovaPassword = async (e) => {
+    e.preventDefault();
+    if (!nuovaPasswordInput.trim()) return;
+    try {
+      await adminModificaPasswordUtente(modalPasswordUtente.id, nuovaPasswordInput);
+      setMessaggio(`Password aggiornata per l'utente ${modalPasswordUtente.username}!`);
+      setModalPasswordUtente(null);
+      setNuovaPasswordInput('');
+      const lista = await adminGetUtentiSocieta(societaSelezionata.id);
+      setUtentiSocieta(lista);
+    } catch {
+      alert("Errore durante l'aggiornamento della password.");
+    }
+  };
 
   // GESTIONE STATO / SBLOCCO SQUADRA
   const handleSbloccaIllimitato = async () => {
     try {
-      // Scadenza lontana (anno 2099) = accesso illimitato
       const data2099 = new Date('2099-12-31T23:59:59Z').toISOString();
       const aggiornata = await adminAggiornaStatoSocieta(societaSelezionata.id, {
         attiva: true,
@@ -71,7 +133,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
       setMessaggio(`Accesso ILLIMITATO attivato per ${aggiornata.nome}!`);
       ricaricaDati();
     } catch {
-      alert('Errore durante l\'aggiornamento.');
+      alert("Errore durante l'aggiornamento.");
     }
   };
 
@@ -87,7 +149,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
       setMessaggio(`Proroga di 30 giorni applicata a ${aggiornata.nome}!`);
       ricaricaDati();
     } catch {
-      alert('Errore durante l\'aggiornamento.');
+      alert("Errore durante l'aggiornamento.");
     }
   };
 
@@ -98,10 +160,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         attiva: false
       });
       setSocietaSelezionata(aggiornata);
-      setMessaggio(`Accesso BLOCCATO per ${aggiornata.nome}. I dirigenti non potranno più accedere.`);
+      setMessaggio(`Accesso BLOCCATO per ${aggiornata.nome}. I dirigenti non potranno accedere.`);
       ricaricaDati();
     } catch {
-      alert('Errore durante l\'aggiornamento.');
+      alert("Errore durante l'aggiornamento.");
     }
   };
 
@@ -208,10 +270,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         </div>
       )}
 
-      {/* SEZIONE GESTIONE SQUADRE E STATO LICENZA */}
+      {/* 1. SELEZIONE SQUADRA E GESTIONE INTEGRALE */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
-          <Users className="w-5 h-5 text-blue-400" /> Gestione Squadre & Stato Licenza
+          <Users className="w-5 h-5 text-blue-400" /> Gestione Squadre & Credenziali Dirigenti
         </h2>
 
         <div>
@@ -232,7 +294,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
 
         {societaSelezionata && (
           <div className="space-y-4">
-            {/* Scheda Riepilogo Stato */}
+            {/* Scheda Riepilogo Stato Squadra */}
             <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -262,14 +324,14 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                 </div>
               </div>
 
-              {/* PULSANTI DI CONTROLLO ACCESSO */}
-              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap gap-2">
+              {/* PULSANTI CONTROLLO E AZIONI SULLA SQUADRA */}
+              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={handleSbloccaIllimitato}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
                 >
-                  <InfinityIcon className="w-4 h-4" /> Sblocca per Sempre (Illimitata)
+                  <InfinityIcon className="w-4 h-4" /> Sblocca Illimitata
                 </button>
 
                 <button
@@ -277,16 +339,16 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                   onClick={handleProroga30Giorni}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
                 >
-                  <Calendar className="w-4 h-4 text-emerald-400" /> +30 Giorni di Prova
+                  <Calendar className="w-4 h-4 text-emerald-400" /> +30 Giorni
                 </button>
 
                 {societaSelezionata.attiva ? (
                   <button
                     type="button"
                     onClick={handleBloccaSquadra}
-                    className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                    className="bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/30 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
                   >
-                    <Lock className="w-4 h-4" /> Blocca Accesso
+                    <Lock className="w-4 h-4" /> Blocca
                   </button>
                 ) : (
                   <button
@@ -294,26 +356,77 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                     onClick={handleProroga30Giorni}
                     className="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
                   >
-                    <Unlock className="w-4 h-4" /> Riattiva Squadra
+                    <Unlock className="w-4 h-4" /> Sblocca
                   </button>
                 )}
 
                 <button
                   type="button"
                   onClick={() => onSelezionaSquadraDaAdmin(societaSelezionata)}
-                  className="ml-auto bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
                 >
                   <ExternalLink className="w-4 h-4" /> Entra in Panchina
+                </button>
+
+                {/* PULSANTE ELIMINAZIONE TOTALE DELLA SQUADRA */}
+                <button
+                  type="button"
+                  onClick={handleEliminaSquadra}
+                  className="ml-auto bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/40 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                >
+                  <Trash2 className="w-4 h-4" /> Elimina Squadra Definitivamente
                 </button>
               </div>
             </div>
 
-            {/* Creazione Utenti */}
+            {/* GESTIONE UTENTI DELLA SQUADRA */}
             <div className="pt-2 border-t border-slate-800 space-y-3">
-              <h4 className="text-xs font-bold uppercase text-slate-400">Abilita Utente per {societaSelezionata.nome}:</h4>
-              <form onSubmit={handleCreaUtente} className="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
+              <h4 className="text-xs font-bold uppercase text-slate-400">Dirigenti Abilitati per {societaSelezionata.nome}:</h4>
+
+              {/* Elenco Utenti con Modifica Password ed Eliminazione */}
+              <div className="space-y-1.5">
+                {utentiSocieta.length === 0 ? (
+                  <p className="text-xs text-slate-500">Nessun dirigente configurato per questa squadra.</p>
+                ) : (
+                  utentiSocieta.map(u => (
+                    <div key={u.id} className="p-2.5 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between gap-2 text-xs">
+                      <div>
+                        <span className="font-bold text-white">{u.username}</span>
+                        <span className="text-slate-400 ml-3">Password: <code className="text-emerald-400 font-mono">{u.password_chiaro}</code></span>
+                        <span className="ml-2 px-1.5 py-0.5 rounded bg-slate-800 text-blue-400 font-semibold">{u.stagione}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModalPasswordUtente(u);
+                            setNuovaPasswordInput(u.password_chiaro || '');
+                          }}
+                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 font-semibold"
+                          title="Modifica Password"
+                        >
+                          <KeyRound className="w-3.5 h-3.5 text-amber-400" /> Cambia Password
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleEliminaUtente(u)}
+                          className="p-1.5 rounded bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white transition"
+                          title="Elimina Dirigente"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Form Aggiunta Nuovo Dirigente */}
+              <form onSubmit={handleCreaUtente} className="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end pt-2">
                 <div>
-                  <label className="text-xs text-slate-400">Username</label>
+                  <label className="text-xs text-slate-400">Nuovo Username</label>
                   <input
                     type="text"
                     placeholder="es. mister_rossi"
@@ -325,7 +438,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-400">Password</label>
+                  <label className="text-xs text-slate-400">Password Assegnata</label>
                   <input
                     type="text"
                     placeholder="es. Pass2026!"
@@ -352,27 +465,59 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                   type="submit"
                   className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2.5 rounded-lg text-sm flex items-center justify-center gap-1"
                 >
-                  <Plus className="w-4 h-4" /> Crea Utente
+                  <Plus className="w-4 h-4" /> Aggiungi Dirigente
                 </button>
               </form>
-
-              <div className="space-y-1.5 pt-1">
-                {utentiSocieta.map(u => (
-                  <div key={u.id} className="p-2 bg-slate-950 border border-slate-800 rounded-lg flex justify-between items-center text-xs">
-                    <div>
-                      <span className="font-bold text-white">Utente: {u.username}</span>
-                      <span className="text-slate-400 ml-3">Password: <code className="text-emerald-400 font-mono">{u.password_chiaro}</code></span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded bg-slate-800 text-blue-400 font-semibold">{u.stagione}</span>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* REGISTRAZIONE NUOVA SQUADRA */}
+      {/* POPUP MODALE MODIFICA PASSWORD DIRIGENTE */}
+      {modalPasswordUtente && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <form onSubmit={handleSalvaNuovaPassword} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+              <h3 className="font-bold text-white flex items-center gap-2 text-sm">
+                <KeyRound className="w-4 h-4 text-amber-400" /> Nuova Password per {modalPasswordUtente.username}
+              </h3>
+              <button type="button" onClick={() => setModalPasswordUtente(null)} className="text-slate-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400">Inserisci la nuova password:</label>
+              <input
+                type="text"
+                value={nuovaPasswordInput}
+                onChange={(e) => setNuovaPasswordInput(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1 outline-none font-mono"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setModalPasswordUtente(null)}
+                className="px-3 py-2 bg-slate-800 text-slate-300 rounded-lg text-xs"
+              >
+                Annulla
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold"
+              >
+                Salva Password
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 2. REGISTRAZIONE NUOVA SQUADRA */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
           <Shield className="w-5 h-5 text-emerald-400" /> Registra Nuova Squadra (Prova 30 Giorni)
