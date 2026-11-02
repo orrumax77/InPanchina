@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, UserCheck, ArrowRightLeft, ShieldAlert } from 'lucide-react';
+import { Plus, UserCheck, ArrowRightLeft, ShieldAlert, AlertTriangle } from 'lucide-react';
 
 export default function GestioneEventi({
   giocatori,
@@ -13,7 +13,8 @@ export default function GestioneEventi({
   setSlotUsati,
   cambiEffettuati,
   setCambiEffettuati,
-  onGolSegnato
+  onGolSegnato,
+  inEsecuzione // Riceve lo stato di marcia del cronometro
 }) {
   const [modalGol, setModalGol] = useState(false);
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
@@ -24,7 +25,24 @@ export default function GestioneEventi({
   const [giocatoreEsce, setGiocatoreEsce] = useState('');
   const [giocatoreEntra, setGiocatoreEntra] = useState('');
 
+  const [avvisoTimerFermo, setAvvisoTimerFermo] = useState(false);
+
+  // Controllo preliminare obbligatorio: se il timer è fermo lancia un alert e blocca l'azione
+  const verificaTimerAvviato = () => {
+    if (!inEsecuzione) {
+      setAvvisoTimerFermo(true);
+      setTimeout(() => setAvvisoTimerFermo(false), 3000);
+      return false;
+    }
+    return true;
+  };
+
   // 1. REGISTRAZIONE GOL NOSTRA SQUADRA
+  const apriModalGol = () => {
+    if (!verificaTimerAvviato()) return;
+    setModalGol(true);
+  };
+
   const handleGolNostro = (giocatoreId) => {
     const marcatore = giocatori.find(g => g.id === giocatoreId);
     const nome = marcatore ? `#${marcatore.numero} ${marcatore.nome}` : 'Nostra Squadra';
@@ -34,7 +52,7 @@ export default function GestioneEventi({
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: 'GOL',
-      squadra: 'NOSTRA', // Identificatore per storno automatico
+      squadra: 'NOSTRA',
       dettagli: `Gol: ${nome}`
     });
 
@@ -45,12 +63,14 @@ export default function GestioneEventi({
 
   // 2. REGISTRAZIONE GOL AVVERSARI
   const handleGolAvversario = () => {
+    if (!verificaTimerAvviato()) return;
+
     onNuovoEvento({
       id: Date.now().toString(),
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: 'GOL',
-      squadra: 'AVVERSARIA', // Identificatore per storno automatico
+      squadra: 'AVVERSARIA',
       dettagli: 'Gol Squadra Avversaria'
     });
 
@@ -58,6 +78,11 @@ export default function GestioneEventi({
   };
 
   // 3. REGISTRAZIONE AMMONIZIONE
+  const apriModalCartellino = () => {
+    if (!verificaTimerAvviato()) return;
+    setModalAmmonizione(true);
+  };
+
   const handleAmmonizione = (giocatoreId) => {
     const target = giocatori.find(g => g.id === giocatoreId);
     if (!target) return;
@@ -114,11 +139,16 @@ export default function GestioneEventi({
       dettagli: `Espulsione Diretta: #${target.numero} ${target.nome}`
     });
 
-    setModalEspulsione(false);
+    setModalAmmonizione(false);
     setGiocatoreSelezionato('');
   };
 
   // 5. REGISTRAZIONE SOSTITUZIONE
+  const apriModalCambio = () => {
+    if (!verificaTimerAvviato()) return;
+    setModalSostituzione(true);
+  };
+
   const handleSostituzione = () => {
     if (!giocatoreEsce || !giocatoreEntra) return;
 
@@ -154,14 +184,33 @@ export default function GestioneEventi({
   const panchinaDisponibile = giocatori.filter(g => !g.isTitolare && !g.espulso);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-4">
-      <h3 className="text-xs uppercase font-bold text-slate-400">Registra Evento di Gara</h3>
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-4 relative">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs uppercase font-bold text-slate-400">Registra Evento di Gara</h3>
+        {!inEsecuzione && (
+          <span className="text-[10px] font-bold text-amber-400 bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" /> Cronometro in pausa
+          </span>
+        )}
+      </div>
+
+      {/* BANNER DI AVVISO QUANDO SI TENTA UN INSERIMENTO A TIMER FERMO */}
+      {avvisoTimerFermo && (
+        <div className="bg-rose-950/90 border-2 border-rose-500 p-3 rounded-xl flex items-center gap-2.5 text-rose-200 text-xs font-bold uppercase animate-bounce shadow-xl">
+          <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+          <span>Attenzione: Avvia il cronometro prima di inserire un evento di gara!</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <button
           type="button"
-          onClick={() => setModalGol(true)}
-          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition shadow-md shadow-emerald-950"
+          onClick={apriModalGol}
+          className={`font-bold py-3 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition shadow-md ${
+            inEsecuzione 
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950 cursor-pointer' 
+              : 'bg-slate-800/80 text-slate-400 border border-slate-700/60 opacity-80'
+          }`}
         >
           <Plus className="w-4 h-4" /> Gol Nostro
         </button>
@@ -169,23 +218,35 @@ export default function GestioneEventi({
         <button
           type="button"
           onClick={handleGolAvversario}
-          className="bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700 font-bold py-3 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition shadow-md"
+          className={`font-bold py-3 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition shadow-md ${
+            inEsecuzione 
+              ? 'bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700 cursor-pointer' 
+              : 'bg-slate-800/80 text-slate-500 border border-slate-700/60 opacity-80'
+          }`}
         >
           <Plus className="w-4 h-4" /> Gol Avversari
         </button>
 
         <button
           type="button"
-          onClick={() => setModalAmmonizione(true)}
-          className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition shadow-md shadow-amber-950"
+          onClick={apriModalCartellino}
+          className={`font-bold py-3 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition shadow-md ${
+            inEsecuzione 
+              ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-950 cursor-pointer' 
+              : 'bg-slate-800/80 text-slate-400 border border-slate-700/60 opacity-80'
+          }`}
         >
           <ShieldAlert className="w-4 h-4" /> Cartellino
         </button>
 
         <button
           type="button"
-          onClick={() => setModalSostituzione(true)}
-          className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition shadow-md shadow-blue-950"
+          onClick={apriModalCambio}
+          className={`font-bold py-3 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition shadow-md ${
+            inEsecuzione 
+              ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-950 cursor-pointer' 
+              : 'bg-slate-800/80 text-slate-400 border border-slate-700/60 opacity-80'
+          }`}
         >
           <ArrowRightLeft className="w-4 h-4" /> Cambio ({cambiEffettuati}/5)
         </button>
