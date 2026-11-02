@@ -57,12 +57,12 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
       societa_id: societaId,
       numero: g.numero,
       nome: g.nome,
-      ruolo: g.ruolo,
+      ruolo: g.ruolo || '',
       is_titolare: g.isTitolare,
       is_capitano: g.isCapitano,
       is_vice: g.isVice,
-      ammonizioni: 0,
-      espulso: false
+      ammonizioni: g.ammonizioni || 0,
+      espulso: g.espulso || false
     }));
 
     await supabase.from('giocatori').upsert(righeGiocatori);
@@ -116,7 +116,7 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
     societa_id: societaId,
     numero: g.numero,
     nome: g.nome,
-    ruolo: g.ruolo,
+    ruolo: g.ruolo || '',
     is_titolare: g.isTitolare,
     is_capitano: g.isCapitano,
     is_vice: g.isVice,
@@ -129,11 +129,11 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
 // --- GESTIONE LOGIN & SUPERADMIN ---
 
 export async function loginSistema(username, password) {
-  const u = username.trim().toLowerCase();
+  const u = username.trim();
   const p = password.trim();
 
-  // 1. SuperAdmin Globale: entra sempre
-  if (u === 'admin' && p === 'admin2026') {
+  // 1. SuperAdmin Globale: entra sempre e ovunque
+  if (u.toLowerCase() === 'admin' && p === 'admin2026') {
     return {
       success: true,
       isAdmin: true,
@@ -141,11 +141,11 @@ export async function loginSistema(username, password) {
     };
   }
 
-  // 2. Utente della Società
+  // 2. Utente Dirigente associato alla Squadra
   const { data: utente, error } = await supabase
     .from('utenti_panchina')
     .select('*, societa(*)')
-    .eq('username', username.trim())
+    .eq('username', u)
     .eq('password_chiaro', p)
     .single();
 
@@ -157,6 +157,7 @@ export async function loginSistema(username, password) {
     return { success: false, messaggio: 'Nessuna società associata a questo profilo.' };
   }
 
+  // Verifica Scadenza Prova 30 giorni
   const scadenza = new Date(utente.societa.data_scadenza_prova);
   if (!utente.societa.attiva || new Date() > scadenza) {
     return {
@@ -173,7 +174,6 @@ export async function loginSistema(username, password) {
   };
 }
 
-// Alias esportato per compatibilità
 export const loginDirigente = loginSistema;
 
 export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }) {
@@ -183,9 +183,9 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
 
   const { data, error } = await supabase.from('societa').upsert({
     id: societaId,
-    codice_societa: codice.toUpperCase(),
-    nome: nome,
-    indirizzo_campo: indirizzoCampo || '',
+    codice_societa: codice.trim().toUpperCase(),
+    nome: nome.trim().toUpperCase(),
+    indirizzo_campo: (indirizzoCampo || '').trim().toUpperCase(),
     logo_url: logoUrl || '',
     data_scadenza_prova: dataScadenza.toISOString(),
     attiva: true
@@ -197,7 +197,7 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
 
 export async function adminCreaUtente({ societaId, username, password, ruolo, stagione }) {
   const { data, error } = await supabase.from('utenti_panchina').insert([{
-    id: `${societaId}_${username.toLowerCase()}`,
+    id: `${societaId}_${username.trim()}`,
     societa_id: societaId,
     username: username.trim(),
     password_chiaro: password.trim(),
@@ -217,7 +217,6 @@ export async function adminGetUtentiSocieta(societaId) {
   return data || [];
 }
 
-// Aggiorna lo stato di licenza o la scadenza di una società
 export async function adminAggiornaStatoSocieta(societaId, { attiva, dataScadenza }) {
   const updateData = {};
   if (attiva !== undefined) updateData.attiva = attiva;
@@ -234,9 +233,7 @@ export async function adminAggiornaStatoSocieta(societaId, { attiva, dataScadenz
   return data;
 }
 
-// Elimina una società e tutti i dati correlati (a cascata)
 export async function adminEliminaSocietaCompleta(societaId) {
-  // Pulizia manuale di sicurezza nel caso i constraint non fossero attivi
   await supabase.from('eventi').delete().in(
     'partita_id',
     (await supabase.from('partite').select('id').eq('societa_id', societaId)).data?.map(p => p.id) || []
@@ -250,14 +247,12 @@ export async function adminEliminaSocietaCompleta(societaId) {
   return { success: true };
 }
 
-// Elimina un singolo utente dirigente
 export async function adminEliminaUtente(utenteId) {
   const { error } = await supabase.from('utenti_panchina').delete().eq('id', utenteId);
   if (error) throw error;
   return { success: true };
 }
 
-// Modifica la password di un utente
 export async function adminModificaPasswordUtente(utenteId, nuovaPassword) {
   const { error } = await supabase
     .from('utenti_panchina')
