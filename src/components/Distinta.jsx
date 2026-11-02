@@ -67,6 +67,22 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setTimeout(() => setSalvataggioNotifica(false), 2000);
   };
 
+  // Funzione per trovare il primo numero di maglia libero a partire dall'1
+  const trovaPrimoNumeroLibero = (idDaEscludere = null) => {
+    const numeriOccupati = new Set(
+      giocatori
+        .filter(g => g.id !== idDaEscludere)
+        .map(g => parseInt(g.numero, 10))
+        .filter(n => !isNaN(n))
+    );
+
+    let num = 1;
+    while (numeriOccupati.has(num)) {
+      num++;
+    }
+    return String(num);
+  };
+
   // Autosave su Supabase per le informazioni di gara
   const salvaInfoPartitaCloud = (nuoveInfo) => {
     if (!societa?.id || !partitaId) return;
@@ -167,14 +183,31 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     mostraNotificaSalvataggio();
   };
 
-  // 1. AGGIUNTA DIRETTA NEL DATABASE
+  // AGGIUNTA GIOCATORE CON CONTROLLO NUMERO DUPLICATO
   const aggiungiGiocatore = async (e) => {
     e.preventDefault();
     if (!nuovoNome.trim() || !nuovoNumero.trim()) return;
 
+    let numeroScelto = nuovoNumero.trim();
+
+    // Verifica se il numero è già occupato
+    const giaPresente = giocatori.find(g => String(g.numero) === String(numeroScelto));
+    if (giaPresente) {
+      const primoLibero = trovaPrimoNumeroLibero();
+      const accettaSuggerito = window.confirm(
+        `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi assegnare il primo numero libero (#${primoLibero})?\n\n• Clicca OK per usare il #${primoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
+      );
+
+      if (accettaSuggerito) {
+        numeroScelto = primoLibero;
+      } else {
+        return;
+      }
+    }
+
     const nuovo = {
       id: Date.now().toString(),
-      numero: nuovoNumero.trim(),
+      numero: numeroScelto,
       nome: nuovoNome.trim().toUpperCase(),
       ruolo: '',
       isTitolare: titolariCount < 11,
@@ -190,7 +223,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     mostraNotificaSalvataggio();
   };
 
-  // 2. ELIMINAZIONE DIRETTA NEL DATABASE
+  // ELIMINAZIONE GIOCATORE
   const rimuoviGiocatore = async (id) => {
     setGiocatori(prev => prev.filter(g => g.id !== id));
     if (editingId === id) setEditingId(null);
@@ -205,15 +238,32 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setEditNome(g.nome);
   };
 
-  // 3. SALVATAGGIO MODIFICA DIRETTO NEL DATABASE
+  // MODIFICA GIOCATORE CON CONTROLLO NUMERO DUPLICATO
   const salvaModifica = async (id) => {
     if (!editNome.trim() || !editNumero.trim()) return;
     const target = giocatori.find(g => g.id === id);
     if (!target) return;
 
+    let numeroScelto = editNumero.trim();
+
+    // Verifica se il nuovo numero è occupato da un altro compagno
+    const giaPresente = giocatori.find(g => g.id !== id && String(g.numero) === String(numeroScelto));
+    if (giaPresente) {
+      const primoLibero = trovaPrimoNumeroLibero(id);
+      const accettaSuggerito = window.confirm(
+        `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi assegnare il primo numero libero (#${primoLibero})?\n\n• Clicca OK per usare il #${primoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
+      );
+
+      if (accettaSuggerito) {
+        numeroScelto = primoLibero;
+      } else {
+        return;
+      }
+    }
+
     const aggiornato = {
       ...target,
-      numero: editNumero.trim(),
+      numero: numeroScelto,
       nome: editNome.trim().toUpperCase()
     };
 
@@ -268,7 +318,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         )}
       </div>
 
-      {/* Configurazione Partita di Oggi con Salvataggio Istantaneo */}
+      {/* Configurazione Partita di Oggi */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
           <div className="flex items-center gap-2">
