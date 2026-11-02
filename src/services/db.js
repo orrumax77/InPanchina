@@ -216,3 +216,20 @@ export async function adminGetUtentiSocieta(societaId) {
     .eq('societa_id', societaId);
   return data || [];
 }
+
+// Aggiorna lo stato di licenza o la scadenza di una società
+export async function adminAggiornaStatoSocieta(societaId, { attiva, dataScadenza }) {
+  const updateData = {};
+  if (attiva !== undefined) updateData.attiva = attiva;
+  if (dataScadenza !== undefined) updateData.data_scadenza_prova = dataScadenza;
+
+  const { data, error } = await supabase
+    .from('societa')
+    .update(updateData)
+    .eq('id', societaId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
