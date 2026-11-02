@@ -97,6 +97,12 @@ export default function App() {
       setSlotUsati(stato.partita.slot_usati || 0);
       setCambiEffettuati(stato.partita.cambi_effettuati || 0);
 
+      if (stato.partita.in_esecuzione && stato.partita.timer_avviato_il) {
+        setSecondiGara(Math.floor((Date.now() - stato.partita.timer_avviato_il) / 1000));
+      } else {
+        setSecondiGara(stato.partita.secondi_gara || 0);
+      }
+
       setRosa(rosaSalvataNelDb);
       setEventi(stato.eventi || []);
 
@@ -202,17 +208,28 @@ export default function App() {
     });
   };
 
+  // Passaggio Fasi Gara (1° -> 2° Tempo AZZERA a 00:00 e resetta recupero)
   const cambiaFaseGara = (nuovoTempo) => {
     if (nuovoTempo === 2) {
-      mettiInPausaTimer();
+      setInEsecuzione(false);
       setTempoGara(2);
-      setSecondiGara(0);
-      setRecupero(0);
+      setSecondiGara(0); // Azzera il timer a 00:00 per il 2° Tempo
+      setRecupero(0);    // Azzera il recupero della prima frazione
+      setMinutoCorrente(46);
+
       syncStatoPartitaSuDb(partitaId, {
-        golCasa, golOspiti, tempoGara: 2, secondiGara: 0, inEsecuzione: false,
-        recupero: 0, minutoCorrente: 45, slotUsati, cambiEffettuati
+        golCasa,
+        golOspiti,
+        tempoGara: 2,
+        secondiGara: 0,
+        inEsecuzione: false,
+        recupero: 0,
+        minutoCorrente: 46,
+        slotUsati,
+        cambiEffettuati
       });
-      alert('Fine 1° Tempo!');
+
+      alert('Fine 1° Tempo! Il cronometro del 2° Tempo è stato azzerato a 00:00 ed è pronto per l\'avvio.');
     } else {
       mettiInPausaTimer();
       alert('Partita terminata! Apertura referto.');
