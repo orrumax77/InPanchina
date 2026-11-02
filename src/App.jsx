@@ -20,23 +20,20 @@ import {
   archiviaPartitaEResettaLive
 } from './services/db';
 import { supabase } from './supabaseClient';
-import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight, Archive, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight, Archive, RotateCcw, AlertTriangle } from 'lucide-react';
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto' | 'archivio'
   
-  // Dati Autenticazione
   const [utenteConnesso, setUtenteConnesso] = useState(null);
   const [societaAttiva, setSocietaAttiva] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
-  // UNICO dato salvato in localStorage: il nome utente per comodità di accesso
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
   const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
   const [loginError, setLoginError] = useState('');
 
-  // Partita e Dati Live provenienti da Supabase
   const [partitaInfo, setPartitaInfo] = useState(null);
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
@@ -56,7 +53,6 @@ export default function App() {
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
   const isSyncingFromRemote = useRef(false);
 
-  // Pulisce qualsiasi residuo da localStorage all'avvio eccetto l'username
   useEffect(() => {
     Object.keys(localStorage).forEach(key => {
       if (key !== 'inpanchina_username') {
@@ -65,7 +61,6 @@ export default function App() {
     });
   }, []);
 
-  // Caricamento partita direttamente dal Cloud con lettura garantita della rosa dal DB
   const avviaSessioneSocieta = async (soc) => {
     const socFresca = await getSocietaById(soc.id) || soc;
     setSocietaAttiva(socFresca);
@@ -117,7 +112,6 @@ export default function App() {
     }
   };
 
-  // Login: supporta password manager nativo del browser
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -147,7 +141,6 @@ export default function App() {
     await avviaSessioneSocieta(soc);
   };
 
-  // Realtime Supabase
   useEffect(() => {
     if (!partitaId) return;
 
@@ -179,7 +172,6 @@ export default function App() {
     };
   }, [partitaId]);
 
-  // Avvio Cronometro
   const avviaTimer = () => {
     setInEsecuzione(true);
 
@@ -189,7 +181,6 @@ export default function App() {
     });
   };
 
-  // Stoppa / Metti in Pausa Cronometro
   const mettiInPausaTimer = () => {
     setInEsecuzione(false);
 
@@ -199,7 +190,6 @@ export default function App() {
     });
   };
 
-  // Passaggio Fasi Gara (1° -> 2° Tempo AZZERA a 00:00 e resetta recupero)
   const cambiaFaseGara = (nuovoTempo) => {
     if (nuovoTempo === 2) {
       setInEsecuzione(false);
@@ -223,12 +213,11 @@ export default function App() {
       alert('Fine 1° Tempo! Il cronometro del 2° Tempo è stato azzerato a 00:00 ed è pronto per l\'avvio.');
     } else {
       mettiInPausaTimer();
-      alert('Partita terminata! Apertura referto.');
+      alert('ATTENZIONE: Il tempo è concluso! Verrai indirizzato al referto ufficiale per completare e archiviare la gara.');
       setFaseApp('referto');
     }
   };
 
-  // Conferma Distinta
   const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
@@ -245,7 +234,6 @@ export default function App() {
     setFaseApp('partita');
   };
 
-  // Incremento Gol
   const handleGolSegnato = async (isNostraSquadra) => {
     const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
     const golVaACasa = isNostraSquadra ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
@@ -267,7 +255,6 @@ export default function App() {
     await registraEventoCloud(partitaId, evento);
   };
 
-  // ELIMINAZIONE EVENTO CON STORNO DEL PUNTEGGIO SE È UN GOL
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
 
@@ -305,7 +292,6 @@ export default function App() {
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
   };
 
-  // Inversione squadre rapida nel Live Match
   const invertiSquadreLive = () => {
     if (!partitaInfo) return;
     const nuovoPInfo = {
@@ -333,7 +319,6 @@ export default function App() {
     });
   };
 
-  // TERMINA LIVE: ARCHIVIA E PREPARA LA PROSSIMA GARA
   const handleTerminaLiveEResetta = async (giocatoriConMinuti) => {
     setSalvataggioInCorso(true);
 
@@ -355,7 +340,6 @@ export default function App() {
     if (res.success) {
       alert("Partita archiviata con successo nello storico con tutti i minuti giocati! Live azzerato per la prossima gara.");
 
-      // Reset stati locali
       setGolCasa(0);
       setGolOspiti(0);
       setTempoGara(1);
@@ -367,10 +351,8 @@ export default function App() {
       setCambiEffettuati(0);
       setEventi([]);
 
-      // Reset sanzioni della rosa
       setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
 
-      // Ripristina distinta con avversario vuoto
       setPartitaInfo(prev => ({
         ...prev,
         squadraCasa: societaAttiva?.nome || '',
@@ -386,6 +368,12 @@ export default function App() {
   };
 
   const disconnetti = () => {
+    // Controllo di sicurezza se il cronometro è fermo al 90° e non è stato ancora archiviato il referto
+    if (tempoGara === 2 && secondiGara >= 2700 && faseApp === 'partita') {
+      const conferma = window.confirm("ATTENZIONE: La partita è terminata ma non hai ancora archiviato il referto finale. Se esci ora la sessione live rimarrà incompleta. Vuoi davvero disconnetterti?");
+      if (!conferma) return;
+    }
+
     setUtenteConnesso(null);
     setSocietaAttiva(null);
     setIsSuperAdmin(false);
@@ -406,7 +394,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN ACCESSO IMMEDIATO */}
+      {/* 1. LOGIN */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
@@ -476,7 +464,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. PANNELLO SUPERADMIN GLOBALE */}
+      {/* 2. ADMIN */}
       {faseApp === 'admin' && (
         <AdminPanel
           onEsci={disconnetti}
@@ -607,6 +595,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Cronometro con avviso tempo scaduto senza recupero */}
           <Cronometro
             tempo={tempoGara}
             secondi={secondiGara}
@@ -621,7 +610,6 @@ export default function App() {
             onTick={(min) => setMinutoCorrente(min)}
           />
 
-          {/* Gestione Eventi con blocco automatico a cronometro fermo */}
           <GestioneEventi
             giocatori={rosa}
             setGiocatori={handleAggiornaRosa}
@@ -640,7 +628,7 @@ export default function App() {
 
           <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
 
-          {/* Tasto Termina Live */}
+          {/* Termina Live e Archivia */}
           <div className="pt-2">
             <button
               type="button"
