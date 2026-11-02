@@ -52,7 +52,7 @@ export default function App() {
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
   const isSyncingFromRemote = useRef(false);
 
-  // Pulisce vecchi residui di localStorage
+  // Pulisce qualsiasi residuo da localStorage all'avvio
   useEffect(() => {
     Object.keys(localStorage).forEach(key => {
       if (key !== 'inpanchina_username') {
@@ -61,7 +61,7 @@ export default function App() {
     });
   }, []);
 
-  // Caricamento partita direttamente dal Database
+  // Caricamento partita direttamente dal Database Cloud
   const avviaSessioneSocieta = async (soc) => {
     setSocietaAttiva(soc);
     const idPartita = `${soc.id}_PARTITA_LIVE`;
@@ -69,10 +69,10 @@ export default function App() {
 
     if (stato && stato.partita) {
       const pInfo = {
-        squadraCasa: stato.partita.squadra_casa || soc.nome || '',
-        squadraOspite: stato.partita.squadra_ospite || '',
-        allenatore: stato.partita.allenatore || '',
-        dirigente: stato.partita.dirigente || ''
+        squadraCasa: (stato.partita.squadra_casa || soc.nome || '').toUpperCase(),
+        squadraOspite: (stato.partita.squadra_ospite || '').toUpperCase(),
+        allenatore: (stato.partita.allenatore || '').toUpperCase(),
+        dirigente: (stato.partita.dirigente || '').toUpperCase()
       };
       setPartitaInfo(pInfo);
       setGolCasa(stato.partita.gol_casa || 0);
@@ -95,8 +95,8 @@ export default function App() {
         setRosa(stato.giocatori.map(g => ({
           id: g.id.replace(`${idPartita}_`, ''),
           numero: g.numero,
-          nome: g.nome,
-          ruolo: g.ruolo,
+          nome: (g.nome || '').toUpperCase(),
+          ruolo: g.ruolo || '',
           isTitolare: g.is_titolare,
           isCapitano: g.is_capitano,
           isVice: g.is_vice,
@@ -120,7 +120,7 @@ export default function App() {
       }
     } else {
       setPartitaInfo({
-        squadraCasa: soc.nome || '',
+        squadraCasa: (soc.nome || '').toUpperCase(),
         squadraOspite: '',
         allenatore: '',
         dirigente: ''
@@ -131,7 +131,7 @@ export default function App() {
     }
   };
 
-  // Login
+  // Login: Username e Password mantengono maiuscolo/minuscolo digitato
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -318,13 +318,14 @@ export default function App() {
               <select
                 value={stagioneSelezionata}
                 onChange={(e) => setStagioneSelezionata(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none uppercase"
               >
                 <option value="2026/2027">Stagione 2026 / 2027</option>
                 <option value="2027/2028">Stagione 2027 / 2028</option>
               </select>
             </div>
 
+            {/* Username preserva minuscolo/maiuscolo digitato */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Username</label>
               <input
@@ -332,11 +333,12 @@ export default function App() {
                 placeholder="Nome utente"
                 value={loginUser}
                 onChange={(e) => setLoginUser(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 font-medium"
                 required
               />
             </div>
 
+            {/* Password preserva minuscolo/maiuscolo digitato */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Password</label>
               <input
@@ -344,14 +346,14 @@ export default function App() {
                 placeholder="••••••••"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 font-mono"
                 required
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition text-sm shadow-lg shadow-emerald-950"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition text-sm shadow-lg shadow-emerald-950 uppercase"
             >
               <LogIn className="w-4 h-4" /> Accedi
             </button>
@@ -376,8 +378,8 @@ export default function App() {
                 <img src={societaAttiva.logo_url} alt="Logo" className="w-9 h-9 rounded-full object-cover border border-slate-700" />
               )}
               <div>
-                <span className="text-sm font-bold text-white block">{societaAttiva?.nome}</span>
-                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                <span className="text-sm font-bold text-white block uppercase">{societaAttiva?.nome}</span>
+                <span className="text-[11px] text-slate-400 flex items-center gap-1 uppercase">
                   <MapPin className="w-3 h-3 text-emerald-400" /> {societaAttiva?.indirizzo_campo || 'Campo non specificato'}
                 </span>
               </div>
@@ -400,14 +402,14 @@ export default function App() {
               {isSuperAdmin && (
                 <button
                   onClick={() => setFaseApp('admin')}
-                  className="text-xs text-blue-400 hover:underline"
+                  className="text-xs text-blue-400 hover:underline uppercase font-semibold"
                 >
                   Pannello Admin
                 </button>
               )}
               <button
                 onClick={disconnetti}
-                className="text-xs text-rose-400 hover:underline"
+                className="text-xs text-rose-400 hover:underline uppercase font-semibold"
               >
                 Disconnetti
               </button>
@@ -435,7 +437,6 @@ export default function App() {
             </button>
             
             <div className="flex items-center gap-2">
-              {/* BADGE UTENTE LIVE */}
               <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-xs">
                 <UserCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="text-slate-300 font-semibold font-mono">
@@ -443,13 +444,13 @@ export default function App() {
                 </span>
               </div>
 
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 uppercase">
                 <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live {stagioneSelezionata}
               </span>
 
               <button
                 onClick={() => setFaseApp('referto')}
-                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
+                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 uppercase"
               >
                 <FileText className="w-3.5 h-3.5" /> Referto
               </button>
@@ -458,12 +459,12 @@ export default function App() {
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center">
             <div className="flex-1">
-              <h3 className="font-bold text-sm md:text-base text-slate-200 truncate">{partitaInfo?.squadraCasa || 'Casa'}</h3>
+              <h3 className="font-bold text-sm md:text-base text-slate-200 truncate uppercase">{partitaInfo?.squadraCasa || 'CASA'}</h3>
               <div className="text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
             </div>
             <div className="px-4 text-slate-600 font-bold text-xl">VS</div>
             <div className="flex-1">
-              <h3 className="font-bold text-sm md:text-base text-slate-200 truncate">{partitaInfo?.squadraOspite || 'Ospite'}</h3>
+              <h3 className="font-bold text-sm md:text-base text-slate-200 truncate uppercase">{partitaInfo?.squadraOspite || 'OSPITE'}</h3>
               <div className="text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
             </div>
           </div>
