@@ -16,26 +16,21 @@ export default function RefertoGara({
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  // Minuto effettivo di chiusura della partita
   const minutoFinalePartita = Math.max(90, minutoCorrente || 90);
 
-  // Calcolo dei minuti giocati per ogni calciatore
   const calcolaMinutiGiocati = (g) => {
-    // 1. Cerca eventuale espulsione
     const evEspulsione = (eventi || []).find(e => 
       e.tipo === 'ESPULSIONE' && 
       (e.dettagli.includes(`#${g.numero} `) || e.dettagli.includes(g.nome))
     );
     const minutoRosso = evEspulsione ? evEspulsione.minuto : null;
 
-    // 2. Cerca sostituzione in cui il giocatore è USCITO
     const evUscita = (eventi || []).find(e => 
       e.tipo === 'SOSTITUZIONE' && 
       e.dettagli.includes(`Esce #${g.numero} `)
     );
     const minutoUscita = evUscita ? evUscita.minuto : null;
 
-    // 3. Cerca sostituzione in cui il giocatore è ENTRATO
     const evEntrata = (eventi || []).find(e => 
       e.tipo === 'SOSTITUZIONE' && 
       e.dettagli.includes(`Entra #${g.numero} `)
@@ -81,9 +76,19 @@ export default function RefertoGara({
     t += `🏆 *${(societaNome || '').toUpperCase()}*\n`;
     t += `⚽ *${(partitaInfo?.squadraCasa || 'CASA').toUpperCase()} ${golCasa} - ${golOspiti} ${(partitaInfo?.squadraOspite || 'OSPITI').toUpperCase()}*\n\n`;
 
-    t += `👤 *STAFF TECNICO:*\n`;
+    t += `👤 *STAFF TECNICO & DIRIGENZIALE UFFICIALE:*\n`;
     t += `• Allenatore: ${(partitaInfo?.allenatore || '-').toUpperCase()}\n`;
-    t += `• Dirigente: ${(partitaInfo?.dirigente || '-').toUpperCase()}\n\n`;
+    if (partitaInfo?.allenatoreSeconda) {
+      t += `• Allenatore in Seconda: ${partitaInfo.allenatoreSeconda.toUpperCase()}\n`;
+    }
+    t += `• Dirigente Accompagnatore Ufficiale della Squadra: ${(partitaInfo?.dirigente || '-').toUpperCase()}\n`;
+    if (partitaInfo?.dirigenteUfficiali) {
+      t += `• Dirigente Addetto Ufficiali di Gara: ${partitaInfo.dirigenteUfficiali.toUpperCase()}\n`;
+    }
+    if (partitaInfo?.assistenteArbitro) {
+      t += `• Assistente all'Arbitro: ${partitaInfo.assistenteArbitro.toUpperCase()}\n`;
+    }
+    t += `\n`;
 
     if (golEventi.length > 0) {
       t += `⚽ *MARCATURE:*\n`;
@@ -141,7 +146,7 @@ export default function RefertoGara({
 
   const handleTerminaConferma = async () => {
     const conferma = window.confirm(
-      "Vuoi terminare definitivamente la partita e archiviarla con il minutaggio di tutti i giocatori nello storico?\n\nIl live verrà azzerato e preparato per la prossima gara (la rosa base rimarrà salvata)."
+      "Vuoi terminare definitivamente la partita e archiviarla con il minutaggio e lo staff nello storico?\n\nIl live verrà azzerato e preparato per la prossima gara (la rosa e lo staff rimarranno salvati)."
     );
     if (!conferma) return;
 
@@ -162,7 +167,7 @@ export default function RefertoGara({
           <ArrowLeft className="w-4 h-4" /> Torna al Live
         </button>
         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
-          Referto con Minutaggio
+          Referto con Minutaggio & Staff
         </span>
       </div>
 
@@ -171,7 +176,7 @@ export default function RefertoGara({
           <FileText className="w-5 h-5 text-emerald-400" /> Referto Completo di Gara
         </h2>
 
-        {/* Tabella Minutaggio Scannabile a Video */}
+        {/* Tabella Minutaggio */}
         <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase border-b border-slate-800 pb-2">
             <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-emerald-400" /> Rosa e Minuti Giocati</span>
@@ -200,12 +205,12 @@ export default function RefertoGara({
           </div>
         </div>
 
-        {/* Anteprima Testo da Copiare / Condividere */}
+        {/* Box Testo Referto */}
         <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
           {testoReferto}
         </div>
 
-        {/* Tasti Copia e WhatsApp */}
+        {/* Tasti Azione */}
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
