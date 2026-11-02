@@ -247,7 +247,6 @@ export default function App() {
 
   // Incremento Gol
   const handleGolSegnato = async (isNostraSquadra) => {
-    // Calcola se il gol va sommato alla squadra di casa o agli ospiti
     const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
     const golVaACasa = isNostraSquadra ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
 
@@ -276,7 +275,6 @@ export default function App() {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
 
-      // Determina se il gol da stornare era di Casa o Ospiti
       const stornareCasa = isGolNostro ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
 
       const nuovoCasa = stornareCasa ? Math.max(0, golCasa - 1) : golCasa;
@@ -313,8 +311,7 @@ export default function App() {
     const nuovoPInfo = {
       ...partitaInfo,
       squadraCasa: partitaInfo.squadraOspite,
-      squadraOspite: partitaInfo.squadraCasa,
-      isNostraCasa: !partitaInfo.isNostraCasa
+      squadraOspite: partitaInfo.squadraCasa
     };
     const nuovoCasa = golOspiti;
     const nuovoOspiti = golCasa;
@@ -620,6 +617,7 @@ export default function App() {
             onTick={(min) => setMinutoCorrente(min)}
           />
 
+          {/* Gestione Eventi con blocco automatico a cronometro fermo */}
           <GestioneEventi
             giocatori={rosa}
             setGiocatori={handleAggiornaRosa}
@@ -633,6 +631,7 @@ export default function App() {
             cambiEffettuati={cambiEffettuati}
             setCambiEffettuati={setCambiEffettuati}
             onGolSegnato={handleGolSegnato}
+            inEsecuzione={inEsecuzione}
           />
 
           <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
