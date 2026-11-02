@@ -30,7 +30,7 @@ export default function App() {
   const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
   const [loginError, setLoginError] = useState('');
 
-  // Accesso Admin Protetta
+  // Accesso Admin Protetto
   const [mostraModalAdmin, setMostraModalAdmin] = useState(false);
   const [pinAdmin, setPinAdmin] = useState('');
 
@@ -268,3 +268,215 @@ export default function App() {
           </div>
 
           <form onSubmit={handleLogin} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+            {loginError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg font-semibold">
+                {loginError}
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-semibold text-slate-400 uppercase">Campionato / Stagione</label>
+              <select
+                value={stagioneSelezionata}
+                onChange={(e) => setStagioneSelezionata(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none"
+              >
+                <option value="2026/2027">Stagione 2026 / 2027</option>
+                <option value="2027/2028">Stagione 2027 / 2028</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-400 uppercase">Username</label>
+              <input
+                type="text"
+                placeholder="es. mister_rossi"
+                value={loginUser}
+                onChange={(e) => setLoginUser(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-400 uppercase">Password</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition text-sm shadow-lg shadow-emerald-950"
+            >
+              <LogIn className="w-4 h-4" /> Accedi alla Panchina
+            </button>
+          </form>
+
+          <div className="text-center pt-4">
+            <button
+              onClick={() => setMostraModalAdmin(true)}
+              className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1 mx-auto"
+            >
+              <Lock className="w-3.5 h-3.5" /> Area Riservata Amministratore
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP LOGIN ADMIN */}
+      {mostraModalAdmin && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <form onSubmit={verificaPinAdmin} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm space-y-4">
+            <h3 className="font-bold text-white flex items-center gap-2 text-sm">
+              <Lock className="w-4 h-4 text-rose-400" /> Inserisci Password Master Admin
+            </h3>
+            <input
+              type="password"
+              placeholder="Password Admin (es. admin2026)"
+              value={pinAdmin}
+              onChange={(e) => setPinAdmin(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm outline-none"
+              autoFocus
+              required
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMostraModalAdmin(false)}
+                className="px-3 py-2 bg-slate-800 text-slate-300 rounded-lg text-xs"
+              >
+                Annulla
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold"
+              >
+                Accedi
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 2. PANNELLO ADMIN */}
+      {faseApp === 'admin' && (
+        <AdminPanel onEsci={() => setFaseApp('login')} />
+      )}
+
+      {/* 3. DISTINTA */}
+      {faseApp === 'distinta' && (
+        <div className="space-y-4">
+          <div className="max-w-4xl mx-auto flex justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl">
+            <div className="flex items-center gap-3">
+              {societaAttiva?.logo_url && (
+                <img src={societaAttiva.logo_url} alt="Logo" className="w-8 h-8 rounded-full object-cover" />
+              )}
+              <div>
+                <span className="text-sm font-bold text-white block">{societaAttiva?.nome}</span>
+                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-emerald-400" /> {societaAttiva?.indirizzo_campo || 'Campo non specificato'}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => { setUtenteConnesso(null); setSocietaAttiva(null); setFaseApp('login'); }}
+              className="text-xs text-rose-400 hover:underline"
+            >
+              Esci / Disconnetti
+            </button>
+          </div>
+          <Distinta onConfermaDistinta={handleConfermaDistinta} />
+        </div>
+      )}
+
+      {/* 4. LIVE MATCH */}
+      {faseApp === 'partita' && (
+        <div className="max-w-2xl mx-auto space-y-5">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <button
+              onClick={() => setFaseApp('distinta')}
+              className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5"
+            >
+              <ArrowLeft className="w-4 h-4" /> Distinta
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live {stagioneSelezionata}
+              </span>
+              <button
+                onClick={() => setFaseApp('referto')}
+                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
+              >
+                <FileText className="w-3.5 h-3.5" /> Referto
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center">
+            <div className="flex-1">
+              <h3 className="font-bold text-sm md:text-base text-slate-200 truncate">{partitaInfo?.squadraCasa || 'Casa'}</h3>
+              <div className="text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
+            </div>
+            <div className="px-4 text-slate-600 font-bold text-xl">VS</div>
+            <div className="flex-1">
+              <h3 className="font-bold text-sm md:text-base text-slate-200 truncate">{partitaInfo?.squadraOspite || 'Ospite'}</h3>
+              <div className="text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
+            </div>
+          </div>
+
+          <Cronometro
+            tempo={tempoGara}
+            setTempo={setTempoGara}
+            secondi={secondiGara}
+            setSecondi={setSecondiGara}
+            inEsecuzione={inEsecuzione}
+            timerAvviatoIl={timerAvviatoIl}
+            onAvvia={avviaTimer}
+            onPausa={mettiInPausaTimer}
+            onFinePrimoTempo={() => cambiaFaseGara(2)}
+            onFinePartita={() => cambiaFaseGara('fine')}
+            recupero={recupero}
+            setRecupero={setRecupero}
+            onTick={(min) => setMinutoCorrente(min)}
+          />
+
+          <GestioneEventi
+            giocatori={rosa}
+            setGiocatori={handleAggiornaRosa}
+            eventi={eventi}
+            setEventi={setEventi}
+            onNuovoEvento={handleNuovoEvento}
+            minutoCorrente={minutoCorrente}
+            tempoGara={tempoGara}
+            slotUsati={slotUsati}
+            setSlotUsati={setSlotUsati}
+            cambiEffettuati={cambiEffettuati}
+            setCambiEffettuati={setCambiEffettuati}
+            onGolSegnato={handleGolSegnato}
+          />
+
+          <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
+        </div>
+      )}
+
+      {/* 5. REFERTO FINALE */}
+      {faseApp === 'referto' && (
+        <RefertoGara
+          partitaInfo={partitaInfo}
+          societaNome={societaAttiva?.nome}
+          golCasa={golCasa}
+          golOspiti={golOspiti}
+          eventi={eventi}
+          giocatori={rosa}
+          onChiudi={() => setFaseApp('partita')}
+        />
+      )}
+    </div>
+  );
+}
