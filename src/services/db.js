@@ -185,6 +185,7 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
   }
 }
 
+// SINCRONIZZAZIONE REALTIME CON TIMESTAMP ASSOLUTO
 export async function syncStatoPartitaSuDb(partitaId, dati) {
   const updateData = {
     gol_casa: dati.golCasa,
@@ -192,6 +193,7 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
     tempo: dati.tempoGara,
     secondi_gara: dati.secondiGara,
     in_esecuzione: dati.inEsecuzione,
+    avviato_alle: dati.avviatoAlle !== undefined ? dati.avviatoAlle : null,
     recupero: dati.recupero,
     minuto_corrente: dati.minutoCorrente,
     slot_usati: dati.slotUsati,
@@ -311,6 +313,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       tempo: 1,
       secondi_gara: 0,
       in_esecuzione: false,
+      avviato_alle: null,
       recupero: 0,
       minuto_corrente: 1,
       slot_usati: 0,
@@ -397,7 +400,7 @@ export async function loginSistema(username, password) {
   if (!utente.societa.attiva || new Date() > scadenza) {
     return {
       success: false,
-      messaggio: 'Periodo di prova di 30 giorni scaduto. Contatta l\'amministratore.'
+      messaggio: "Periodo di prova di 30 giorni scaduto. Contatta l'amministratore."
     };
   }
 
