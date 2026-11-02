@@ -265,12 +265,12 @@ export async function getSocietaById(societaId) {
   return data;
 }
 
-// ARCHIVIAZIONE DEFINITIVA PARTITA E RESET DEL LIVE
+// ARCHIVIAZIONE SICURA: GLI EVENTI NON VENGONO MAI CANCELLATI MA RIASSEGNATI ALLO STORICO
 export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori) {
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Salva la partita completata nello storico permanente
+    // 1. Inserisce la partita nello storico ufficiale
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -287,7 +287,17 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       terminata_il: new Date().toISOString()
     }]);
 
-    // 2. Resetta il record della partita LIVE per preparare la prossima
+    // 2. NESSUNA CANCELLAZIONE: riassegna tutti gli eventi registrati al record storico permanente
+    const { error: errUpdateEventi } = await supabase
+      .from('eventi')
+      .update({ partita_id: storicoId })
+      .eq('partita_id', livePartitaId);
+
+    if (errUpdateEventi) {
+      console.warn("Attenzione durante il trasferimento eventi allo storico:", errUpdateEventi);
+    }
+
+    // 3. Resetta solo lo stato del tabellone live per la prossima partita
     await supabase.from('partite').update({
       squadra_ospite: '',
       gol_casa: 0,
@@ -304,10 +314,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       updated_at: new Date()
     }).eq('id', livePartitaId);
 
-    // 3. Cancella gli eventi live della partita appena archiviata
-    await supabase.from('eventi').delete().eq('partita_id', livePartitaId);
-
-    // 4. Resetta ammonizioni ed espulsioni dei giocatori per la prossima partita
+    // 4. Resetta le ammonizioni temporanee della rosa mantenendo tutti i giocatori
     const resetGiocatori = giocatori.map(g => ({
       ...g,
       ammonizioni: 0,
@@ -322,7 +329,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   }
 }
 
-// RECUPERO STORICO REFERTI DI UNA SOCIETA'
+// Carica lo storico referti
 export async function caricaStoricoReferti(societaId) {
   try {
     const { data, error } = await supabase
@@ -343,9 +350,10 @@ export async function caricaStoricoReferti(societaId) {
   }
 }
 
-// CANCELLAZIONE SINGOLO REFERTO DALLO STORICO
+// Eliminazione facoltativa manuale di un referto storico con i suoi eventi collegati
 export async function eliminaRefertoStorico(refertoId) {
   try {
+    await supabase.from('eventi').delete().eq('partita_id', refertoId);
     const { error } = await supabase.from('partite').delete().eq('id', refertoId);
     if (error) throw error;
     return true;
