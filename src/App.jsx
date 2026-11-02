@@ -245,9 +245,15 @@ export default function App() {
     setFaseApp('partita');
   };
 
+  // Incremento Gol
   const handleGolSegnato = async (isNostraSquadra) => {
-    const nuovoCasa = isNostraSquadra ? golCasa + 1 : golCasa;
-    const nuovoOspiti = !isNostraSquadra ? golOspiti + 1 : golOspiti;
+    // Calcola se il gol va sommato alla squadra di casa o agli ospiti
+    const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
+    const golVaACasa = isNostraSquadra ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
+
+    const nuovoCasa = golVaACasa ? golCasa + 1 : golCasa;
+    const nuovoOspiti = !golVaACasa ? golOspiti + 1 : golOspiti;
+
     setGolCasa(nuovoCasa);
     setGolOspiti(nuovoOspiti);
 
@@ -262,8 +268,37 @@ export default function App() {
     await registraEventoCloud(partitaId, evento);
   };
 
+  // ELIMINAZIONE EVENTO CON STORNO DEL PUNTEGGIO SE È UN GOL
   const eliminaEvento = async (id) => {
-    setEventi(eventi.filter(e => e.id !== id));
+    const eventoDaEliminare = eventi.find(e => e.id === id);
+
+    if (eventoDaEliminare && eventoDaEliminare.tipo === 'GOL') {
+      const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
+      const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
+
+      // Determina se il gol da stornare era di Casa o Ospiti
+      const stornareCasa = isGolNostro ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
+
+      const nuovoCasa = stornareCasa ? Math.max(0, golCasa - 1) : golCasa;
+      const nuovoOspiti = !stornareCasa ? Math.max(0, golOspiti - 1) : golOspiti;
+
+      setGolCasa(nuovoCasa);
+      setGolOspiti(nuovoOspiti);
+
+      syncStatoPartitaSuDb(partitaId, {
+        golCasa: nuovoCasa,
+        golOspiti: nuovoOspiti,
+        tempoGara,
+        secondiGara,
+        inEsecuzione,
+        recupero,
+        minutoCorrente,
+        slotUsati,
+        cambiEffettuati
+      });
+    }
+
+    setEventi(prev => prev.filter(e => e.id !== id));
     await eliminaEventoCloud(id);
   };
 
@@ -278,7 +313,8 @@ export default function App() {
     const nuovoPInfo = {
       ...partitaInfo,
       squadraCasa: partitaInfo.squadraOspite,
-      squadraOspite: partitaInfo.squadraCasa
+      squadraOspite: partitaInfo.squadraCasa,
+      isNostraCasa: !partitaInfo.isNostraCasa
     };
     const nuovoCasa = golOspiti;
     const nuovoOspiti = golCasa;
@@ -330,10 +366,10 @@ export default function App() {
       setCambiEffettuati(0);
       setEventi([]);
 
-      // Reset ammonizioni/espulsioni della rosa locale
+      // Reset sanzioni della rosa
       setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
 
-      // Ripristina distinta azzerando l'avversario
+      // Ripristina distinta con avversario vuoto
       setPartitaInfo(prev => ({
         ...prev,
         squadraCasa: societaAttiva?.nome || '',
@@ -464,7 +500,6 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2.5">
-              {/* TASTO ARCHIVIO REFERTI STORICI */}
               <button
                 type="button"
                 onClick={() => setFaseApp('archivio')}
@@ -602,7 +637,7 @@ export default function App() {
 
           <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
 
-          {/* TASTO RAPIDO TERMINA E ARCHIVIA IN FONDO AL MATCH */}
+          {/* Tasto Termina Live */}
           <div className="pt-2">
             <button
               type="button"
