@@ -22,7 +22,6 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
     ricaricaStorico();
   }, [societa?.id]);
 
-  // All'apertura della singola partita carica anche gli eventi vivi salvati nella tabella eventi
   const toggleDettaglio = async (id) => {
     const nuovoStato = partitaApertaId === id ? null : id;
     setPartitaApertaId(nuovoStato);
@@ -47,11 +46,20 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
     t += `🏆 *${(societa?.nome || '').toUpperCase()}*\n`;
     t += `⚽ *${(p.squadra_casa || 'CASA').toUpperCase()} ${p.gol_casa} - ${p.gol_ospite} ${(p.squadra_ospite || 'OSPITE').toUpperCase()}*\n\n`;
 
-    t += `👤 *STAFF:*\n`;
+    t += `👤 *STAFF TECNICO & DIRIGENZIALE UFFICIALE:*\n`;
     t += `• Allenatore: ${(p.allenatore || '-').toUpperCase()}\n`;
-    t += `• Dirigente: ${(p.dirigente || '-').toUpperCase()}\n\n`;
+    if (p.allenatore_seconda) {
+      t += `• Allenatore in Seconda: ${p.allenatore_seconda.toUpperCase()}\n`;
+    }
+    t += `• Dirigente Accompagnatore Ufficiale della Squadra: ${(p.dirigente || '-').toUpperCase()}\n`;
+    if (p.dirigente_ufficiali) {
+      t += `• Dirigente Addetto Ufficiali di Gara: ${p.dirigente_ufficiali.toUpperCase()}\n`;
+    }
+    if (p.assistente_arbitro) {
+      t += `• Assistente all'Arbitro: ${p.assistente_arbitro.toUpperCase()}\n`;
+    }
+    t += `\n`;
 
-    // Legge gli eventi dalla tabella o dallo snapshot salvato
     const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
     const reti = eventi.filter(e => e.tipo === 'GOL');
     const amm = (p.referto_giocatori || []).filter(g => g.ammonizioni > 0 && !g.espulso);
@@ -119,7 +127,6 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
-      {/* Intestazione */}
       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
         <button
           onClick={onTornaIndietro}
@@ -133,7 +140,6 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
         </span>
       </div>
 
-      {/* Titolo e Società */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20">
@@ -146,7 +152,6 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
         </div>
       </div>
 
-      {/* Lista Partite Archiviate */}
       {caricamento ? (
         <div className="text-center py-12 text-slate-500 text-sm font-semibold uppercase animate-pulse">
           Caricamento storico in corso...
@@ -165,7 +170,6 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
 
             return (
               <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg transition">
-                {/* Scheda Sintetica con Risultato */}
                 <div 
                   onClick={() => toggleDettaglio(p.id)}
                   className="p-4 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-slate-800/50 select-none"
@@ -191,7 +195,6 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
                   </div>
                 </div>
 
-                {/* Dettagli Espansi del Referto */}
                 {aperta && (
                   <div className="border-t border-slate-800 p-4 bg-slate-950 space-y-4">
                     <div className="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
