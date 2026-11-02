@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   getSocieta, 
   adminCreaSquadra, 
@@ -25,7 +25,9 @@ import {
   Check, 
   Pencil, 
   MapPin, 
-  X 
+  X,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
@@ -38,6 +40,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const [nuovoNome, setNuovoNome] = useState('');
   const [nuovoIndirizzo, setNuovoIndirizzo] = useState('');
   const [nuovoLogo, setNuovoLogo] = useState('');
+  const fileInputRef = useRef(null);
 
   // Modal Gestione Credenziali e Utenti
   const [squadraSelezionata, setSquadraSelezionata] = useState(null);
@@ -67,6 +70,51 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     caricaDati();
   }, []);
 
+  // Conversione e compressione immagine da dispositivo in Base64 (max 256x256)
+  const handleCaricaLogoDaDispositivo = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Seleziona un file immagine valido (PNG, JPG, WEBP, SVG).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxSize = 256;
+        let { width, height } = img;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Esporta in formato PNG compresso
+        const base64Compresso = canvas.toDataURL('image/png', 0.85);
+        setNuovoLogo(base64Compresso);
+        mostraNotifica('Logo caricato dal dispositivo!');
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCreaSquadra = async (e) => {
     e.preventDefault();
     if (!nuovoCodice.trim() || !nuovoNome.trim()) return;
@@ -82,6 +130,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
       setNuovoNome('');
       setNuovoIndirizzo('');
       setNuovoLogo('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       mostraNotifica('Squadra creata con successo!');
       await caricaDati();
     } catch (err) {
@@ -193,7 +242,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
 
   return (
     <div className="max-w-6xl mx-auto space-y-5 px-2 sm:px-4 pb-12">
-      {/* Header Pannello Amministratore */}
+      {/* Header SuperAdmin */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 flex-shrink-0">
@@ -227,13 +276,13 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         </div>
       )}
 
-      {/* Form Creazione Nuova Squadra */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3.5">
+      {/* Form Creazione Nuova Squadra con UPLOAD LOGO DA DISPOSITIVO */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
         <h2 className="text-sm font-black text-white uppercase flex items-center gap-2">
           <Plus className="w-4 h-4 text-emerald-400" /> Registra Nuova Squadra / Società
         </h2>
 
-        <form onSubmit={handleCreaSquadra} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <form onSubmit={handleCreaSquadra} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
           <div>
             <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Codice Identificativo</label>
             <input
@@ -259,7 +308,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Indirizzo Campo Sportivo</label>
+            <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Indirizzo Campo</label>
             <input
               type="text"
               placeholder="ES. VIA DELLO SPORT 1, COMO"
@@ -269,15 +318,48 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
             />
           </div>
 
+          {/* Caricamento Logo da Immagine Dispositivo o URL */}
           <div>
-            <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">URL Logo (Opzionale)</label>
-            <input
-              type="url"
-              placeholder="https://.../logo.png"
-              value={nuovoLogo}
-              onChange={(e) => setNuovoLogo(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white font-mono outline-none focus:border-emerald-500"
-            />
+            <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Logo Società</label>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleCaricaLogoDaDispositivo}
+                className="hidden"
+                id="upload-logo-file"
+              />
+
+              <label
+                htmlFor="upload-logo-file"
+                className="flex-1 py-2.5 px-3 rounded-xl bg-slate-950 border border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition min-h-[44px]"
+              >
+                <Upload className="w-4 h-4 text-emerald-400" />
+                <span>Carica da Dispositivo</span>
+              </label>
+
+              {nuovoLogo && (
+                <div className="relative flex-shrink-0">
+                  <img
+                    src={nuovoLogo}
+                    alt="Anteprima Logo"
+                    className="w-11 h-11 rounded-xl object-cover border-2 border-emerald-500/50 bg-slate-950"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNuovoLogo('');
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white p-0.5 rounded-full hover:bg-rose-500"
+                    title="Rimuovi logo"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="sm:col-span-2 lg:col-span-4 pt-1">
@@ -317,7 +399,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               return (
                 <div 
                   key={soc.id}
-                  className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 hover:border-slate-700 transition"
+                  className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 hover:border-slate-700 transition"
                 >
                   {/* Dati Società */}
                   <div className="flex items-start gap-3 min-w-0">
@@ -325,7 +407,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                       <img 
                         src={soc.logo_url} 
                         alt="Logo" 
-                        className="w-12 h-12 rounded-full object-cover border border-slate-700 flex-shrink-0 mt-0.5" 
+                        className="w-12 h-12 rounded-full object-cover border border-slate-700 flex-shrink-0 mt-0.5 bg-slate-900" 
                       />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 flex-shrink-0 mt-0.5">
@@ -359,9 +441,8 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                     </div>
                   </div>
 
-                  {/* PULSANTIERA AZIONI MOBILE-FIRST OTTIMIZZATA */}
+                  {/* Pulsantiera Azioni */}
                   <div className="flex flex-col sm:grid sm:grid-cols-2 xl:flex xl:flex-row items-stretch xl:items-center gap-2 pt-3 xl:pt-0 border-t xl:border-t-0 border-slate-800/80 w-full xl:w-auto">
-                    {/* Riga 1 su mobile: Azioni primarie */}
                     <div className="grid grid-cols-2 gap-2 sm:contents">
                       <button
                         type="button"
@@ -384,7 +465,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                       </button>
                     </div>
 
-                    {/* Riga 2 su mobile: Gestione licenza */}
                     <div className="grid grid-cols-2 gap-2 sm:contents">
                       <button
                         type="button"
@@ -411,7 +491,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                       </button>
                     </div>
 
-                    {/* Riga 3 su mobile: Elimina a tutta larghezza */}
                     <button
                       type="button"
                       onClick={() => handleEliminaSquadra(soc)}
@@ -429,11 +508,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         )}
       </div>
 
-      {/* MODAL GESTIONE UTENTI E CREDENZIALI OTTIMIZZATO PER SMARTPHONE */}
+      {/* Modal Gestione Utenti */}
       {squadraSelezionata && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 max-w-2xl w-full max-h-[92vh] overflow-y-auto space-y-5 shadow-2xl">
-            {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="min-w-0 pr-2">
                 <h3 className="text-sm sm:text-base font-black text-white uppercase flex items-center gap-2 truncate">
@@ -453,7 +531,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               </button>
             </div>
 
-            {/* Form Aggiunta Nuovo Dirigente */}
             <form onSubmit={handleCreaUtente} className="bg-slate-950 p-3.5 sm:p-4 rounded-xl border border-slate-800 space-y-3">
               <h4 className="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
                 <Plus className="w-3.5 h-3.5 text-emerald-400" /> Rilascia Nuovo Profilo Dirigente
@@ -505,7 +582,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               </button>
             </form>
 
-            {/* Elenco Utenti Attivi della Squadra */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center justify-between">
                 <span>Account Configurati ({utentiSquadra.length})</span>
@@ -577,7 +653,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                           )}
                         </div>
 
-                        {/* Pulsanti Azione Utente */}
                         <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60">
                           <button
                             type="button"
