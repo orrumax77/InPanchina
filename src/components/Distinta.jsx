@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight } from 'lucide-react';
+import { salvaRosaBaseSocieta } from '../services/db';
 
 export default function Distinta({ onConfermaDistinta, societa, partitaIniziale, rosaIniziale }) {
   const [partitaInfo, setPartitaInfo] = useState({
@@ -16,14 +17,16 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const [nuovoNome, setNuovoNome] = useState('');
   const [nuovoNumero, setNuovoNumero] = useState('');
 
-  // Stato per la modifica inline di un giocatore
+  // Modifica inline giocatore
   const [editingId, setEditingId] = useState(null);
   const [editNome, setEditNome] = useState('');
   const [editNumero, setEditNumero] = useState('');
 
-  // Sincronizza i dati dal Cloud: recupera sempre la rosa permanente
+  // Flag per evitare di riscrivere il DB durante il primo render
+  const initialLoadDone = useRef(false);
+
+  // Sincronizza i dati dal Cloud all'avvio o al cambio società
   useEffect(() => {
-    // 1. Staff Tecnico permanente
     const staffSalvato = societa?.staff_base || {};
     const allenatoreBase = (staffSalvato.allenatore || partitaIniziale?.allenatore || '').toUpperCase();
     const dirigenteBase = (staffSalvato.dirigente || partitaIniziale?.dirigente || '').toUpperCase();
@@ -31,13 +34,12 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setPartitaInfo(prev => ({
       ...prev,
       squadraCasa: (societa?.nome || '').toUpperCase(),
-      squadraOspite: '', // Sempre vuoto da compilare per la nuova gara
+      squadraOspite: '',
       allenatore: allenatoreBase,
       dirigente: dirigenteBase,
       isNostraCasa: true
     }));
 
-    // 2. Rosa permanente (da rosaIniziale o dalla rosa_base della società)
     const rosaPermanente = (rosaIniziale && rosaIniziale.length > 0)
       ? rosaIniziale
       : (societa?.rosa_base && societa.rosa_base.length > 0)
@@ -49,27 +51,38 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         ...g,
         nome: (g.nome || '').toUpperCase()
       })));
+    } else {
+      setGiocatori([]);
     }
+
+    // Abilita la sincronizzazione automatica dopo il caricamento iniziale
+    setTimeout(() => {
+      initialLoadDone.current = true;
+    }, 300);
   }, [societa, partitaIniziale, rosaIniziale]);
 
-  // Funzione per invertire Casa / Fuori Casa con le frecce
-  const invertiCasaTrasferta = () => {
-    setPartitaInfo(prev => {
-      const nuovaCasa = prev.squadraOspite;
-      const nuovaOspite = prev.squadraCasa;
-      return {
-        ...prev,
-        squadraCasa: nuovaCasa,
-        squadraOspite: nuovaOspite,
-        isNostraCasa: !prev.isNostraCasa
-      };
+  // Funzione helper per sincronizzare subito la rosa su Supabase Cloud
+  const sincronizzaRosaCloud = (nuovaListaGiocatori) => {
+    if (!societa?.id || !initialLoadDone.current) return;
+    salvaRosaBaseSocieta(societa.id, nuovaListaGiocatori, {
+      allenatore: partitaInfo.allenatore,
+      dirigente: partitaInfo.dirigente
     });
+  };
+
+  const invertiCasaTrasferta = () => {
+    setPartitaInfo(prev => ({
+      ...prev,
+      squadraCasa: prev.squadraOspite,
+      squadraOspite: prev.squadraCasa,
+      isNostraCasa: !prev.isNostraCasa
+    }));
   };
 
   const titolariCount = giocatori.filter(g => g.isTitolare).length;
 
   const toggleTitolare = (id) => {
-    setGiocatori(giocatori.map(g => {
+    const nuova = giocatori.map(g => {
       if (g.id === id) {
         if (!g.isTitolare && titolariCount >= 11) {
           alert('Hai già selezionato 11 titolari!');
@@ -78,25 +91,32 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         return { ...g, isTitolare: !g.isTitolare };
       }
       return g;
-    }));
+    });
+    setGiocatori(nuova);
+    sincronizzaRosaCloud(nuova);
   };
 
   const setCapitano = (id) => {
-    setGiocatori(giocatori.map(g => ({
+    const nuova = giocatori.map(g => ({
       ...g,
       isCapitano: g.id === id ? !g.isCapitano : false,
       isVice: g.id === id ? false : g.isVice
-    })));
+    }));
+    setGiocatori(nuova);
+    sincronizzaRosaCloud(nuova);
   };
 
   const setViceCapitano = (id) => {
-    setGiocatori(giocatori.map(g => ({
+    const nuova = giocatori.map(g => ({
       ...g,
       isVice: g.id === id ? !g.isVice : false,
       isCapitano: g.id === id ? false : g.isCapitano
-    })));
+    }));
+    setGiocatori(nuova);
+    sincronizzaRosaCloud(nuova);
   };
 
+  // 1. AGGIUNGI GIOCATORE CON SALVATAGGIO IMMEDIATO SUL DB
   const aggiungiGiocatore = (e) => {
     e.preventDefault();
     if (!nuovoNome.trim() || !nuovoNumero.trim()) return;
@@ -111,13 +131,19 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isVice: false
     };
 
-    setGiocatori([...giocatori, nuovo]);
+    const nuovaLista = [...giocatori, nuovo];
+    setGiocatori(nuovaLista);
+    sincronizzaRosaCloud(nuovaLista);
+
     setNuovoNome('');
     setNuovoNumero('');
   };
 
+  // 2. RIMUOVI GIOCATORE CON AGGIORNAMENTO IMMEDIATO SUL DB
   const rimuoviGiocatore = (id) => {
-    setGiocatori(giocatori.filter(g => g.id !== id));
+    const nuovaLista = giocatori.filter(g => g.id !== id);
+    setGiocatori(nuovaLista);
+    sincronizzaRosaCloud(nuovaLista);
     if (editingId === id) setEditingId(null);
   };
 
@@ -127,9 +153,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setEditNome(g.nome);
   };
 
+  // 3. SALVA MODIFICA GIOCATORE CON AGGIORNAMENTO IMMEDIATO SUL DB
   const salvaModifica = (id) => {
     if (!editNome.trim() || !editNumero.trim()) return;
-    setGiocatori(giocatori.map(g => {
+    const nuovaLista = giocatori.map(g => {
       if (g.id === id) {
         return {
           ...g,
@@ -138,7 +165,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         };
       }
       return g;
-    }));
+    });
+
+    setGiocatori(nuovaLista);
+    sincronizzaRosaCloud(nuovaLista);
     setEditingId(null);
   };
 
@@ -180,7 +210,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
       </div>
 
-      {/* Configurazione Partita con Tasto Inversione Casa/Fuori */}
+      {/* Configurazione Partita con Inversione Casa/Fuori */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold flex items-center gap-2 text-emerald-400 uppercase">
@@ -191,7 +221,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </span>
         </div>
 
-        {/* Squadre con pulsante centrale per invertire */}
         <div className="grid grid-cols-1 md:grid-cols-9 gap-3 items-end">
           <div className="md:col-span-4">
             <label className="text-xs uppercase text-slate-400 font-semibold block mb-1">
@@ -208,7 +237,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
             />
           </div>
 
-          {/* Tasto Inversione Casa <-> Trasferta */}
           <div className="md:col-span-1 flex justify-center pb-0.5">
             <button
               type="button"
@@ -236,7 +264,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </div>
         </div>
 
-        {/* Staff Tecnico */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           <div>
             <label className="text-xs uppercase text-slate-400 font-semibold">Allenatore</label>
@@ -261,7 +288,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
       </div>
 
-      {/* Inserimento Nuovo Giocatore */}
+      {/* Form Aggiunta Rapida */}
       <form onSubmit={aggiungiGiocatore} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap gap-3 items-end">
         <div className="w-24">
           <label className="text-xs text-slate-400 uppercase font-semibold">N° Maglia</label>
@@ -293,14 +320,14 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </button>
       </form>
 
-      {/* Rosa con Modifica Inline Permanente */}
+      {/* Elenco Rosa Giocatori */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-lg font-bold flex items-center gap-2 uppercase">
               <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatori.length})
             </h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">Questa rosa resta memorizzata stabilmente per tutte le partite.</p>
+            <p className="text-[11px] text-emerald-400 mt-0.5">● Sincronizzata in tempo reale sul cloud</p>
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
             Titolari: {titolariCount} / 11
@@ -339,7 +366,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                         type="button"
                         onClick={() => salvaModifica(g.id)}
                         className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
-                        title="Salva Modifiche"
+                        title="Salva nel database"
                       >
                         <Check className="w-4 h-4" />
                       </button>
@@ -407,7 +434,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                           type="button"
                           onClick={() => rimuoviGiocatore(g.id)}
                           className="p-1.5 rounded bg-slate-700 text-rose-400 hover:bg-rose-950 transition"
-                          title="Rimuovi dalla distinta"
+                          title="Rimuovi ed elimina dal database"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
