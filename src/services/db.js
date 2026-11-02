@@ -126,13 +126,49 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
   await supabase.from('giocatori').upsert(righe);
 }
 
+// Salva immediatamente rosa e staff base sulla società
+export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
+  try {
+    const payload = {};
+    if (giocatori !== undefined) payload.rosa_base = giocatori;
+    if (staff !== undefined) payload.staff_base = staff;
+    payload.updated_at = new Date();
+
+    const { data, error } = await supabase
+      .from('societa')
+      .update(payload)
+      .eq('id', societaId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Errore update salvaRosaBaseSocieta:', error);
+      return null;
+    }
+    return data;
+  } catch (error) {
+    console.error('Errore salvaRosaBaseSocieta:', error);
+    return null;
+  }
+}
+
+// Recupera la singola società sempre aggiornata
+export async function getSocietaById(societaId) {
+  const { data, error } = await supabase
+    .from('societa')
+    .select('*')
+    .eq('id', societaId)
+    .single();
+  if (error) return null;
+  return data;
+}
+
 // --- GESTIONE LOGIN & SUPERADMIN ---
 
 export async function loginSistema(username, password) {
   const u = username.trim();
   const p = password.trim();
 
-  // 1. SuperAdmin Globale: entra sempre e ovunque
   if (u.toLowerCase() === 'admin' && p === 'admin2026') {
     return {
       success: true,
@@ -141,7 +177,6 @@ export async function loginSistema(username, password) {
     };
   }
 
-  // 2. Utente Dirigente associato alla Squadra
   const { data: utente, error } = await supabase
     .from('utenti_panchina')
     .select('*, societa(*)')
@@ -157,7 +192,6 @@ export async function loginSistema(username, password) {
     return { success: false, messaggio: 'Nessuna società associata a questo profilo.' };
   }
 
-  // Verifica Scadenza Prova 30 giorni
   const scadenza = new Date(utente.societa.data_scadenza_prova);
   if (!utente.societa.attiva || new Date() > scadenza) {
     return {
@@ -188,7 +222,9 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
     indirizzo_campo: (indirizzoCampo || '').trim().toUpperCase(),
     logo_url: logoUrl || '',
     data_scadenza_prova: dataScadenza.toISOString(),
-    attiva: true
+    attiva: true,
+    rosa_base: [],
+    staff_base: {}
   }).select().single();
 
   if (error) throw error;
@@ -260,26 +296,4 @@ export async function adminModificaPasswordUtente(utenteId, nuovaPassword) {
     .eq('id', utenteId);
   if (error) throw error;
   return { success: true };
-}
-
-// Salva la rosa e lo staff base associati stabilmente alla società
-export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
-  try {
-    const { data, error } = await supabase
-      .from('societa')
-      .update({
-        rosa_base: giocatori,
-        staff_base: staff,
-        updated_at: new Date()
-      })
-      .eq('id', societaId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Errore salvaRosaBaseSocieta:', error);
-    return null;
-  }
 }
