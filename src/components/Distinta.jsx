@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight } from 'lucide-react';
+import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar } from 'lucide-react';
 import { salvaRosaBaseSocieta } from '../services/db';
 
 export default function Distinta({ onConfermaDistinta, societa, partitaIniziale, rosaIniziale }) {
+  // Data odierna in formato YYYY-MM-DD per il selettore e visualizzazione
+  const oggiISO = new Date().toISOString().split('T')[0];
+
   const [partitaInfo, setPartitaInfo] = useState({
     squadraCasa: (societa?.nome || '').toUpperCase(),
     squadraOspite: '',
     allenatore: '',
     dirigente: '',
+    dataPartita: oggiISO,
     isNostraCasa: true
   });
 
@@ -22,7 +26,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const [editNome, setEditNome] = useState('');
   const [editNumero, setEditNumero] = useState('');
 
-  // Flag per evitare di riscrivere il DB durante il primo render
   const initialLoadDone = useRef(false);
 
   // Sincronizza i dati dal Cloud all'avvio o al cambio società
@@ -37,6 +40,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       squadraOspite: '',
       allenatore: allenatoreBase,
       dirigente: dirigenteBase,
+      dataPartita: partitaIniziale?.dataPartita || oggiISO,
       isNostraCasa: true
     }));
 
@@ -55,13 +59,12 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       setGiocatori([]);
     }
 
-    // Abilita la sincronizzazione automatica dopo il caricamento iniziale
     setTimeout(() => {
       initialLoadDone.current = true;
     }, 300);
-  }, [societa, partitaIniziale, rosaIniziale]);
+  }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
 
-  // Funzione helper per sincronizzare subito la rosa su Supabase Cloud
+  // Sincronizzazione immediata sul DB
   const sincronizzaRosaCloud = (nuovaListaGiocatori) => {
     if (!societa?.id || !initialLoadDone.current) return;
     salvaRosaBaseSocieta(societa.id, nuovaListaGiocatori, {
@@ -77,6 +80,12 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       squadraOspite: prev.squadraCasa,
       isNostraCasa: !prev.isNostraCasa
     }));
+  };
+
+  const formattaDataItaliana = (isoDate) => {
+    if (!isoDate) return '';
+    const [anno, mese, giorno] = isoDate.split('-');
+    return `${giorno}/${mese}/${anno}`;
   };
 
   const titolariCount = giocatori.filter(g => g.isTitolare).length;
@@ -116,7 +125,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     sincronizzaRosaCloud(nuova);
   };
 
-  // 1. AGGIUNGI GIOCATORE CON SALVATAGGIO IMMEDIATO SUL DB
   const aggiungiGiocatore = (e) => {
     e.preventDefault();
     if (!nuovoNome.trim() || !nuovoNumero.trim()) return;
@@ -139,7 +147,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setNuovoNumero('');
   };
 
-  // 2. RIMUOVI GIOCATORE CON AGGIORNAMENTO IMMEDIATO SUL DB
   const rimuoviGiocatore = (id) => {
     const nuovaLista = giocatori.filter(g => g.id !== id);
     setGiocatori(nuovaLista);
@@ -153,7 +160,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setEditNome(g.nome);
   };
 
-  // 3. SALVA MODIFICA GIOCATORE CON AGGIORNAMENTO IMMEDIATO SUL DB
   const salvaModifica = (id) => {
     if (!editNome.trim() || !editNumero.trim()) return;
     const nuovaLista = giocatori.map(g => {
@@ -210,17 +216,36 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
       </div>
 
-      {/* Configurazione Partita con Inversione Casa/Fuori */}
+      {/* Configurazione Partita con Data Evidente */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold flex items-center gap-2 text-emerald-400 uppercase">
-            <Shield className="w-5 h-5" /> Partita di Oggi
-          </h2>
-          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-950 border border-slate-700 text-slate-300">
-            {partitaInfo.isNostraCasa ? '🏠 GIOCHIAMO IN CASA' : '🚌 GIOCHIAMO FUORI CASA'}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold flex items-center gap-2 text-emerald-400 uppercase">
+              <Shield className="w-5 h-5" /> Partita di Oggi
+            </h2>
+
+            {/* BOX DATA PARTITA */}
+            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-700 px-3 py-1 rounded-lg">
+              <Calendar className="w-4 h-4 text-emerald-400" />
+              <input
+                type="date"
+                value={partitaInfo.dataPartita}
+                onChange={(e) => setPartitaInfo({ ...partitaInfo, dataPartita: e.target.value })}
+                className="bg-transparent text-white text-xs font-bold font-mono outline-none cursor-pointer"
+                title="Modifica data gara"
+              />
+              <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+                ({formattaDataItaliana(partitaInfo.dataPartita)})
+              </span>
+            </div>
+          </div>
+
+          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-950 border border-slate-700 text-slate-300 uppercase">
+            {partitaInfo.isNostraCasa ? '🏠 Giochiamo in Casa' : '🚌 Giochiamo Fuori Casa'}
           </span>
         </div>
 
+        {/* Selezione Squadre con Freccia Scambio */}
         <div className="grid grid-cols-1 md:grid-cols-9 gap-3 items-end">
           <div className="md:col-span-4">
             <label className="text-xs uppercase text-slate-400 font-semibold block mb-1">
