@@ -20,7 +20,22 @@ import {
   archiviaPartitaEResettaLive
 } from './services/db';
 import { supabase } from './supabaseClient';
-import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight, Archive, RotateCcw } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Shield, 
+  LogIn, 
+  FileText, 
+  Radio, 
+  MapPin, 
+  CheckCircle2, 
+  UserCircle2, 
+  ArrowLeftRight, 
+  Archive, 
+  RotateCcw, 
+  AlertOctagon, 
+  Volume2, 
+  ArrowRight 
+} from 'lucide-react';
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto' | 'archivio'
@@ -49,6 +64,9 @@ export default function App() {
   const [eventi, setEventi] = useState([]);
   const [slotUsati, setSlotUsati] = useState(0);
   const [cambiEffettuati, setCambiEffettuati] = useState(0);
+
+  // STATO MODALE PERSISTENTE A LIVELLO RADICE
+  const [modaleBloccoTempo, setModaleBloccoTempo] = useState(null); // null | 'primo_tempo' | 'fine_gara'
 
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
   const isSyncingFromRemote = useRef(false);
@@ -223,6 +241,8 @@ export default function App() {
   };
 
   const cambiaFaseGara = (nuovoTempo) => {
+    setModaleBloccoTempo(null); // Chiude il modale
+
     if (nuovoTempo === 2) {
       setInEsecuzione(false);
       setTempoGara(2);
@@ -331,8 +351,7 @@ export default function App() {
     const nuovoPInfo = {
       ...partitaInfo,
       squadraCasa: partitaInfo.squadraOspite,
-      squadraOspite: partitaInfo.squadraCasa,
-      isNostraCasa: !partitaInfo.isNostraCasa
+      squadraOspite: partitaInfo.squadraCasa
     };
     const nuovoCasa = golOspiti;
     const nuovoOspiti = golCasa;
@@ -635,7 +654,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Cronometro con fischio e blocco */}
+          {/* Cronometro con trigger per modale persistente al livello root */}
           <Cronometro
             tempo={tempoGara}
             secondi={secondiGara}
@@ -648,6 +667,7 @@ export default function App() {
             recupero={recupero}
             setRecupero={setRecupero}
             onTick={(min) => setMinutoCorrente(min)}
+            onTriggerScadenzaTempo={(t) => setModaleBloccoTempo(t === 1 ? 'primo_tempo' : 'fine_gara')}
           />
 
           <GestioneEventi
@@ -703,6 +723,62 @@ export default function App() {
           societa={societaAttiva}
           onTornaIndietro={() => setFaseApp(partitaInfo ? 'distinta' : 'distinta')}
         />
+      )}
+
+      {/* ============================================================ */}
+      {/* BLOCCO MODALE FORZATO ROOT: INVALICABILE E IMMOBILE          */}
+      {/* ============================================================ */}
+      {modaleBloccoTempo && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[99999] select-none">
+          <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-rose-950">
+            <div className="w-20 h-20 mx-auto rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center text-rose-400 animate-pulse">
+              <AlertOctagon className="w-10 h-10" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-xs font-bold font-mono text-rose-400 bg-rose-950/60 border border-rose-500/40 px-3 py-1 rounded-full uppercase inline-flex items-center gap-1.5">
+                <Volume2 className="w-3.5 h-3.5" /> 
+                {modaleBloccoTempo === 'primo_tempo' ? 'Duplice Fischio' : 'Triplice Fischio Finale'}
+              </span>
+
+              <h2 className="text-2xl font-black text-white uppercase tracking-tight">
+                {modaleBloccoTempo === 'primo_tempo' ? 'Fine 1° Tempo!' : 'Partita Terminata!'}
+              </h2>
+
+              <p className="text-xs text-slate-300 leading-relaxed uppercase font-medium">
+                {modaleBloccoTempo === 'primo_tempo' ? (
+                  <>Il tempo regolamentare della prima frazione è scaduto. Passa al 2° tempo per azzerare il cronometro a 00:00 o aggiungi eventuale recupero.</>
+                ) : (
+                  <>
+                    Il tempo regolamentare è concluso. Per salvare e validare ufficialmente il match devi accedere al <strong className="text-white">Referto Finale</strong>, altrimenti la sessione live non verrà archiviata!
+                  </>
+                )}
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                type="button"
+                onClick={() => cambiaFaseGara(modaleBloccoTempo === 'primo_tempo' ? 2 : 'fine')}
+                className="w-full py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-rose-950 transition active:scale-95 cursor-pointer"
+              >
+                {modaleBloccoTempo === 'primo_tempo' ? 'Azzera e Passa al 2° Tempo' : 'Procedi al Referto Ufficiale (Obbligatorio)'}
+                <ArrowRight className="w-5 h-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setRecupero(prev => prev + 1);
+                  setModaleBloccoTempo(null);
+                }}
+                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-xs uppercase transition cursor-pointer"
+              >
+                + Aggiungi 1 Minuto di Recupero Extra
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
