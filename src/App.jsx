@@ -63,7 +63,7 @@ export default function App() {
     });
   }, []);
 
-  // Caricamento partita direttamente dal Cloud con dati sempre freschi della società
+  // Caricamento partita direttamente dal Cloud con ripristino di bozza, rosa e staff
   const avviaSessioneSocieta = async (soc) => {
     // 1. Rileggi i dati freschi della società dal DB
     const socFresca = await getSocietaById(soc.id) || soc;
@@ -72,19 +72,24 @@ export default function App() {
     const idPartita = `${socFresca.id}_PARTITA_LIVE`;
     const stato = await caricaStatoPartita(idPartita);
 
-    // 2. Prendi la rosa e lo staff base memorizzati
+    // 2. Prendi la rosa base salvata
     const rosaBaseSocieta = (socFresca.rosa_base && socFresca.rosa_base.length > 0)
       ? socFresca.rosa_base.map(g => ({ ...g, nome: (g.nome || '').toUpperCase() }))
       : [];
 
     const staffBase = socFresca.staff_base || {};
+    const allenatoreBase = (socFresca.allenatore_predefinito || staffBase.allenatore || '').toUpperCase();
+    const dirigenteBase = (socFresca.dirigente_predefinito || staffBase.dirigente || '').toUpperCase();
 
-    if (stato && stato.partita && stato.partita.stato === 'in-corso') {
+    // 3. Ripristina sempre la partita salvata (sia in corso sia in bozza)
+    if (stato && stato.partita) {
       const pInfo = {
         squadraCasa: (stato.partita.squadra_casa || socFresca.nome || '').toUpperCase(),
         squadraOspite: (stato.partita.squadra_ospite || '').toUpperCase(),
-        allenatore: (stato.partita.allenatore || staffBase.allenatore || '').toUpperCase(),
-        dirigente: (stato.partita.dirigente || staffBase.dirigente || '').toUpperCase()
+        allenatore: (stato.partita.allenatore || allenatoreBase).toUpperCase(),
+        dirigente: (stato.partita.dirigente || dirigenteBase).toUpperCase(),
+        dataPartita: stato.partita.data_gara || new Date().toISOString().split('T')[0],
+        isNostraCasa: stato.partita.is_nostra_casa ?? true
       };
       setPartitaInfo(pInfo);
       setGolCasa(stato.partita.gol_casa || 0);
@@ -112,22 +117,29 @@ export default function App() {
           isTitolare: g.is_titolare,
           isCapitano: g.is_capitano,
           isVice: g.is_vice,
-          ammonizioni: g.ammonizioni,
-          espulso: g.espulso
+          ammonizioni: g.ammonizioni || 0,
+          espulso: g.espulso || false
         })));
       } else {
         setRosa(rosaBaseSocieta);
       }
 
       setEventi(stato.eventi || []);
-      setFaseApp('partita');
+
+      if (stato.partita.stato === 'in-corso') {
+        setFaseApp('partita');
+      } else {
+        setFaseApp('distinta');
+      }
     } else {
-      // Nuova gara: la rosa base e lo staff rimangono, l'avversario è vuoto
+      // Prima volta assoluta
       setPartitaInfo({
         squadraCasa: (socFresca.nome || '').toUpperCase(),
         squadraOspite: '',
-        allenatore: (staffBase.allenatore || '').toUpperCase(),
-        dirigente: (staffBase.dirigente || '').toUpperCase()
+        allenatore: allenatoreBase,
+        dirigente: dirigenteBase,
+        dataPartita: new Date().toISOString().split('T')[0],
+        isNostraCasa: true
       });
       setRosa(rosaBaseSocieta);
       setEventi([]);
