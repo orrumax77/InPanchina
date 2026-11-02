@@ -29,7 +29,6 @@ import {
   MapPin, 
   CheckCircle2, 
   UserCircle2, 
-  ArrowLeftRight, 
   Archive, 
   RotateCcw, 
   AlertOctagon, 
@@ -162,7 +161,6 @@ export default function App() {
     }
   };
 
-  // Login: preserva fedelmente maiuscole e minuscole di username e password
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -350,34 +348,6 @@ export default function App() {
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
   };
 
-  const invertiSquadreLive = () => {
-    if (!partitaInfo) return;
-    const nuovoPInfo = {
-      ...partitaInfo,
-      squadraCasa: partitaInfo.squadraOspite,
-      squadraOspite: partitaInfo.squadraCasa,
-      isNostraCasa: !partitaInfo.isNostraCasa
-    };
-    const nuovoCasa = golOspiti;
-    const nuovoOspiti = golCasa;
-
-    setPartitaInfo(nuovoPInfo);
-    setGolCasa(nuovoCasa);
-    setGolOspiti(nuovoOspiti);
-
-    syncStatoPartitaSuDb(partitaId, {
-      golCasa: nuovoCasa,
-      golOspiti: nuovoOspiti,
-      tempoGara,
-      secondiGara,
-      inEsecuzione,
-      recupero,
-      minutoCorrente,
-      slotUsati,
-      cambiEffettuati
-    });
-  };
-
   const handleTerminaLiveEResetta = async (giocatoriConMinuti) => {
     setSalvataggioInCorso(true);
 
@@ -454,7 +424,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN ACCESSO IMMEDIATO: NESSUNA FORZATURA MAIUSCOLA SU USERNAME E PASSWORD */}
+      {/* 1. LOGIN */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
@@ -640,7 +610,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Tabellone Segnapunti */}
+          {/* Tabellone Segnapunti senza pulsante freccette bidirezionali */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center relative">
             <div className="flex-1">
               <h3 className="font-bold text-sm md:text-base text-slate-200 truncate uppercase">{partitaInfo?.squadraCasa || 'CASA'}</h3>
@@ -648,15 +618,7 @@ export default function App() {
             </div>
 
             <div className="px-3 flex flex-col items-center">
-              <button
-                type="button"
-                onClick={invertiSquadreLive}
-                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition text-xs mb-1 cursor-pointer"
-                title="Inverti Squadra Casa / Ospiti"
-              >
-                <ArrowLeftRight className="w-4 h-4" />
-              </button>
-              <span className="text-slate-600 font-bold text-sm">VS</span>
+              <span className="text-slate-500 font-black text-sm tracking-widest">VS</span>
             </div>
 
             <div className="flex-1">
