@@ -64,6 +64,8 @@ export default function Cronometro({
   secondi,
   setSecondi,
   inEsecuzione,
+  avviatoAlle,      // Timestamp ISO assoluto di avvio condiviso da Supabase
+  secondiBase,      // Secondi accumulati prima dell'ultimo avvio
   onAvvia,
   onPausa,
   onFinePrimoTempo,
@@ -71,7 +73,7 @@ export default function Cronometro({
   recupero,
   setRecupero,
   onTick,
-  onTriggerScadenzaTempo // Notifica App.jsx per aprire il modale persistente
+  onTriggerScadenzaTempo
 }) {
   const [moltiplicatore, setMoltiplicatore] = useState(1);
 
@@ -103,67 +105,62 @@ export default function Cronometro({
     onTriggerScadenzaRef.current = onTriggerScadenzaTempo;
   }, [onTriggerScadenzaTempo]);
 
-  // Se viene aggiunto recupero, riarma il fischio
+  // Se viene aggiunto recupero, riarma il trigger fischio
   useEffect(() => {
     if (!tempoScaduto) {
       fischioGiaEseguito.current = false;
     }
   }, [tempoScaduto, recupero]);
 
+  // SINCRONIZZAZIONE AL MILLISECONDO TRAMITE TIMESTAMP ASSOLUTO CONDIVISO
   useEffect(() => {
     let timer = null;
 
-    if (inEsecuzione) {
-      const stepMs = Math.max(25, Math.floor(1000 / moltiplicatore));
+    if (inEsecuzione && avviatoAlle) {
+      const aggiornaTimerSincronizzato = () => {
+        const startMs = new Date(avviatoAlle).getTime();
+        const nowMs = Date.now();
+        const diffSecondiReali = Math.max(0, Math.floor((nowMs - startMs) / 1000));
 
-      timer = setInterval(() => {
-        setSecondi((prev) => {
-          if (prev >= LIMITE_MASSIMO_CON_RECUPERO) {
-            if (onPausaRef.current) onPausaRef.current();
-            return LIMITE_MASSIMO_CON_RECUPERO;
+        const tempoCalcolato = Math.min(
+          LIMITE_MASSIMO_CON_RECUPERO,
+          (secondiBase || 0) + (diffSecondiReali * moltiplicatore)
+        );
+
+        setSecondi(tempoCalcolato);
+
+        const minAttuale = offsetMinutiPartita + Math.floor(tempoCalcolato / 60);
+        if (onTickRef.current) onTickRef.current(minAttuale);
+
+        if (tempoCalcolato >= LIMITE_MASSIMO_CON_RECUPERO) {
+          if (onPausaRef.current) onPausaRef.current(tempoCalcolato);
+          if (!fischioGiaEseguito.current) {
+            fischioGiaEseguito.current = true;
+            riproduciFischioArbitro(tempo === 1 ? 'primo_tempo' : 'fine_gara');
+            if (onTriggerScadenzaRef.current) onTriggerScadenzaRef.current(tempo);
           }
+        }
+      };
 
-          const prox = prev + 1;
-          const minAttuale = offsetMinutiPartita + Math.floor(prox / 60);
-          if (onTickRef.current) onTickRef.current(minAttuale);
+      // Aggiornamento immediato al montaggio o alla ricezione del payload realtime
+      aggiornaTimerSincronizzato();
 
-          if (prox >= LIMITE_MASSIMO_CON_RECUPERO) {
-            if (onPausaRef.current) onPausaRef.current();
-
-            if (!fischioGiaEseguito.current) {
-              fischioGiaEseguito.current = true;
-              riproduciFischioArbitro(tempo === 1 ? 'primo_tempo' : 'fine_gara');
-              if (onTriggerScadenzaRef.current) onTriggerScadenzaRef.current(tempo);
-            }
-          }
-
-          return prox;
-        });
-      }, stepMs);
+      // Timer ad alta frequenza per garantire sincronia fluida
+      const stepMs = Math.max(100, Math.floor(1000 / moltiplicatore));
+      timer = setInterval(aggiornaTimerSincronizzato, stepMs);
     }
 
-    return () => clearInterval(timer);
-  }, [inEsecuzione, moltiplicatore, LIMITE_MASSIMO_CON_RECUPERO, offsetMinutiPartita, tempo, setSecondi]);
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [inEsecuzione, avviatoAlle, secondiBase, moltiplicatore, LIMITE_MASSIMO_CON_RECUPERO, offsetMinutiPartita, tempo, setSecondi]);
 
   const formatNumero = (num) => String(num).padStart(2, '0');
 
   const avanzaSecondi = (secAggiuntivi) => {
-    setSecondi((prev) => {
-      const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, prev + secAggiuntivi);
-      const minAttuale = offsetMinutiPartita + Math.floor(nuovo / 60);
-      if (onTickRef.current) onTickRef.current(minAttuale);
-
-      if (nuovo >= LIMITE_MASSIMO_CON_RECUPERO) {
-        if (onPausaRef.current) onPausaRef.current();
-        if (!fischioGiaEseguito.current) {
-          fischioGiaEseguito.current = true;
-          riproduciFischioArbitro(tempo === 1 ? 'primo_tempo' : 'fine_gara');
-          if (onTriggerScadenzaRef.current) onTriggerScadenzaRef.current(tempo);
-        }
-      }
-
-      return nuovo;
-    });
+    const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, secondi + secAggiuntivi);
+    setSecondi(nuovo);
+    if (onPausaRef.current) onPausaRef.current(nuovo);
   };
 
   const cambiaFase = () => {
@@ -239,8 +236,8 @@ export default function Cronometro({
         {inEsecuzione ? (
           <button
             type="button"
-            onClick={onPausa}
-            className="bg-amber-600 hover:bg-amber-500 text-white py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-base col-span-2 shadow-lg shadow-amber-950/40 uppercase"
+            onClick={() => onPausa()}
+            className="bg-amber-600 hover:bg-amber-500 text-white py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-base col-span-2 shadow-lg shadow-amber-950/40 uppercase cursor-pointer"
           >
             <Pause className="w-5 h-5 fill-current" /> Stoppa
           </button>
@@ -262,7 +259,7 @@ export default function Cronometro({
         <button
           type="button"
           onClick={() => setRecupero((prev) => prev + 1)}
-          className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-3 rounded-xl font-bold flex items-center justify-center gap-1 text-sm uppercase"
+          className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-3 rounded-xl font-bold flex items-center justify-center gap-1 text-sm uppercase cursor-pointer"
           title="Aggiungi 1 minuto di recupero alla frazione"
         >
           <Plus className="w-4 h-4" /> 1' Rec
@@ -275,7 +272,7 @@ export default function Cronometro({
           type="button"
           onClick={() => avanzaSecondi(60)}
           disabled={tempoScaduto}
-          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase"
+          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase cursor-pointer"
         >
           <FastForward className="w-3.5 h-3.5 text-blue-400" /> +1 Minuto
         </button>
@@ -284,7 +281,7 @@ export default function Cronometro({
           type="button"
           onClick={() => avanzaSecondi(300)}
           disabled={tempoScaduto}
-          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase"
+          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase cursor-pointer"
         >
           <FastForward className="w-3.5 h-3.5 text-blue-400" /> +5 Minuti
         </button>
@@ -295,7 +292,7 @@ export default function Cronometro({
         <button
           type="button"
           onClick={cambiaFase}
-          className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg ${
+          className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg cursor-pointer ${
             tempo === 2 && tempoScaduto
               ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950'
               : 'bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200'
