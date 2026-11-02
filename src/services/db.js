@@ -33,7 +33,6 @@ export async function caricaStatoPartita(partitaId) {
   }
 }
 
-// Carica l'intera rosa salvata per la società (persistente)
 export async function caricaRosaSocieta(societaId) {
   try {
     const { data, error } = await supabase
@@ -64,7 +63,6 @@ export async function caricaRosaSocieta(societaId) {
   }
 }
 
-// 1. INSERIMENTO DIRETTO GIOCATORE SU SUPABASE
 export async function dbAggiungiGiocatore(societaId, giocatore) {
   try {
     const riga = {
@@ -88,7 +86,6 @@ export async function dbAggiungiGiocatore(societaId, giocatore) {
   }
 }
 
-// 2. MODIFICA DIRETTA GIOCATORE SU SUPABASE
 export async function dbModificaGiocatore(societaId, giocatore) {
   try {
     const payload = {
@@ -110,7 +107,6 @@ export async function dbModificaGiocatore(societaId, giocatore) {
   }
 }
 
-// 3. CANCELLAZIONE DIRETTA GIOCATORE SU SUPABASE
 export async function dbEliminaGiocatore(societaId, giocatoreId) {
   try {
     const { error } = await supabase
@@ -131,8 +127,13 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
       societa_id: societaId,
       squadra_casa: partitaInfo.squadraCasa,
       squadra_ospite: partitaInfo.squadraOspite,
-      allenatore: partitaInfo.allenatore,
-      dirigente: partitaInfo.dirigente,
+      allenatore: partitaInfo.allenatore || '',
+      allenatore_seconda: partitaInfo.allenatoreSeconda || '',
+      dirigente: partitaInfo.dirigente || '',
+      dirigente_ufficiali: partitaInfo.dirigenteUfficiali || '',
+      assistente_arbitro: partitaInfo.assistenteArbitro || '',
+      data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
+      is_nostra_casa: partitaInfo.isNostraCasa ?? true,
       stato: 'in-corso',
       updated_at: new Date()
     });
@@ -167,7 +168,10 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       squadra_casa: partitaInfo.squadraCasa || '',
       squadra_ospite: partitaInfo.squadraOspite || '',
       allenatore: partitaInfo.allenatore || '',
+      allenatore_seconda: partitaInfo.allenatoreSeconda || '',
       dirigente: partitaInfo.dirigente || '',
+      dirigente_ufficiali: partitaInfo.dirigenteUfficiali || '',
+      assistente_arbitro: partitaInfo.assistenteArbitro || '',
       data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
       is_nostra_casa: partitaInfo.isNostraCasa ?? true,
       updated_at: new Date()
@@ -234,10 +238,17 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
   try {
     const payload = { updated_at: new Date() };
 
+    if (giocatori !== undefined) {
+      payload.rosa_base = giocatori;
+    }
+
     if (staff !== undefined) {
       payload.staff_base = staff;
       if (staff.allenatore !== undefined) payload.allenatore_predefinito = staff.allenatore;
+      if (staff.allenatoreSeconda !== undefined) payload.allenatore_seconda_predefinito = staff.allenatoreSeconda;
       if (staff.dirigente !== undefined) payload.dirigente_predefinito = staff.dirigente;
+      if (staff.dirigenteUfficiali !== undefined) payload.dirigente_ufficiali_predefinito = staff.dirigenteUfficiali;
+      if (staff.assistenteArbitro !== undefined) payload.assistente_arbitro_predefinito = staff.assistenteArbitro;
     }
 
     const { data, error } = await supabase
@@ -265,19 +276,20 @@ export async function getSocietaById(societaId) {
   return data;
 }
 
-// ARCHIVIAZIONE SICURA: GLI EVENTI NON VENGONO MAI CANCELLATI MA RIASSEGNATI ALLO STORICO
 export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori) {
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Inserisce la partita nello storico ufficiale
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
       squadra_casa: partitaInfo.squadraCasa,
       squadra_ospite: partitaInfo.squadraOspite,
-      allenatore: partitaInfo.allenatore,
-      dirigente: partitaInfo.dirigente,
+      allenatore: partitaInfo.allenatore || '',
+      allenatore_seconda: partitaInfo.allenatoreSeconda || '',
+      dirigente: partitaInfo.dirigente || '',
+      dirigente_ufficiali: partitaInfo.dirigenteUfficiali || '',
+      assistente_arbitro: partitaInfo.assistenteArbitro || '',
       gol_casa: datiGara.golCasa,
       gol_ospite: datiGara.golOspiti,
       data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
@@ -287,17 +299,11 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       terminata_il: new Date().toISOString()
     }]);
 
-    // 2. NESSUNA CANCELLAZIONE: riassegna tutti gli eventi registrati al record storico permanente
-    const { error: errUpdateEventi } = await supabase
+    await supabase
       .from('eventi')
       .update({ partita_id: storicoId })
       .eq('partita_id', livePartitaId);
 
-    if (errUpdateEventi) {
-      console.warn("Attenzione durante il trasferimento eventi allo storico:", errUpdateEventi);
-    }
-
-    // 3. Resetta solo lo stato del tabellone live per la prossima partita
     await supabase.from('partite').update({
       squadra_ospite: '',
       gol_casa: 0,
@@ -314,7 +320,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       updated_at: new Date()
     }).eq('id', livePartitaId);
 
-    // 4. Resetta le ammonizioni temporanee della rosa mantenendo tutti i giocatori
     const resetGiocatori = giocatori.map(g => ({
       ...g,
       ammonizioni: 0,
@@ -329,7 +334,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   }
 }
 
-// Carica lo storico referti
 export async function caricaStoricoReferti(societaId) {
   try {
     const { data, error } = await supabase
@@ -350,7 +354,6 @@ export async function caricaStoricoReferti(societaId) {
   }
 }
 
-// Eliminazione facoltativa manuale di un referto storico con i suoi eventi collegati
 export async function eliminaRefertoStorico(refertoId) {
   try {
     await supabase.from('eventi').delete().eq('partita_id', refertoId);
@@ -362,8 +365,6 @@ export async function eliminaRefertoStorico(refertoId) {
     return false;
   }
 }
-
-// --- GESTIONE LOGIN & SUPERADMIN ---
 
 export async function loginSistema(username, password) {
   const u = username.trim();
