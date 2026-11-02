@@ -52,7 +52,7 @@ export default function App() {
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
   const isSyncingFromRemote = useRef(false);
 
-  // Pulisce qualsiasi residuo da localStorage all'avvio
+  // Pulisce qualsiasi residuo da localStorage all'avvio eccetto il nome utente
   useEffect(() => {
     Object.keys(localStorage).forEach(key => {
       if (key !== 'inpanchina_username') {
@@ -131,7 +131,7 @@ export default function App() {
     }
   };
 
-  // Login: Username e Password mantengono maiuscolo/minuscolo digitato
+  // Login: supporta il password manager nativo del browser
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -275,10 +275,12 @@ export default function App() {
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
   };
 
+  // Disconnessione: resetta lo stato React (il browser gestirà le credenziali salvate)
   const disconnetti = () => {
     setUtenteConnesso(null);
     setSocietaAttiva(null);
     setIsSuperAdmin(false);
+    setLoginPassword('');
     setPartitaInfo(null);
     setRosa([]);
     setEventi([]);
@@ -325,11 +327,14 @@ export default function App() {
               </select>
             </div>
 
-            {/* Username preserva minuscolo/maiuscolo digitato */}
+            {/* Input con attributi standard per password manager */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Username</label>
               <input
+                id="username"
+                name="username"
                 type="text"
+                autoComplete="username"
                 placeholder="Nome utente"
                 value={loginUser}
                 onChange={(e) => setLoginUser(e.target.value)}
@@ -338,11 +343,14 @@ export default function App() {
               />
             </div>
 
-            {/* Password preserva minuscolo/maiuscolo digitato */}
+            {/* Input password con current-password per permettere il recupero automatico */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Password</label>
               <input
+                id="password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
@@ -386,7 +394,6 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* BADGE UTENTE CONNESSO IN EVIDENZA */}
               <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
                 <UserCircle2 className="w-4 h-4 text-emerald-400" />
                 <div className="text-left">
