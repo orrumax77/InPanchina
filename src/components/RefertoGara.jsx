@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Copy, Share2, Check, ArrowLeft, CheckCircle2, RotateCcw, Clock, Users } from 'lucide-react';
+import { FileText, Copy, Share2, Check, ArrowLeft, CheckCircle2, RotateCcw } from 'lucide-react';
 
 export default function RefertoGara({ 
   partitaInfo, 
@@ -18,6 +18,7 @@ export default function RefertoGara({
 
   const minutoFinalePartita = Math.max(90, minutoCorrente || 90);
 
+  // Calcolo dei minuti giocati per ogni calciatore
   const calcolaMinutiGiocati = (g) => {
     const evEspulsione = (eventi || []).find(e => 
       e.tipo === 'ESPULSIONE' && 
@@ -167,7 +168,7 @@ export default function RefertoGara({
           <ArrowLeft className="w-4 h-4" /> Torna al Live
         </button>
         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
-          Referto con Minutaggio & Staff
+          Referto Ufficiale
         </span>
       </div>
 
@@ -176,37 +177,8 @@ export default function RefertoGara({
           <FileText className="w-5 h-5 text-emerald-400" /> Referto Completo di Gara
         </h2>
 
-        {/* Tabella Minutaggio */}
-        <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase border-b border-slate-800 pb-2">
-            <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-emerald-400" /> Rosa e Minuti Giocati</span>
-            <span className="text-emerald-400 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Gara: {minutoFinalePartita}'</span>
-          </div>
-
-          <div className="divide-y divide-slate-800/80 max-h-56 overflow-y-auto pr-1">
-            {rosaConMinuti.map(g => (
-              <div key={g.id} className="py-2 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-md bg-slate-900 border border-slate-700 flex items-center justify-center font-bold text-emerald-400 font-mono">
-                    {g.numero}
-                  </span>
-                  <span className="font-semibold text-slate-200 uppercase">
-                    {g.nome} {g.isCapitano && <span className="text-amber-400 font-bold">(C)</span>} {g.isVice && <span className="text-sky-400 font-bold">(VC)</span>}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="font-mono font-bold text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
-                    {g.minuti}'
-                  </span>
-                  <span className="block text-[10px] text-slate-500 uppercase mt-0.5">{g.stato}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Box Testo Referto */}
-        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
+        {/* Finestra/Box di testo con tutto il referto formattato, inclusa la rosa e i minutaggi */}
+        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
           {testoReferto}
         </div>
 
