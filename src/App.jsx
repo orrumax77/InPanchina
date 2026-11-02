@@ -707,6 +707,7 @@ export default function App() {
             onTriggerScadenzaTempo={(t) => setModaleBloccoTempo(t === 1 ? 'primo_tempo' : 'fine_gara')}
           />
 
+          {/* GESTIONE EVENTI CON REGOLE 5 CAMBI, 3 SLOT ED INTERVALLO */}
           <GestioneEventi
             giocatori={rosa}
             setGiocatori={handleAggiornaRosa}
@@ -715,6 +716,7 @@ export default function App() {
             onNuovoEvento={handleNuovoEvento}
             minutoCorrente={minutoCorrente}
             tempoGara={tempoGara}
+            secondiGara={secondiGara}
             slotUsati={slotUsati}
             setSlotUsati={setSlotUsati}
             cambiEffettuati={cambiEffettuati}
