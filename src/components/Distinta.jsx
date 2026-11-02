@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar } from 'lucide-react';
+import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar, CheckCircle2 } from 'lucide-react';
 import { salvaRosaBaseSocieta } from '../services/db';
 
 export default function Distinta({ onConfermaDistinta, societa, partitaIniziale, rosaIniziale }) {
-  // Data odierna in formato YYYY-MM-DD per il selettore e visualizzazione
+  const dateInputRef = useRef(null);
   const oggiISO = new Date().toISOString().split('T')[0];
 
   const [partitaInfo, setPartitaInfo] = useState({
@@ -16,6 +16,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   });
 
   const [giocatori, setGiocatori] = useState([]);
+  const [salvataggioNotifica, setSalvataggioNotifica] = useState(false);
 
   // Campi per nuovo giocatore
   const [nuovoNome, setNuovoNome] = useState('');
@@ -26,9 +27,9 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const [editNome, setEditNome] = useState('');
   const [editNumero, setEditNumero] = useState('');
 
-  const initialLoadDone = useRef(false);
+  const isReadyToSync = useRef(false);
 
-  // Sincronizza i dati dal Cloud all'avvio o al cambio società
+  // Caricamento iniziale dei dati
   useEffect(() => {
     const staffSalvato = societa?.staff_base || {};
     const allenatoreBase = (staffSalvato.allenatore || partitaIniziale?.allenatore || '').toUpperCase();
@@ -44,10 +45,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isNostraCasa: true
     }));
 
-    const rosaPermanente = (rosaIniziale && rosaIniziale.length > 0)
-      ? rosaIniziale
-      : (societa?.rosa_base && societa.rosa_base.length > 0)
-        ? societa.rosa_base
+    const rosaPermanente = (societa?.rosa_base && societa.rosa_base.length > 0)
+      ? societa.rosa_base
+      : (rosaIniziale && rosaIniziale.length > 0)
+        ? rosaIniziale
         : [];
 
     if (rosaPermanente.length > 0) {
@@ -60,16 +61,28 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     }
 
     setTimeout(() => {
-      initialLoadDone.current = true;
-    }, 300);
+      isReadyToSync.current = true;
+    }, 200);
   }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
 
-  // Sincronizzazione immediata sul DB
-  const sincronizzaRosaCloud = (nuovaListaGiocatori) => {
-    if (!societa?.id || !initialLoadDone.current) return;
-    salvaRosaBaseSocieta(societa.id, nuovaListaGiocatori, {
+  // Sincronizzazione immediata su Supabase
+  const sincronizzaCloudImmediata = async (nuovaListaGiocatori, nuovoStaff) => {
+    if (!societa?.id || !isReadyToSync.current) return;
+    const staffDaSalvare = nuovoStaff || {
       allenatore: partitaInfo.allenatore,
       dirigente: partitaInfo.dirigente
+    };
+    const listaDaSalvare = nuovaListaGiocatori || giocatori;
+
+    await salvaRosaBaseSocieta(societa.id, listaDaSalvare, staffDaSalvare);
+    setSalvataggioNotifica(true);
+    setTimeout(() => setSalvataggioNotifica(false), 2000);
+  };
+
+  const handleSalvaStaffBlur = () => {
+    sincronizzaCloudImmediata(giocatori, {
+      allenatore: partitaInfo.allenatore.trim().toUpperCase(),
+      dirigente: partitaInfo.dirigente.trim().toUpperCase()
     });
   };
 
@@ -84,8 +97,19 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
   const formattaDataItaliana = (isoDate) => {
     if (!isoDate) return '';
-    const [anno, mese, giorno] = isoDate.split('-');
-    return `${giorno}/${mese}/${anno}`;
+    const parts = isoDate.split('-');
+    if (parts.length !== 3) return isoDate;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
+
+  const apriCalendario = () => {
+    if (dateInputRef.current) {
+      if (typeof dateInputRef.current.showPicker === 'function') {
+        dateInputRef.current.showPicker();
+      } else {
+        dateInputRef.current.focus();
+      }
+    }
   };
 
   const titolariCount = giocatori.filter(g => g.isTitolare).length;
@@ -102,7 +126,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       return g;
     });
     setGiocatori(nuova);
-    sincronizzaRosaCloud(nuova);
+    sincronizzaCloudImmediata(nuova);
   };
 
   const setCapitano = (id) => {
@@ -112,7 +136,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isVice: g.id === id ? false : g.isVice
     }));
     setGiocatori(nuova);
-    sincronizzaRosaCloud(nuova);
+    sincronizzaCloudImmediata(nuova);
   };
 
   const setViceCapitano = (id) => {
@@ -122,9 +146,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isCapitano: g.id === id ? false : g.isCapitano
     }));
     setGiocatori(nuova);
-    sincronizzaRosaCloud(nuova);
+    sincronizzaCloudImmediata(nuova);
   };
 
+  // 1. AGGIUNGI GIOCATORE CON SCRITTURA DB ISTANTANEA
   const aggiungiGiocatore = (e) => {
     e.preventDefault();
     if (!nuovoNome.trim() || !nuovoNumero.trim()) return;
@@ -141,16 +166,17 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
     const nuovaLista = [...giocatori, nuovo];
     setGiocatori(nuovaLista);
-    sincronizzaRosaCloud(nuovaLista);
+    sincronizzaCloudImmediata(nuovaLista);
 
     setNuovoNome('');
     setNuovoNumero('');
   };
 
+  // 2. RIMUOVI GIOCATORE CON AGGIORNAMENTO DB ISTANTANEO
   const rimuoviGiocatore = (id) => {
     const nuovaLista = giocatori.filter(g => g.id !== id);
     setGiocatori(nuovaLista);
-    sincronizzaRosaCloud(nuovaLista);
+    sincronizzaCloudImmediata(nuovaLista);
     if (editingId === id) setEditingId(null);
   };
 
@@ -160,6 +186,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setEditNome(g.nome);
   };
 
+  // 3. SALVA MODIFICA GIOCATORE CON AGGIORNAMENTO DB ISTANTANEO
   const salvaModifica = (id) => {
     if (!editNome.trim() || !editNumero.trim()) return;
     const nuovaLista = giocatori.map(g => {
@@ -174,7 +201,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     });
 
     setGiocatori(nuovaLista);
-    sincronizzaRosaCloud(nuovaLista);
+    sincronizzaCloudImmediata(nuovaLista);
     setEditingId(null);
   };
 
@@ -214,9 +241,15 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
             {societa?.indirizzo_campo || 'CAMPO SPORTIVO'}
           </p>
         </div>
+
+        {salvataggioNotifica && (
+          <span className="hidden sm:flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-950/50 border border-emerald-500/30 px-2.5 py-1 rounded-lg animate-pulse">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Salvato nel Cloud
+          </span>
+        )}
       </div>
 
-      {/* Configurazione Partita con Data Evidente */}
+      {/* Configurazione Partita con Calendario Risolto */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
           <div className="flex items-center gap-2">
@@ -224,19 +257,24 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
               <Shield className="w-5 h-5" /> Partita di Oggi
             </h2>
 
-            {/* BOX DATA PARTITA */}
-            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-700 px-3 py-1 rounded-lg">
-              <Calendar className="w-4 h-4 text-emerald-400" />
+            {/* SELETTORE CALENDARIO FUNZIONANTE */}
+            <div 
+              onClick={apriCalendario}
+              className="flex items-center gap-2 bg-slate-950 hover:bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition select-none"
+              title="Clicca per aprire il calendario"
+            >
+              <Calendar className="w-4 h-4 text-emerald-400 flex-shrink-0 pointer-events-none" />
+              <span className="text-xs font-bold font-mono text-white pointer-events-none">
+                {formattaDataItaliana(partitaInfo.dataPartita)}
+              </span>
               <input
+                ref={dateInputRef}
                 type="date"
                 value={partitaInfo.dataPartita}
                 onChange={(e) => setPartitaInfo({ ...partitaInfo, dataPartita: e.target.value })}
-                className="bg-transparent text-white text-xs font-bold font-mono outline-none cursor-pointer"
-                title="Modifica data gara"
+                className="opacity-0 w-0 h-0 absolute pointer-events-auto"
+                tabIndex={-1}
               />
-              <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
-                ({formattaDataItaliana(partitaInfo.dataPartita)})
-              </span>
             </div>
           </div>
 
@@ -245,7 +283,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </span>
         </div>
 
-        {/* Selezione Squadre con Freccia Scambio */}
+        {/* Squadre Casa e Ospiti con Pulsante Inversione */}
         <div className="grid grid-cols-1 md:grid-cols-9 gap-3 items-end">
           <div className="md:col-span-4">
             <label className="text-xs uppercase text-slate-400 font-semibold block mb-1">
@@ -289,6 +327,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </div>
         </div>
 
+        {/* Staff Tecnico con Salvataggio Automatico all'uscita dal campo (onBlur) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           <div>
             <label className="text-xs uppercase text-slate-400 font-semibold">Allenatore</label>
@@ -297,6 +336,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
               placeholder="ES. MARIO ROSSI"
               value={partitaInfo.allenatore}
               onChange={(e) => setPartitaInfo({ ...partitaInfo, allenatore: e.target.value.toUpperCase() })}
+              onBlur={handleSalvaStaffBlur}
               className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
             />
           </div>
@@ -307,13 +347,14 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
               placeholder="ES. LUIGI BIANCHI"
               value={partitaInfo.dirigente}
               onChange={(e) => setPartitaInfo({ ...partitaInfo, dirigente: e.target.value.toUpperCase() })}
+              onBlur={handleSalvaStaffBlur}
               className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
             />
           </div>
         </div>
       </div>
 
-      {/* Form Aggiunta Rapida */}
+      {/* Form Aggiunta Giocatore */}
       <form onSubmit={aggiungiGiocatore} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap gap-3 items-end">
         <div className="w-24">
           <label className="text-xs text-slate-400 uppercase font-semibold">N° Maglia</label>
@@ -352,7 +393,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
             <h2 className="text-lg font-bold flex items-center gap-2 uppercase">
               <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatori.length})
             </h2>
-            <p className="text-[11px] text-emerald-400 mt-0.5">● Sincronizzata in tempo reale sul cloud</p>
+            <p className="text-[11px] text-emerald-400 mt-0.5">● Salvataggio continuo attivo nel database</p>
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
             Titolari: {titolariCount} / 11
