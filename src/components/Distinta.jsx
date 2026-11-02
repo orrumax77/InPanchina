@@ -249,7 +249,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isVice: false
     };
 
-    // Ordina immediatamente la lista dopo l'inserimento
     const nuovaRosa = ordinaPerNumeroMaglia([...giocatori, nuovo]);
     setGiocatori(nuovaRosa);
     setNuovoNome('');
@@ -307,7 +306,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       nome: editNome.trim().toUpperCase()
     };
 
-    // Riordina la lista in base al nuovo numero assegnato
     const nuovaRosa = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
     setGiocatori(nuovaRosa);
     setEditingId(null);
@@ -332,8 +330,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   };
 
   const numeroSuggeritoPlaceholder = trovaPrimoNumeroLibero();
-
-  // Lista costantemente ordinata per numero per il rendering
   const giocatoriOrdinati = ordinaPerNumeroMaglia(giocatori);
 
   return (
@@ -540,7 +536,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </button>
       </form>
 
-      {/* Elenco Rosa Giocatori Ordinato per Numero di Maglia */}
+      {/* Elenco Rosa Giocatori con Pulsanti di Destra Perfettamente Allineati */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md">
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -559,12 +555,12 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
             Nessun giocatore registrato per questa società. Aggiungili dal form in alto.
           </div>
         ) : (
-          <div className="divide-y divide-slate-700 max-h-[480px] overflow-y-auto">
+          <div className="divide-y divide-slate-700/80 max-h-[480px] overflow-y-auto pr-1">
             {giocatoriOrdinati.map((g) => {
               const inModifica = editingId === g.id;
 
               return (
-                <div key={g.id} className="py-2.5 flex items-center justify-between gap-2">
+                <div key={g.id} className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-800/50 px-1 rounded-lg transition">
                   {inModifica ? (
                     <div className="flex-1 flex items-center gap-2">
                       <input
@@ -601,62 +597,77 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400 font-mono">
+                      {/* Sinistra: Numero e Nome Giocatore */}
+                      <div className="flex items-center gap-3 flex-1 min-w-0 pr-2">
+                        <span className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400 font-mono flex-shrink-0">
                           {g.numero}
                         </span>
-                        <span className="font-semibold text-white text-sm uppercase">{g.nome}</span>
+                        <span className="font-semibold text-white text-sm uppercase truncate">
+                          {g.nome}
+                        </span>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      {/* Destra: Blocco Pulsanti Fisso e Perfettamente Allineato */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {/* Modifica */}
                         <button
                           type="button"
                           onClick={() => avviaModifica(g)}
-                          className="p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-amber-400 transition"
+                          className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-amber-400 flex items-center justify-center transition flex-shrink-0"
                           title="Modifica Numero o Nome"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
 
+                        {/* Titolare / Panchina (Larghezza fissa per evitare salti visivi) */}
                         <button
                           type="button"
                           onClick={() => toggleTitolare(g.id)}
-                          className={`px-2.5 py-1 text-xs font-bold rounded transition uppercase ${
-                            g.isTitolare ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                          className={`w-24 h-7 text-[11px] font-bold rounded-lg transition uppercase flex items-center justify-center flex-shrink-0 ${
+                            g.isTitolare 
+                              ? 'bg-emerald-600 text-white shadow-sm' 
+                              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                           }`}
                         >
                           {g.isTitolare ? 'TITOLARE' : 'PANCHINA'}
                         </button>
 
+                        {/* Capitano */}
                         <button
                           type="button"
                           onClick={() => setCapitano(g.id)}
-                          className={`p-1.5 rounded text-xs font-bold ${
-                            g.isCapitano ? 'bg-amber-500 text-black' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                          className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center transition flex-shrink-0 ${
+                            g.isCapitano 
+                              ? 'bg-amber-500 text-black shadow-sm' 
+                              : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                           }`}
                           title="Capitano"
                         >
                           C
                         </button>
 
+                        {/* Vice Capitano */}
                         <button
                           type="button"
                           onClick={() => setViceCapitano(g.id)}
-                          className={`p-1.5 rounded text-xs font-bold ${
-                            g.isVice ? 'bg-sky-500 text-black' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                          className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center transition flex-shrink-0 ${
+                            g.isVice 
+                              ? 'bg-sky-500 text-black shadow-sm' 
+                              : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                           }`}
                           title="Vice Capitano"
                         >
                           VC
                         </button>
 
+                        {/* Elimina */}
                         <button
                           type="button"
                           onClick={() => rimuoviGiocatore(g.id)}
-                          className="p-1.5 rounded bg-slate-700 text-rose-400 hover:bg-rose-950 transition"
+                          className="w-7 h-7 rounded-lg bg-slate-700 text-rose-400 hover:bg-rose-950/60 hover:text-rose-300 transition flex items-center justify-center flex-shrink-0"
                           title="Rimuovi ed elimina dal database"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </>
