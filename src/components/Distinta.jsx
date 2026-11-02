@@ -183,25 +183,30 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     mostraNotificaSalvataggio();
   };
 
-  // AGGIUNTA GIOCATORE CON CONTROLLO NUMERO DUPLICATO
+  // AGGIUNTA GIOCATORE: ASSEGNAZIONE AUTOMATICA O CONTROLLO NUMERO DUPLICATO
   const aggiungiGiocatore = async (e) => {
     e.preventDefault();
-    if (!nuovoNome.trim() || !nuovoNumero.trim()) return;
+    if (!nuovoNome.trim()) return;
 
     let numeroScelto = nuovoNumero.trim();
 
-    // Verifica se il numero è già occupato
-    const giaPresente = giocatori.find(g => String(g.numero) === String(numeroScelto));
-    if (giaPresente) {
-      const primoLibero = trovaPrimoNumeroLibero();
-      const accettaSuggerito = window.confirm(
-        `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi assegnare il primo numero libero (#${primoLibero})?\n\n• Clicca OK per usare il #${primoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
-      );
+    // 1. Se il numero NON è stato selezionato, assegna il primo numero disponibile
+    if (!numeroScelto) {
+      numeroScelto = trovaPrimoNumeroLibero();
+    } else {
+      // 2. Se è stato inserito un numero, verifica che non sia già occupato
+      const giaPresente = giocatori.find(g => String(g.numero) === String(numeroScelto));
+      if (giaPresente) {
+        const primoLibero = trovaPrimoNumeroLibero();
+        const accettaSuggerito = window.confirm(
+          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi assegnare il primo numero libero (#${primoLibero})?\n\n• Clicca OK per usare il #${primoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
+        );
 
-      if (accettaSuggerito) {
-        numeroScelto = primoLibero;
-      } else {
-        return;
+        if (accettaSuggerito) {
+          numeroScelto = primoLibero;
+        } else {
+          return;
+        }
       }
     }
 
@@ -238,26 +243,31 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setEditNome(g.nome);
   };
 
-  // MODIFICA GIOCATORE CON CONTROLLO NUMERO DUPLICATO
+  // MODIFICA GIOCATORE: ASSEGNAZIONE AUTOMATICA O CONTROLLO NUMERO DUPLICATO
   const salvaModifica = async (id) => {
-    if (!editNome.trim() || !editNumero.trim()) return;
+    if (!editNome.trim()) return;
     const target = giocatori.find(g => g.id === id);
     if (!target) return;
 
     let numeroScelto = editNumero.trim();
 
-    // Verifica se il nuovo numero è occupato da un altro compagno
-    const giaPresente = giocatori.find(g => g.id !== id && String(g.numero) === String(numeroScelto));
-    if (giaPresente) {
-      const primoLibero = trovaPrimoNumeroLibero(id);
-      const accettaSuggerito = window.confirm(
-        `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi assegnare il primo numero libero (#${primoLibero})?\n\n• Clicca OK per usare il #${primoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
-      );
+    // 1. Se il numero viene lasciato vuoto in modifica, assegna il primo libero
+    if (!numeroScelto) {
+      numeroScelto = trovaPrimoNumeroLibero(id);
+    } else {
+      // 2. Se è occupato da un altro compagno
+      const giaPresente = giocatori.find(g => g.id !== id && String(g.numero) === String(numeroScelto));
+      if (giaPresente) {
+        const primoLibero = trovaPrimoNumeroLibero(id);
+        const accettaSuggerito = window.confirm(
+          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi assegnare il primo numero libero (#${primoLibero})?\n\n• Clicca OK per usare il #${primoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
+        );
 
-      if (accettaSuggerito) {
-        numeroScelto = primoLibero;
-      } else {
-        return;
+        if (accettaSuggerito) {
+          numeroScelto = primoLibero;
+        } else {
+          return;
+        }
       }
     }
 
@@ -287,6 +297,8 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     }
     onConfermaDistinta({ partitaInfo, giocatori });
   };
+
+  const numeroSuggeritoPlaceholder = trovaPrimoNumeroLibero();
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
@@ -420,17 +432,17 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
       </div>
 
-      {/* Form Aggiunta Rapida Giocatore */}
+      {/* Form Aggiunta Rapida Giocatore: N° maglia opzionale con placeholder del primo libero */}
       <form onSubmit={aggiungiGiocatore} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap gap-3 items-end">
         <div className="w-24">
           <label className="text-xs text-slate-400 uppercase font-semibold">N° Maglia</label>
           <input
             type="number"
-            placeholder="10"
+            placeholder={numeroSuggeritoPlaceholder}
             value={nuovoNumero}
             onChange={(e) => setNuovoNumero(e.target.value)}
             className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-bold text-center text-sm"
-            required
+            title="Lascia vuoto per assegnare automaticamente il primo numero disponibile"
           />
         </div>
         <div className="flex-1 min-w-[220px]">
