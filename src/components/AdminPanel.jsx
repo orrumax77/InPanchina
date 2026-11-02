@@ -1,6 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { adminCreaSquadra, adminCreaUtente, adminGetUtentiSocieta, getSocieta } from '../services/db';
-import { Shield, Plus, Users, Image as ImageIcon, ArrowLeft, CheckCircle2, ExternalLink } from 'lucide-react';
+import { 
+  adminCreaSquadra, 
+  adminCreaUtente, 
+  adminGetUtentiSocieta, 
+  getSocieta, 
+  adminAggiornaStatoSocieta 
+} from '../services/db';
+import { 
+  Shield, 
+  Plus, 
+  Users, 
+  Image as ImageIcon, 
+  ArrowLeft, 
+  CheckCircle2, 
+  ExternalLink, 
+  Lock, 
+  Unlock, 
+  Infinity as InfinityIcon, 
+  Calendar 
+} from 'lucide-react';
 
 export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const [societaList, setSocietaList] = useState([]);
@@ -24,6 +42,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const ricaricaDati = async () => {
     const list = await getSocieta();
     setSocietaList(list);
+    if (societaSelezionata) {
+      const aggiornata = list.find(s => s.id === societaSelezionata.id);
+      if (aggiornata) setSocietaSelezionata(aggiornata);
+    }
   };
 
   useEffect(() => {
@@ -35,6 +57,53 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
       adminGetUtentiSocieta(societaSelezionata.id).then(setUtentiSocieta);
     }
   }, [societaSelezionata]);
+
+  // GESTIONE STATO / SBLOCCO SQUADRA
+  const handleSbloccaIllimitato = async () => {
+    try {
+      // Scadenza lontana (anno 2099) = accesso illimitato
+      const data2099 = new Date('2099-12-31T23:59:59Z').toISOString();
+      const aggiornata = await adminAggiornaStatoSocieta(societaSelezionata.id, {
+        attiva: true,
+        dataScadenza: data2099
+      });
+      setSocietaSelezionata(aggiornata);
+      setMessaggio(`Accesso ILLIMITATO attivato per ${aggiornata.nome}!`);
+      ricaricaDati();
+    } catch {
+      alert('Errore durante l\'aggiornamento.');
+    }
+  };
+
+  const handleProroga30Giorni = async () => {
+    try {
+      const nuovaData = new Date();
+      nuovaData.setDate(nuovaData.getDate() + 30);
+      const aggiornata = await adminAggiornaStatoSocieta(societaSelezionata.id, {
+        attiva: true,
+        dataScadenza: nuovaData.toISOString()
+      });
+      setSocietaSelezionata(aggiornata);
+      setMessaggio(`Proroga di 30 giorni applicata a ${aggiornata.nome}!`);
+      ricaricaDati();
+    } catch {
+      alert('Errore durante l\'aggiornamento.');
+    }
+  };
+
+  const handleBloccaSquadra = async () => {
+    if (!window.confirm(`Sei sicuro di voler bloccare l'accesso per ${societaSelezionata.nome}?`)) return;
+    try {
+      const aggiornata = await adminAggiornaStatoSocieta(societaSelezionata.id, {
+        attiva: false
+      });
+      setSocietaSelezionata(aggiornata);
+      setMessaggio(`Accesso BLOCCATO per ${aggiornata.nome}. I dirigenti non potranno più accedere.`);
+      ricaricaDati();
+    } catch {
+      alert('Errore durante l\'aggiornamento.');
+    }
+  };
 
   const handleCaricaLogo = (e) => {
     const file = e.target.files[0];
@@ -115,6 +184,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     }
   };
 
+  const isIllimitata = (scadenza) => {
+    return new Date(scadenza).getFullYear() >= 2090;
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex justify-between items-center border-b border-slate-800 pb-3">
@@ -135,10 +208,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         </div>
       )}
 
-      {/* 1. SELEZIONA O ACCEDI A QUALSIASI SQUADRA */}
+      {/* SEZIONE GESTIONE SQUADRE E STATO LICENZA */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
-          <Users className="w-5 h-5 text-blue-400" /> Squadre Registrate & Accesso Diretto
+          <Users className="w-5 h-5 text-blue-400" /> Gestione Squadre & Stato Licenza
         </h2>
 
         <div>
@@ -148,102 +221,158 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
             onChange={(e) => setSocietaSelezionata(societaList.find(s => s.id === e.target.value))}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1"
           >
-            <option value="">-- Seleziona una squadra --</option>
+            <option value="">-- Seleziona una squadra da gestire --</option>
             {societaList.map(s => (
               <option key={s.id} value={s.id}>
-                {s.nome} ({s.codice_societa || s.id})
+                {s.nome} ({s.codice_societa || s.id}) - {s.attiva ? 'ATTIVA' : 'BLOCCATA'}
               </option>
             ))}
           </select>
         </div>
 
         {societaSelezionata && (
-          <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              {societaSelezionata.logo_url && (
-                <img src={societaSelezionata.logo_url} alt="Logo" className="w-10 h-10 rounded-full object-cover border border-slate-700" />
-              )}
-              <div>
-                <h4 className="font-bold text-white text-sm">{societaSelezionata.nome}</h4>
-                <p className="text-xs text-slate-400">Scadenza prova: {new Date(societaSelezionata.data_scadenza_prova).toLocaleDateString()}</p>
+          <div className="space-y-4">
+            {/* Scheda Riepilogo Stato */}
+            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  {societaSelezionata.logo_url && (
+                    <img src={societaSelezionata.logo_url} alt="Logo" className="w-12 h-12 rounded-full object-cover border border-slate-700" />
+                  )}
+                  <div>
+                    <h4 className="font-bold text-white text-base">{societaSelezionata.nome}</h4>
+                    <p className="text-xs text-slate-400">Codice: {societaSelezionata.codice_societa || societaSelezionata.id}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded text-xs font-bold uppercase ${
+                    societaSelezionata.attiva 
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                      : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                  }`}>
+                    {societaSelezionata.attiva ? '● Attiva' : '✕ Bloccata'}
+                  </span>
+
+                  <span className="px-2.5 py-1 rounded bg-slate-800 text-xs font-semibold text-slate-300">
+                    {isIllimitata(societaSelezionata.data_scadenza_prova)
+                      ? 'Licenza: Illimitata'
+                      : `Scadenza: ${new Date(societaSelezionata.data_scadenza_prova).toLocaleDateString()}`}
+                  </span>
+                </div>
+              </div>
+
+              {/* PULSANTI DI CONTROLLO ACCESSO */}
+              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSbloccaIllimitato}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                >
+                  <InfinityIcon className="w-4 h-4" /> Sblocca per Sempre (Illimitata)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleProroga30Giorni}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                >
+                  <Calendar className="w-4 h-4 text-emerald-400" /> +30 Giorni di Prova
+                </button>
+
+                {societaSelezionata.attiva ? (
+                  <button
+                    type="button"
+                    onClick={handleBloccaSquadra}
+                    className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                  >
+                    <Lock className="w-4 h-4" /> Blocca Accesso
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleProroga30Giorni}
+                    className="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                  >
+                    <Unlock className="w-4 h-4" /> Riattiva Squadra
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => onSelezionaSquadraDaAdmin(societaSelezionata)}
+                  className="ml-auto bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                >
+                  <ExternalLink className="w-4 h-4" /> Entra in Panchina
+                </button>
               </div>
             </div>
 
-            {/* Tasto per entrare direttamente ovunque */}
-            <button
-              onClick={() => onSelezionaSquadraDaAdmin(societaSelezionata)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-950"
-            >
-              <ExternalLink className="w-3.5 h-3.5" /> Entra in Panchina come questa Squadra
-            </button>
-          </div>
-        )}
-
-        {/* Creazione Utenti per la squadra selezionata */}
-        {societaSelezionata && (
-          <div className="pt-3 border-t border-slate-800 space-y-4">
-            <h4 className="text-xs font-bold uppercase text-slate-400">Abilita Dirigente per {societaSelezionata.nome}:</h4>
-            <form onSubmit={handleCreaUtente} className="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
-              <div>
-                <label className="text-xs text-slate-400">Username</label>
-                <input
-                  type="text"
-                  placeholder="es. mister_rossi"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400">Password</label>
-                <input
-                  type="text"
-                  placeholder="es. Pass2026!"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400">Stagione</label>
-                <select
-                  value={stagione}
-                  onChange={(e) => setStagione(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm"
-                >
-                  <option value="2026/2027">2026/2027</option>
-                  <option value="2027/2028">2027/2028</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2.5 rounded-lg text-sm flex items-center justify-center gap-1"
-              >
-                <Plus className="w-4 h-4" /> Crea Utente
-              </button>
-            </form>
-
-            <div className="space-y-1.5 pt-1">
-              {utentiSocieta.map(u => (
-                <div key={u.id} className="p-2 bg-slate-950 border border-slate-800 rounded-lg flex justify-between items-center text-xs">
-                  <div>
-                    <span className="font-bold text-white">Utente: {u.username}</span>
-                    <span className="text-slate-400 ml-3">Password: <code className="text-emerald-400 font-mono">{u.password_chiaro}</code></span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded bg-slate-800 text-blue-400 font-semibold">{u.stagione}</span>
+            {/* Creazione Utenti */}
+            <div className="pt-2 border-t border-slate-800 space-y-3">
+              <h4 className="text-xs font-bold uppercase text-slate-400">Abilita Utente per {societaSelezionata.nome}:</h4>
+              <form onSubmit={handleCreaUtente} className="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
+                <div>
+                  <label className="text-xs text-slate-400">Username</label>
+                  <input
+                    type="text"
+                    placeholder="es. mister_rossi"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm"
+                    required
+                  />
                 </div>
-              ))}
+
+                <div>
+                  <label className="text-xs text-slate-400">Password</label>
+                  <input
+                    type="text"
+                    placeholder="es. Pass2026!"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-400">Stagione</label>
+                  <select
+                    value={stagione}
+                    onChange={(e) => setStagione(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm"
+                  >
+                    <option value="2026/2027">2026/2027</option>
+                    <option value="2027/2028">2027/2028</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2.5 rounded-lg text-sm flex items-center justify-center gap-1"
+                >
+                  <Plus className="w-4 h-4" /> Crea Utente
+                </button>
+              </form>
+
+              <div className="space-y-1.5 pt-1">
+                {utentiSocieta.map(u => (
+                  <div key={u.id} className="p-2 bg-slate-950 border border-slate-800 rounded-lg flex justify-between items-center text-xs">
+                    <div>
+                      <span className="font-bold text-white">Utente: {u.username}</span>
+                      <span className="text-slate-400 ml-3">Password: <code className="text-emerald-400 font-mono">{u.password_chiaro}</code></span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-slate-800 text-blue-400 font-semibold">{u.stagione}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* 2. REGISTRA NUOVA SQUADRA (TRIAL 30 GG) */}
+      {/* REGISTRAZIONE NUOVA SQUADRA */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
           <Shield className="w-5 h-5 text-emerald-400" /> Registra Nuova Squadra (Prova 30 Giorni)
