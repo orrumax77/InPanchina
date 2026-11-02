@@ -261,3 +261,25 @@ export async function adminModificaPasswordUtente(utenteId, nuovaPassword) {
   if (error) throw error;
   return { success: true };
 }
+
+// Salva la rosa e lo staff base associati stabilmente alla società
+export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
+  try {
+    const { data, error } = await supabase
+      .from('societa')
+      .update({
+        rosa_base: giocatori,
+        staff_base: staff,
+        updated_at: new Date()
+      })
+      .eq('id', societaId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Errore salvaRosaBaseSocieta:', error);
+    return null;
+  }
+}
