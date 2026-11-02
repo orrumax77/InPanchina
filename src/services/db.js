@@ -52,8 +52,8 @@ export async function caricaRosaSocieta(societaId) {
       nome: (g.nome || '').toUpperCase(),
       ruolo: g.ruolo || '',
       isTitolare: g.is_titolare,
-      isCapitano: g.is_capitano,
-      isVice: g.is_vice,
+      isCapitano: g.isCapitano ?? g.is_capitano,
+      isVice: g.isVice ?? g.is_vice,
       ammonizioni: g.ammonizioni || 0,
       espulso: g.espulso || false
     }));
@@ -370,7 +370,7 @@ export async function loginSistema(username, password) {
   const u = username.trim();
   const p = password.trim();
 
-  if (u.toLowerCase() === 'admin' && p === 'admin2026') {
+  if (u === 'admin' && p === 'admin2026') {
     return {
       success: true,
       isAdmin: true,
@@ -433,7 +433,7 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
 
 export async function adminCreaUtente({ societaId, username, password, ruolo, stagione }) {
   const { data, error } = await supabase.from('utenti_panchina').insert([{
-    id: `${societaId}_${username.trim()}`,
+    id: `${societaId}_usr_${Date.now()}`,
     societa_id: societaId,
     username: username.trim(),
     password_chiaro: password.trim(),
