@@ -35,12 +35,13 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const [editNumero, setEditNumero] = useState('');
 
   const infoDebounceRef = useRef(null);
+  const isLoaded = useRef(false);
 
-  // Caricamento iniziale
+  // Caricamento e ripristino sicuro di Rosa e Dirigenti all'avvio
   useEffect(() => {
     const staffSalvato = societa?.staff_base || {};
-    const allenatoreBase = (partitaIniziale?.allenatore || societa?.allenatore_predefinito || staffSalvato.allenatore || '').toUpperCase();
-    const dirigenteBase = (partitaIniziale?.dirigente || societa?.dirigente_predefinito || staffSalvato.dirigente || '').toUpperCase();
+    const allenatoreBase = (societa?.allenatore_predefinito || staffSalvato.allenatore || partitaIniziale?.allenatore || '').toUpperCase();
+    const dirigenteBase = (societa?.dirigente_predefinito || staffSalvato.dirigente || partitaIniziale?.dirigente || '').toUpperCase();
 
     setPartitaInfo(prev => ({
       ...prev,
@@ -52,14 +53,23 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isNostraCasa: partitaIniziale?.isNostraCasa ?? prev.isNostraCasa ?? true
     }));
 
-    if (rosaIniziale && rosaIniziale.length > 0) {
-      setGiocatori(rosaIniziale.map(g => ({
+    // Determina la rosa: priorità assoluta a rosaIniziale (caricata da tabella giocatori), poi rosa_base
+    const rosaDaCaricare = (rosaIniziale && rosaIniziale.length > 0)
+      ? rosaIniziale
+      : (societa?.rosa_base && societa.rosa_base.length > 0)
+        ? societa.rosa_base
+        : [];
+
+    if (rosaDaCaricare.length > 0) {
+      setGiocatori(rosaDaCaricare.map(g => ({
         ...g,
         nome: (g.nome || '').toUpperCase()
       })));
-    } else {
-      setGiocatori([]);
     }
+
+    setTimeout(() => {
+      isLoaded.current = true;
+    }, 400);
   }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
 
   const mostraNotificaSalvataggio = () => {
@@ -83,9 +93,9 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     return String(num);
   };
 
-  // Autosave su Supabase per le informazioni di gara
+  // Autosave continuo su Supabase per le informazioni di gara
   const salvaInfoPartitaCloud = (nuoveInfo) => {
-    if (!societa?.id || !partitaId) return;
+    if (!societa?.id || !partitaId || !isLoaded.current) return;
 
     if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
     infoDebounceRef.current = setTimeout(async () => {
@@ -144,8 +154,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     }
 
     const aggiornato = { ...target, isTitolare: !target.isTitolare };
-    setGiocatori(giocatori.map(g => (g.id === id ? aggiornato : g)));
+    const nuovaLista = giocatori.map(g => (g.id === id ? aggiornato : g));
+    setGiocatori(nuovaLista);
     await dbModificaGiocatore(societa.id, aggiornato);
+    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined);
     mostraNotificaSalvataggio();
   };
 
@@ -163,6 +175,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     for (const g of nuovaLista) {
       await dbModificaGiocatore(societa.id, g);
     }
+    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined);
     mostraNotificaSalvataggio();
   };
 
@@ -180,21 +193,20 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     for (const g of nuovaLista) {
       await dbModificaGiocatore(societa.id, g);
     }
+    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined);
     mostraNotificaSalvataggio();
   };
 
-  // AGGIUNTA GIOCATORE: ASSEGNAZIONE AUTOMATICA O CONTROLLO NUMERO DUPLICATO
+  // AGGIUNTA GIOCATORE CON PERSISTENZA IMMEDIATA
   const aggiungiGiocatore = async (e) => {
     e.preventDefault();
     if (!nuovoNome.trim()) return;
 
     let numeroScelto = nuovoNumero.trim();
 
-    // 1. Se il numero NON è stato selezionato, assegna il primo numero disponibile
     if (!numeroScelto) {
       numeroScelto = trovaPrimoNumeroLibero();
     } else {
-      // 2. Se è stato inserito un numero, verifica che non sia già occupato
       const giaPresente = giocatori.find(g => String(g.numero) === String(numeroScelto));
       if (giaPresente) {
         const primoLibero = trovaPrimoNumeroLibero();
@@ -220,20 +232,24 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isVice: false
     };
 
-    setGiocatori(prev => [...prev, nuovo]);
+    const nuovaRosa = [...giocatori, nuovo];
+    setGiocatori(nuovaRosa);
     setNuovoNome('');
     setNuovoNumero('');
 
     await dbAggiungiGiocatore(societa.id, nuovo);
+    await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined);
     mostraNotificaSalvataggio();
   };
 
-  // ELIMINAZIONE GIOCATORE
+  // ELIMINAZIONE GIOCATORE CON PERSISTENZA IMMEDIATA
   const rimuoviGiocatore = async (id) => {
-    setGiocatori(prev => prev.filter(g => g.id !== id));
+    const nuovaRosa = giocatori.filter(g => g.id !== id);
+    setGiocatori(nuovaRosa);
     if (editingId === id) setEditingId(null);
 
     await dbEliminaGiocatore(societa.id, id);
+    await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined);
     mostraNotificaSalvataggio();
   };
 
@@ -243,7 +259,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setEditNome(g.nome);
   };
 
-  // MODIFICA GIOCATORE: ASSEGNAZIONE AUTOMATICA O CONTROLLO NUMERO DUPLICATO
+  // MODIFICA GIOCATORE CON PERSISTENZA IMMEDIATA
   const salvaModifica = async (id) => {
     if (!editNome.trim()) return;
     const target = giocatori.find(g => g.id === id);
@@ -251,11 +267,9 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
     let numeroScelto = editNumero.trim();
 
-    // 1. Se il numero viene lasciato vuoto in modifica, assegna il primo libero
     if (!numeroScelto) {
       numeroScelto = trovaPrimoNumeroLibero(id);
     } else {
-      // 2. Se è occupato da un altro compagno
       const giaPresente = giocatori.find(g => g.id !== id && String(g.numero) === String(numeroScelto));
       if (giaPresente) {
         const primoLibero = trovaPrimoNumeroLibero(id);
@@ -277,10 +291,12 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       nome: editNome.trim().toUpperCase()
     };
 
-    setGiocatori(prev => prev.map(g => (g.id === id ? aggiornato : g)));
+    const nuovaRosa = giocatori.map(g => (g.id === id ? aggiornato : g));
+    setGiocatori(nuovaRosa);
     setEditingId(null);
 
     await dbModificaGiocatore(societa.id, aggiornato);
+    await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined);
     mostraNotificaSalvataggio();
   };
 
@@ -432,7 +448,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
       </div>
 
-      {/* Form Aggiunta Rapida Giocatore: N° maglia opzionale con placeholder del primo libero */}
+      {/* Form Aggiunta Rapida Giocatore */}
       <form onSubmit={aggiungiGiocatore} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap gap-3 items-end">
         <div className="w-24">
           <label className="text-xs text-slate-400 uppercase font-semibold">N° Maglia</label>
@@ -471,7 +487,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
             <h2 className="text-lg font-bold flex items-center gap-2 uppercase">
               <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatori.length})
             </h2>
-            <p className="text-[11px] text-emerald-400 mt-0.5">● Salvataggio continuo attivo nel database</p>
+            <p className="text-[11px] text-emerald-400 mt-0.5">● Memorizzata stabilmente per tutte le partite</p>
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
             Titolari: {titolariCount} / 11
