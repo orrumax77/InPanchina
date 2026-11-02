@@ -44,6 +44,7 @@ export default function App() {
   const [societaAttiva, setSocietaAttiva] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
+  // UNICO dato salvato in localStorage: il nome utente esatto senza maiuscole forzate
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
   const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
@@ -65,8 +66,7 @@ export default function App() {
   const [slotUsati, setSlotUsati] = useState(0);
   const [cambiEffettuati, setCambiEffettuati] = useState(0);
 
-  // STATO MODALE PERSISTENTE A LIVELLO RADICE
-  const [modaleBloccoTempo, setModaleBloccoTempo] = useState(null); // null | 'primo_tempo' | 'fine_gara'
+  const [modaleBloccoTempo, setModaleBloccoTempo] = useState(null);
 
   const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
   const isSyncingFromRemote = useRef(false);
@@ -162,14 +162,18 @@ export default function App() {
     }
   };
 
+  // Login: preserva fedelmente maiuscole e minuscole di username e password
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
     setSalvataggioInCorso(true);
 
-    localStorage.setItem('inpanchina_username', loginUser.trim());
+    const utenteDigitato = loginUser.trim();
+    const passwordDigitata = loginPassword.trim();
 
-    const res = await loginSistema(loginUser, loginPassword);
+    localStorage.setItem('inpanchina_username', utenteDigitato);
+
+    const res = await loginSistema(utenteDigitato, passwordDigitata);
     setSalvataggioInCorso(false);
 
     if (res.success) {
@@ -241,7 +245,7 @@ export default function App() {
   };
 
   const cambiaFaseGara = (nuovoTempo) => {
-    setModaleBloccoTempo(null); // Chiude il modale
+    setModaleBloccoTempo(null);
 
     if (nuovoTempo === 2) {
       setInEsecuzione(false);
@@ -351,7 +355,8 @@ export default function App() {
     const nuovoPInfo = {
       ...partitaInfo,
       squadraCasa: partitaInfo.squadraOspite,
-      squadraOspite: partitaInfo.squadraCasa
+      squadraOspite: partitaInfo.squadraCasa,
+      isNostraCasa: !partitaInfo.isNostraCasa
     };
     const nuovoCasa = golOspiti;
     const nuovoOspiti = golCasa;
@@ -449,7 +454,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN */}
+      {/* 1. LOGIN ACCESSO IMMEDIATO: NESSUNA FORZATURA MAIUSCOLA SU USERNAME E PASSWORD */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
@@ -486,10 +491,13 @@ export default function App() {
                 name="username"
                 type="text"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
                 placeholder="Nome utente"
                 value={loginUser}
                 onChange={(e) => setLoginUser(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 font-medium"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 font-medium normal-case"
                 required
               />
             </div>
@@ -501,17 +509,20 @@ export default function App() {
                 name="password"
                 type="password"
                 autoComplete="current-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
                 placeholder="••••••••"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 font-mono"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 font-mono normal-case"
                 required
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition text-sm shadow-lg shadow-emerald-950 uppercase"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition text-sm shadow-lg shadow-emerald-950 uppercase cursor-pointer"
             >
               <LogIn className="w-4 h-4" /> Accedi
             </button>
@@ -533,7 +544,7 @@ export default function App() {
           <div className="max-w-4xl mx-auto flex flex-wrap justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl gap-3">
             <div className="flex items-center gap-3">
               {societaAttiva?.logo_url && (
-                <img src={societaAttiva.logo_url} alt="Logo" className="w-9 h-9 rounded-full object-cover border border-slate-700" />
+                <img src={societaAttiva.logo_url} alt="Logo" className="w-9 h-9 rounded-full object-cover border border-slate-700 bg-slate-900" />
               )}
               <div>
                 <span className="text-sm font-bold text-white block uppercase">{societaAttiva?.nome}</span>
@@ -547,7 +558,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setFaseApp('archivio')}
-                className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition"
+                className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                 title="Visualizza tutti i referti passati"
               >
                 <Archive className="w-3.5 h-3.5" /> Archivio Referti
@@ -559,7 +570,7 @@ export default function App() {
                   <span className="text-[10px] text-slate-500 uppercase font-bold block leading-none">
                     {isSuperAdmin ? 'SuperAdmin' : 'Utente Connesso'}
                   </span>
-                  <span className="text-xs font-bold text-white font-mono leading-tight">
+                  <span className="text-xs font-bold text-white font-mono leading-tight normal-case">
                     {utenteConnesso?.username || loginUser}
                   </span>
                 </div>
@@ -568,14 +579,14 @@ export default function App() {
               {isSuperAdmin && (
                 <button
                   onClick={() => setFaseApp('admin')}
-                  className="text-xs text-blue-400 hover:underline uppercase font-semibold"
+                  className="text-xs text-blue-400 hover:underline uppercase font-semibold cursor-pointer"
                 >
                   Admin
                 </button>
               )}
               <button
                 onClick={disconnetti}
-                className="text-xs text-rose-400 hover:underline uppercase font-semibold"
+                className="text-xs text-rose-400 hover:underline uppercase font-semibold cursor-pointer"
               >
                 Esci
               </button>
@@ -597,7 +608,7 @@ export default function App() {
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <button
               onClick={() => setFaseApp('distinta')}
-              className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5"
+              className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" /> Distinta
             </button>
@@ -606,7 +617,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setFaseApp('archivio')}
-                className="bg-slate-900 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
+                className="bg-slate-900 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
                 title="Vedi referti archiviati"
               >
                 <Archive className="w-3.5 h-3.5" /> Archivio
@@ -618,7 +629,7 @@ export default function App() {
 
               <button
                 onClick={() => setFaseApp('referto')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 uppercase transition ${
+                className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 uppercase transition cursor-pointer ${
                   isFinePartitaRaggiunta
                     ? 'bg-rose-600 hover:bg-rose-500 text-white animate-bounce shadow-lg shadow-rose-950'
                     : 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700'
@@ -640,7 +651,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={invertiSquadreLive}
-                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition text-xs mb-1"
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition text-xs mb-1 cursor-pointer"
                 title="Inverti Squadra Casa / Ospiti"
               >
                 <ArrowLeftRight className="w-4 h-4" />
@@ -654,7 +665,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Cronometro con trigger per modale persistente al livello root */}
           <Cronometro
             tempo={tempoGara}
             secondi={secondiGara}
@@ -688,12 +698,11 @@ export default function App() {
 
           <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
 
-          {/* Termina Live e Archivia */}
           <div className="pt-2">
             <button
               type="button"
               onClick={() => handleTerminaLiveEResetta()}
-              className="w-full py-3 rounded-xl border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition"
+              className="w-full py-3 rounded-xl border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" /> Termina Live e Archivia per Prossima Gara
             </button>
@@ -725,9 +734,7 @@ export default function App() {
         />
       )}
 
-      {/* ============================================================ */}
-      {/* BLOCCO MODALE FORZATO ROOT: INVALICABILE E IMMOBILE          */}
-      {/* ============================================================ */}
+      {/* MODALE FORZATO PERSISTENTE A TEMPO CONCLUSO */}
       {modaleBloccoTempo && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[99999] select-none">
           <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-rose-950">
