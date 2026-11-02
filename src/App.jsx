@@ -61,20 +61,38 @@ export default function App() {
     });
   }, []);
 
+  // CARICAMENTO SESSIONE: LA ROSA E LO STAFF VENGONO SEMPRE CARICATI DA SUPABASE
   const avviaSessioneSocieta = async (soc) => {
+    setSalvataggioInCorso(true);
     const socFresca = await getSocietaById(soc.id) || soc;
     setSocietaAttiva(socFresca);
 
     const idPartita = `${socFresca.id}_PARTITA_LIVE`;
     
-    const stato = await caricaStatoPartita(idPartita);
-    const rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id);
+    // 1. Carica la rosa stabilmente salvata nel DB per questa società
+    let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id);
 
+    // Se per qualsiasi motivo la tabella relazionale non ha record ma rosa_base sì, usiamo rosa_base
+    if ((!rosaSalvataNelDb || rosaSalvataNelDb.length === 0) && socFresca.rosa_base && socFresca.rosa_base.length > 0) {
+      rosaSalvataNelDb = socFresca.rosa_base.map(g => ({
+        ...g,
+        nome: (g.nome || '').toUpperCase()
+      }));
+    }
+
+    // 2. Carica staff stabilmente salvato
     const staffBase = socFresca.staff_base || {};
     const allenatoreBase = (socFresca.allenatore_predefinito || staffBase.allenatore || '').toUpperCase();
     const dirigenteBase = (socFresca.dirigente_predefinito || staffBase.dirigente || '').toUpperCase();
 
+    // 3. Carica stato della partita LIVE
+    const stato = await caricaStatoPartita(idPartita);
+
+    // IMPOSTA SEMPRE LA ROSA (INDIPENDENTEMENTE DALLO STATO DELLA PARTITA)
+    setRosa(rosaSalvataNelDb || []);
+
     if (stato && stato.partita && stato.partita.stato === 'in-corso') {
+      // C'è una partita attiva in corso
       const pInfo = {
         squadraCasa: (stato.partita.squadra_casa || socFresca.nome || '').toUpperCase(),
         squadraOspite: (stato.partita.squadra_ospite || '').toUpperCase(),
@@ -83,6 +101,7 @@ export default function App() {
         dataPartita: stato.partita.data_gara || new Date().toISOString().split('T')[0],
         isNostraCasa: stato.partita.is_nostra_casa ?? true
       };
+
       setPartitaInfo(pInfo);
       setGolCasa(stato.partita.gol_casa || 0);
       setGolOspiti(stato.partita.gol_ospite || 0);
@@ -93,21 +112,34 @@ export default function App() {
       setMinutoCorrente(stato.partita.minuto_corrente || 1);
       setSlotUsati(stato.partita.slot_usati || 0);
       setCambiEffettuati(stato.partita.cambi_effettuati || 0);
-
-      setRosa(rosaSalvataNelDb);
       setEventi(stato.eventi || []);
+
+      setSalvataggioInCorso(false);
       setFaseApp('partita');
     } else {
-      setPartitaInfo({
-        squadraCasa: (socFresca.nome || '').toUpperCase(),
-        squadraOspite: '',
-        allenatore: allenatoreBase,
-        dirigente: dirigenteBase,
-        dataPartita: new Date().toISOString().split('T')[0],
-        isNostraCasa: true
-      });
-      setRosa(rosaSalvataNelDb);
+      // Nuova gara / Bozza: carica la squadra di casa e lo staff memorizzato
+      const pInfo = {
+        squadraCasa: (stato?.partita?.squadra_casa || socFresca.nome || '').toUpperCase(),
+        squadraOspite: (stato?.partita?.squadra_ospite || '').toUpperCase(),
+        allenatore: (stato?.partita?.allenatore || allenatoreBase).toUpperCase(),
+        dirigente: (stato?.partita?.dirigente || dirigenteBase).toUpperCase(),
+        dataPartita: stato?.partita?.data_gara || new Date().toISOString().split('T')[0],
+        isNostraCasa: stato?.partita?.is_nostra_casa ?? true
+      };
+
+      setPartitaInfo(pInfo);
+      setGolCasa(0);
+      setGolOspiti(0);
+      setTempoGara(1);
+      setSecondiGara(0);
+      setInEsecuzione(false);
+      setRecupero(0);
+      setMinutoCorrente(1);
+      setSlotUsati(0);
+      setCambiEffettuati(0);
       setEventi([]);
+
+      setSalvataggioInCorso(false);
       setFaseApp('distinta');
     }
   };
@@ -296,8 +328,7 @@ export default function App() {
     const nuovoPInfo = {
       ...partitaInfo,
       squadraCasa: partitaInfo.squadraOspite,
-      squadraOspite: partitaInfo.squadraCasa,
-      isNostraCasa: !partitaInfo.isNostraCasa
+      squadraOspite: partitaInfo.squadraCasa
     };
     const nuovoCasa = golOspiti;
     const nuovoOspiti = golCasa;
@@ -319,6 +350,7 @@ export default function App() {
     });
   };
 
+  // ARCHIVIAZIONE E RESET PER LA PROSSIMA GARA
   const handleTerminaLiveEResetta = async (giocatoriConMinuti) => {
     setSalvataggioInCorso(true);
 
@@ -351,8 +383,10 @@ export default function App() {
       setCambiEffettuati(0);
       setEventi([]);
 
+      // Reset sanzioni della rosa (i giocatori rimangono intatti)
       setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
 
+      // Ripristina distinta con avversario vuoto, mantenendo staff e società
       setPartitaInfo(prev => ({
         ...prev,
         squadraCasa: societaAttiva?.nome || '',
@@ -600,7 +634,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Cronometro con fischio sonoro e modale bloccante a tutto schermo */}
           <Cronometro
             tempo={tempoGara}
             secondi={secondiGara}
