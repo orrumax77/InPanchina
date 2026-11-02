@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar, CheckCircle2 } from 'lucide-react';
-import { salvaRosaBaseSocieta, salvaBozzaPartitaSuDb } from '../services/db';
+import { 
+  salvaRosaBaseSocieta, 
+  salvaBozzaPartitaSuDb, 
+  dbAggiungiGiocatore, 
+  dbModificaGiocatore, 
+  dbEliminaGiocatore 
+} from '../services/db';
 
 export default function Distinta({ onConfermaDistinta, societa, partitaIniziale, rosaIniziale }) {
   const dateInputRef = useRef(null);
@@ -28,10 +34,9 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const [editNome, setEditNome] = useState('');
   const [editNumero, setEditNumero] = useState('');
 
-  const isReadyToSync = useRef(false);
   const infoDebounceRef = useRef(null);
 
-  // Sincronizza i dati all'avvio ripescando la bozza dal Cloud
+  // Caricamento iniziale
   useEffect(() => {
     const staffSalvato = societa?.staff_base || {};
     const allenatoreBase = (partitaIniziale?.allenatore || societa?.allenatore_predefinito || staffSalvato.allenatore || '').toUpperCase();
@@ -47,37 +52,22 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isNostraCasa: partitaIniziale?.isNostraCasa ?? prev.isNostraCasa ?? true
     }));
 
-    const rosaPermanente = (societa?.rosa_base && societa.rosa_base.length > 0)
-      ? societa.rosa_base
-      : (rosaIniziale && rosaIniziale.length > 0)
-        ? rosaIniziale
-        : [];
-
-    if (rosaPermanente.length > 0) {
-      setGiocatori(rosaPermanente.map(g => ({
+    if (rosaIniziale && rosaIniziale.length > 0) {
+      setGiocatori(rosaIniziale.map(g => ({
         ...g,
         nome: (g.nome || '').toUpperCase()
       })));
     } else {
       setGiocatori([]);
     }
-
-    setTimeout(() => {
-      isReadyToSync.current = true;
-    }, 200);
   }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
 
-  // Autosave su Supabase per la rosa
-  const sincronizzaRosaCloud = async (nuovaListaGiocatori) => {
-    if (!societa?.id || !isReadyToSync.current) return;
-    await salvaRosaBaseSocieta(societa.id, nuovaListaGiocatori, {
-      allenatore: partitaInfo.allenatore,
-      dirigente: partitaInfo.dirigente
-    });
-    mostraNotificaSalvataggio();
+  const mostraNotificaSalvataggio = () => {
+    setSalvataggioNotifica(true);
+    setTimeout(() => setSalvataggioNotifica(false), 2000);
   };
 
-  // Autosave immediato su Supabase per le informazioni di gara
+  // Autosave su Supabase per le informazioni di gara
   const salvaInfoPartitaCloud = (nuoveInfo) => {
     if (!societa?.id || !partitaId) return;
 
@@ -92,12 +82,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     }, 300);
   };
 
-  const mostraNotificaSalvataggio = () => {
-    setSalvataggioNotifica(true);
-    setTimeout(() => setSalvataggioNotifica(false), 2000);
-  };
-
-  // Gestione modifiche ai campi con autosave continuo
   const handleAggiornaCampo = (campo, valore) => {
     const valoreFormattato = (campo === 'dataPartita') ? valore : valore.toUpperCase();
     const nuoveInfo = { ...partitaInfo, [campo]: valoreFormattato };
@@ -135,42 +119,56 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
   const titolariCount = giocatori.filter(g => g.isTitolare).length;
 
-  const toggleTitolare = (id) => {
-    const nuova = giocatori.map(g => {
-      if (g.id === id) {
-        if (!g.isTitolare && titolariCount >= 11) {
-          alert('Hai già selezionato 11 titolari!');
-          return g;
-        }
-        return { ...g, isTitolare: !g.isTitolare };
-      }
-      return g;
-    });
-    setGiocatori(nuova);
-    sincronizzaRosaCloud(nuova);
+  const toggleTitolare = async (id) => {
+    const target = giocatori.find(g => g.id === id);
+    if (!target) return;
+    if (!target.isTitolare && titolariCount >= 11) {
+      alert('Hai già selezionato 11 titolari!');
+      return;
+    }
+
+    const aggiornato = { ...target, isTitolare: !target.isTitolare };
+    setGiocatori(giocatori.map(g => (g.id === id ? aggiornato : g)));
+    await dbModificaGiocatore(societa.id, aggiornato);
+    mostraNotificaSalvataggio();
   };
 
-  const setCapitano = (id) => {
-    const nuova = giocatori.map(g => ({
+  const setCapitano = async (id) => {
+    const target = giocatori.find(g => g.id === id);
+    if (!target) return;
+
+    const nuovaLista = giocatori.map(g => ({
       ...g,
       isCapitano: g.id === id ? !g.isCapitano : false,
       isVice: g.id === id ? false : g.isVice
     }));
-    setGiocatori(nuova);
-    sincronizzaRosaCloud(nuova);
+    setGiocatori(nuovaLista);
+
+    for (const g of nuovaLista) {
+      await dbModificaGiocatore(societa.id, g);
+    }
+    mostraNotificaSalvataggio();
   };
 
-  const setViceCapitano = (id) => {
-    const nuova = giocatori.map(g => ({
+  const setViceCapitano = async (id) => {
+    const target = giocatori.find(g => g.id === id);
+    if (!target) return;
+
+    const nuovaLista = giocatori.map(g => ({
       ...g,
       isVice: g.id === id ? !g.isVice : false,
       isCapitano: g.id === id ? false : g.isCapitano
     }));
-    setGiocatori(nuova);
-    sincronizzaRosaCloud(nuova);
+    setGiocatori(nuovaLista);
+
+    for (const g of nuovaLista) {
+      await dbModificaGiocatore(societa.id, g);
+    }
+    mostraNotificaSalvataggio();
   };
 
-  const aggiungiGiocatore = (e) => {
+  // 1. AGGIUNTA DIRETTA NEL DATABASE
+  const aggiungiGiocatore = async (e) => {
     e.preventDefault();
     if (!nuovoNome.trim() || !nuovoNumero.trim()) return;
 
@@ -184,19 +182,21 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isVice: false
     };
 
-    const nuovaLista = [...giocatori, nuovo];
-    setGiocatori(nuovaLista);
-    sincronizzaRosaCloud(nuovaLista);
-
+    setGiocatori(prev => [...prev, nuovo]);
     setNuovoNome('');
     setNuovoNumero('');
+
+    await dbAggiungiGiocatore(societa.id, nuovo);
+    mostraNotificaSalvataggio();
   };
 
-  const rimuoviGiocatore = (id) => {
-    const nuovaLista = giocatori.filter(g => g.id !== id);
-    setGiocatori(nuovaLista);
-    sincronizzaRosaCloud(nuovaLista);
+  // 2. ELIMINAZIONE DIRETTA NEL DATABASE
+  const rimuoviGiocatore = async (id) => {
+    setGiocatori(prev => prev.filter(g => g.id !== id));
     if (editingId === id) setEditingId(null);
+
+    await dbEliminaGiocatore(societa.id, id);
+    mostraNotificaSalvataggio();
   };
 
   const avviaModifica = (g) => {
@@ -205,22 +205,23 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setEditNome(g.nome);
   };
 
-  const salvaModifica = (id) => {
+  // 3. SALVATAGGIO MODIFICA DIRETTO NEL DATABASE
+  const salvaModifica = async (id) => {
     if (!editNome.trim() || !editNumero.trim()) return;
-    const nuovaLista = giocatori.map(g => {
-      if (g.id === id) {
-        return {
-          ...g,
-          numero: editNumero.trim(),
-          nome: editNome.trim().toUpperCase()
-        };
-      }
-      return g;
-    });
+    const target = giocatori.find(g => g.id === id);
+    if (!target) return;
 
-    setGiocatori(nuovaLista);
-    sincronizzaRosaCloud(nuovaLista);
+    const aggiornato = {
+      ...target,
+      numero: editNumero.trim(),
+      nome: editNome.trim().toUpperCase()
+    };
+
+    setGiocatori(prev => prev.map(g => (g.id === id ? aggiornato : g)));
     setEditingId(null);
+
+    await dbModificaGiocatore(societa.id, aggiornato);
+    mostraNotificaSalvataggio();
   };
 
   const annullaModifica = () => {
@@ -275,7 +276,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
               <Shield className="w-5 h-5" /> Partita di Oggi
             </h2>
 
-            {/* Calendario con apertura garantita */}
             <div 
               onClick={apriCalendario}
               className="flex items-center gap-2 bg-slate-950 hover:bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition select-none"
