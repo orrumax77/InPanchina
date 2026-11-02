@@ -41,7 +41,6 @@ export default function App() {
   
   const [tempoGara, setTempoGara] = useState(1);
   const [secondiGara, setSecondiGara] = useState(0);
-  const [timerAvviatoIl, setTimerAvviatoIl] = useState(null);
   const [inEsecuzione, setInEsecuzione] = useState(false);
   const [recupero, setRecupero] = useState(0);
   const [minutoCorrente, setMinutoCorrente] = useState(1);
@@ -66,13 +65,11 @@ export default function App() {
 
   // Caricamento partita direttamente dal Cloud con lettura garantita della rosa dal DB
   const avviaSessioneSocieta = async (soc) => {
-    // 1. Ricarica i dati freschi della società dal DB
     const socFresca = await getSocietaById(soc.id) || soc;
     setSocietaAttiva(socFresca);
 
     const idPartita = `${socFresca.id}_PARTITA_LIVE`;
     
-    // 2. Carica sia lo stato partita sia la rosa direttamente dalla tabella giocatori
     const stato = await caricaStatoPartita(idPartita);
     const rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id);
 
@@ -80,7 +77,6 @@ export default function App() {
     const allenatoreBase = (socFresca.allenatore_predefinito || staffBase.allenatore || '').toUpperCase();
     const dirigenteBase = (socFresca.dirigente_predefinito || staffBase.dirigente || '').toUpperCase();
 
-    // 3. Ripristina sempre la partita salvata (sia in corso sia in bozza)
     if (stato && stato.partita) {
       const pInfo = {
         squadraCasa: (stato.partita.squadra_casa || socFresca.nome || '').toUpperCase(),
@@ -95,17 +91,11 @@ export default function App() {
       setGolOspiti(stato.partita.gol_ospite || 0);
       setTempoGara(stato.partita.tempo || 1);
       setInEsecuzione(stato.partita.in_esecuzione || false);
-      setTimerAvviatoIl(stato.partita.timer_avviato_il || null);
+      setSecondiGara(stato.partita.secondi_gara || 0);
       setRecupero(stato.partita.recupero || 0);
       setMinutoCorrente(stato.partita.minuto_corrente || 1);
       setSlotUsati(stato.partita.slot_usati || 0);
       setCambiEffettuati(stato.partita.cambi_effettuati || 0);
-
-      if (stato.partita.in_esecuzione && stato.partita.timer_avviato_il) {
-        setSecondiGara(Math.floor((Date.now() - stato.partita.timer_avviato_il) / 1000));
-      } else {
-        setSecondiGara(stato.partita.secondi_gara || 0);
-      }
 
       setRosa(rosaSalvataNelDb);
       setEventi(stato.eventi || []);
@@ -116,7 +106,6 @@ export default function App() {
         setFaseApp('distinta');
       }
     } else {
-      // Nessuna partita in corso: inizializza con i dati della società e la rosa persistente
       setPartitaInfo({
         squadraCasa: (socFresca.nome || '').toUpperCase(),
         squadraOspite: '',
@@ -174,17 +163,11 @@ export default function App() {
         setGolOspiti(p.gol_ospite);
         setTempoGara(p.tempo);
         setInEsecuzione(p.in_esecuzione);
-        setTimerAvviatoIl(p.timer_avviato_il);
+        setSecondiGara(p.secondi_gara);
         setRecupero(p.recupero);
         setMinutoCorrente(p.minuto_corrente);
         setSlotUsati(p.slot_usati);
         setCambiEffettuati(p.cambi_effettuati);
-
-        if (p.in_esecuzione && p.timer_avviato_il) {
-          setSecondiGara(Math.floor((Date.now() - p.timer_avviato_il) / 1000));
-        } else {
-          setSecondiGara(p.secondi_gara);
-        }
 
         setTimeout(() => { isSyncingFromRemote.current = false; }, 400);
       })
@@ -199,24 +182,23 @@ export default function App() {
     };
   }, [partitaId]);
 
+  // Avvio Cronometro
   const avviaTimer = () => {
-    const timestampInizio = Date.now() - (secondiGara * 1000);
-    setTimerAvviatoIl(timestampInizio);
     setInEsecuzione(true);
 
     syncStatoPartitaSuDb(partitaId, {
       golCasa, golOspiti, tempoGara, secondiGara, inEsecuzione: true,
-      timerAvviatoIl: timestampInizio, recupero, minutoCorrente, slotUsati, cambiEffettuati
+      recupero, minutoCorrente, slotUsati, cambiEffettuati
     });
   };
 
+  // Stoppa / Metti in Pausa Cronometro
   const mettiInPausaTimer = () => {
     setInEsecuzione(false);
-    setTimerAvviatoIl(null);
 
     syncStatoPartitaSuDb(partitaId, {
       golCasa, golOspiti, tempoGara, secondiGara, inEsecuzione: false,
-      timerAvviatoIl: null, recupero, minutoCorrente, slotUsati, cambiEffettuati
+      recupero, minutoCorrente, slotUsati, cambiEffettuati
     });
   };
 
@@ -228,7 +210,7 @@ export default function App() {
       setRecupero(0);
       syncStatoPartitaSuDb(partitaId, {
         golCasa, golOspiti, tempoGara: 2, secondiGara: 0, inEsecuzione: false,
-        timerAvviatoIl: null, recupero: 0, minutoCorrente: 45, slotUsati, cambiEffettuati
+        recupero: 0, minutoCorrente: 45, slotUsati, cambiEffettuati
       });
       alert('Fine 1° Tempo!');
     } else {
@@ -238,16 +220,14 @@ export default function App() {
     }
   };
 
-  // Conferma Distinta: salva per la gara live E memorizza permanentemente staff e rosa
+  // Conferma Distinta
   const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
     setRosa(giocatori);
 
-    // 1. Salva la distinta per il live match
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatori);
 
-    // 2. Salva stabilmente staff e preferenze per tutte le partite future
     await salvaRosaBaseSocieta(societaAttiva.id, giocatori, {
       allenatore: pInfo.allenatore,
       dirigente: pInfo.dirigente
@@ -265,7 +245,7 @@ export default function App() {
 
     syncStatoPartitaSuDb(partitaId, {
       golCasa: nuovoCasa, golOspiti: nuovoOspiti, tempoGara, secondiGara,
-      inEsecuzione, timerAvviatoIl, recupero, minutoCorrente, slotUsati, cambiEffettuati
+      inEsecuzione, recupero, minutoCorrente, slotUsati, cambiEffettuati
     });
   };
 
@@ -284,7 +264,7 @@ export default function App() {
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
   };
 
-  // Inversione squadre rapida anche durante il Live Match
+  // Inversione squadre rapida nel Live Match
   const invertiSquadreLive = () => {
     if (!partitaInfo) return;
     const nuovoPInfo = {
@@ -305,7 +285,6 @@ export default function App() {
       tempoGara,
       secondiGara,
       inEsecuzione,
-      timerAvviatoIl,
       recupero,
       minutoCorrente,
       slotUsati,
@@ -313,7 +292,6 @@ export default function App() {
     });
   };
 
-  // Disconnessione
   const disconnetti = () => {
     setUtenteConnesso(null);
     setSocietaAttiva(null);
@@ -365,7 +343,6 @@ export default function App() {
               </select>
             </div>
 
-            {/* Username preserva minuscolo/maiuscolo digitato */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Username</label>
               <input
@@ -381,7 +358,6 @@ export default function App() {
               />
             </div>
 
-            {/* Password preserva minuscolo/maiuscolo digitato */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Password</label>
               <input
@@ -432,7 +408,6 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* BADGE UTENTE CONNESSO IN EVIDENZA */}
               <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
                 <UserCircle2 className="w-4 h-4 text-emerald-400" />
                 <div className="text-left">
@@ -503,7 +478,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Tabellone Segnapunti con Pulsante Inversione Rapida */}
+          {/* Tabellone Segnapunti */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center relative">
             <div className="flex-1">
               <h3 className="font-bold text-sm md:text-base text-slate-200 truncate uppercase">{partitaInfo?.squadraCasa || 'CASA'}</h3>
@@ -512,6 +487,7 @@ export default function App() {
 
             <div className="px-3 flex flex-col items-center">
               <button
+                type="button"
                 onClick={invertiSquadreLive}
                 className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition text-xs mb-1"
                 title="Inverti Squadra Casa / Ospiti"
@@ -529,11 +505,9 @@ export default function App() {
 
           <Cronometro
             tempo={tempoGara}
-            setTempo={setTempoGara}
             secondi={secondiGara}
             setSecondi={setSecondiGara}
             inEsecuzione={inEsecuzione}
-            timerAvviatoIl={timerAvviatoIl}
             onAvvia={avviaTimer}
             onPausa={mettiInPausaTimer}
             onFinePrimoTempo={() => cambiaFaseGara(2)}
