@@ -1,14 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Distinta from './components/Distinta';
 import Cronometro from './components/Cronometro';
 import GestioneEventi from './components/GestioneEventi';
 import FeedEventi from './components/FeedEventi';
 import RefertoGara from './components/RefertoGara';
-import { getSocieta, creaSocieta, salvaDistintaSuDb } from './services/db';
-import { ArrowLeft, Shield, Building2, Plus, CheckCircle2, FileText } from 'lucide-react';
+import { 
+  getSocieta, 
+  creaSocieta, 
+  salvaDistintaSuDb, 
+  caricaStatoPartita, 
+  syncStatoPartitaSuDb, 
+  registraEventoCloud, 
+  eliminaEventoCloud, 
+  aggiornaGiocatoriCloud 
+} from './services/db';
+import { supabase } from './supabaseClient';
+import { ArrowLeft, Shield, Building2, Plus, CheckCircle2, FileText, RotateCcw, Radio } from 'lucide-react';
 
 export default function App() {
-  const [faseApp, setFaseApp] = useState('seleziona_societa'); // 'seleziona_societa' | 'distinta' | 'partita' | 'referto'
+  const [faseApp, setFaseApp] = useState('seleziona_societa');
   
   // Società
   const [listaSocieta, setListaSocieta] = useState([]);
@@ -18,35 +28,137 @@ export default function App() {
   });
   const [nuovoNomeSocieta, setNuovoNomeSocieta] = useState('');
   
-  // Dati di gioco
+  // Partita e Dati Live
   const [partitaInfo, setPartitaInfo] = useState(null);
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
+  
   const [tempoGara, setTempoGara] = useState(1);
+  const [secondiGara, setSecondiGara] = useState(0);
+  const [inEsecuzione, setInEsecuzione] = useState(false);
+  const [recupero, setRecupero] = useState(0);
   const [minutoCorrente, setMinutoCorrente] = useState(1);
   const [golCasa, setGolCasa] = useState(0);
   const [golOspiti, setGolOspiti] = useState(0);
 
-  // Gestione Eventi e Slot
   const [eventi, setEventi] = useState([]);
   const [slotUsati, setSlotUsati] = useState(0);
   const [cambiEffettuati, setCambiEffettuati] = useState(0);
 
+  const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
+  const isSyncingFromRemote = useRef(false);
+
+  // 1. CARICAMENTO SOCIETÀ E STATO PARTITA
   useEffect(() => {
-    async function fetchSocieta() {
-      const dati = await getSocieta();
-      setListaSocieta(dati);
+    async function init() {
+      const datiSoc = await getSocieta();
+      setListaSocieta(datiSoc);
+
       if (societaAttiva) {
+        const idPartita = `${societaAttiva.id}_PARTITA_LIVE`;
+        const stato = await caricaStatoPartita(idPartita);
+        
+        if (stato && stato.partita) {
+          setPartitaInfo({
+            squadraCasa: stato.partita.squadra_casa,
+            squadraOspite: stato.partita.squadra_ospite,
+            allenatore: stato.partita.allenatore,
+            dirigente: stato.partita.dirigente
+          });
+          setGolCasa(stato.partita.gol_casa || 0);
+          setGolOspiti(stato.partita.gol_ospite || 0);
+          setTempoGara(stato.partita.tempo || 1);
+          setSecondiGara(stato.partita.secondi_gara || 0);
+          setInEsecuzione(stato.partita.in_esecuzione || false);
+          setRecupero(stato.partita.recupero || 0);
+          setMinutoCorrente(stato.partita.minuto_corrente || 1);
+          setSlotUsati(stato.partita.slot_usati || 0);
+          setCambiEffettuati(stato.partita.cambi_effettuati || 0);
+
+          if (stato.giocatori.length > 0) {
+            setRosa(stato.giocatori.map(g => ({
+              id: g.id.replace(`${idPartita}_`, ''),
+              numero: g.numero,
+              nome: g.nome,
+              ruolo: g.ruolo,
+              isTitolare: g.is_titolare,
+              isCapitano: g.is_capitano,
+              isVice: g.is_vice,
+              ammonizioni: g.ammonizioni,
+              espulso: g.espulso
+            })));
+          }
+
+          if (stato.eventi.length > 0) {
+            setEventi(stato.eventi);
+          }
+
+          if (stato.partita.stato === 'in-corso') {
+            setFaseApp('partita');
+            return;
+          }
+        }
         setFaseApp('distinta');
       }
     }
-    fetchSocieta();
-  }, []);
+    init();
+  }, [societaAttiva]);
+
+  // 2. CANALE REALTIME: Ascolta gli aggiornamenti fatti da altri dirigenti
+  useEffect(() => {
+    if (!partitaId) return;
+
+    const channel = supabase
+      .channel(`realtime-partita-${partitaId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partite', filter: `id=eq.${partitaId}` }, (payload) => {
+        isSyncingFromRemote.current = true;
+        const p = payload.new;
+        setGolCasa(p.gol_casa);
+        setGolOspiti(p.gol_ospite);
+        setTempoGara(p.tempo);
+        setSecondiGara(p.secondi_gara);
+        setInEsecuzione(p.in_esecuzione);
+        setRecupero(p.recupero);
+        setMinutoCorrente(p.minuto_corrente);
+        setSlotUsati(p.slot_usati);
+        setCambiEffettuati(p.cambi_effettuati);
+        setTimeout(() => { isSyncingFromRemote.current = false; }, 300);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'eventi', filter: `partita_id=eq.${partitaId}` }, async () => {
+        const stato = await caricaStatoPartita(partitaId);
+        if (stato && stato.eventi) setEventi(stato.eventi);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [partitaId]);
+
+  // 3. SINCRONIZZAZIONE PERIODICA SUL CLOUD (se il cronometro è attivo o il dato cambia localmente)
+  useEffect(() => {
+    if (faseApp !== 'partita' || !partitaId || isSyncingFromRemote.current) return;
+
+    const timer = setTimeout(() => {
+      syncStatoPartitaSuDb(partitaId, {
+        golCasa,
+        golOspiti,
+        tempoGara,
+        secondiGara,
+        inEsecuzione,
+        recupero,
+        minutoCorrente,
+        slotUsati,
+        cambiEffettuati
+      });
+    }, 1500); // Salva su Cloud ogni secondo e mezzo senza saturare la rete
+
+    return () => clearTimeout(timer);
+  }, [partitaId, faseApp, golCasa, golOspiti, tempoGara, secondiGara, inEsecuzione, recupero, minutoCorrente, slotUsati, cambiEffettuati]);
 
   const selezionaClub = (soc) => {
     setSocietaAttiva(soc);
     localStorage.setItem('inpanchina_societa', JSON.stringify(soc));
-    setFaseApp('distinta');
   };
 
   const handleCreaSocieta = async (e) => {
@@ -74,17 +186,12 @@ export default function App() {
     setPartitaInfo(partitaInfo);
     setRosa(giocatori);
 
-    const partitaId = `${societaAttiva.id}_PARTITA_LIVE`;
-    const res = await salvaDistintaSuDb(societaAttiva.id, partitaId, partitaInfo, giocatori);
+    await salvaDistintaSuDb(societaAttiva.id, partitaId, partitaInfo, giocatori);
     setSalvataggioInCorso(false);
-
-    if (res.success) {
-      alert(`Distinta salvata nel cloud per: ${societaAttiva.nome}`);
-    }
     setFaseApp('partita');
   };
 
-  const handleGolSegnato = (isNostraSquadra) => {
+  const handleGolSegnato = async (isNostraSquadra) => {
     if (isNostraSquadra) {
       setGolCasa(prev => prev + 1);
     } else {
@@ -92,8 +199,19 @@ export default function App() {
     }
   };
 
-  const eliminaEvento = (id) => {
+  const handleNuovoEvento = async (evento) => {
+    setEventi(prev => [evento, ...prev]);
+    await registraEventoCloud(partitaId, evento);
+  };
+
+  const eliminaEvento = async (id) => {
     setEventi(eventi.filter(e => e.id !== id));
+    await eliminaEventoCloud(id);
+  };
+
+  const handleAggiornaRosa = async (nuovaRosa) => {
+    setRosa(nuovaRosa);
+    await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
   };
 
   return (
@@ -101,7 +219,7 @@ export default function App() {
       {salvataggioInCorso && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
           <p className="text-emerald-400 font-bold text-lg animate-pulse flex items-center gap-2">
-            <CheckCircle2 className="w-6 h-6 animate-spin" /> Salvataggio dati in corso...
+            <CheckCircle2 className="w-6 h-6 animate-spin" /> Connessione Database Cloud...
           </p>
         </div>
       )}
@@ -172,7 +290,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 3. LIVE MATCH */}
+      {/* 3. LIVE MATCH SINCRONIZZATO */}
       {faseApp === 'partita' && (
         <div className="max-w-2xl mx-auto space-y-5">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -183,15 +301,15 @@ export default function App() {
               <ArrowLeft className="w-4 h-4" /> Distinta
             </button>
             <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Sincronizzato Cloud
+              </span>
               <button
                 onClick={() => setFaseApp('referto')}
                 className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
               >
                 <FileText className="w-3.5 h-3.5" /> Referto
               </button>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                {societaAttiva?.nome}
-              </span>
             </div>
           </div>
 
@@ -214,14 +332,20 @@ export default function App() {
             </div>
           </div>
 
-          {/* Cronometro */}
+          {/* Cronometro con sync */}
           <Cronometro
             tempo={tempoGara}
             setTempo={setTempoGara}
+            secondi={secondiGara}
+            setSecondi={setSecondiGara}
+            inEsecuzione={inEsecuzione}
+            setInEsecuzione={setInEsecuzione}
+            recupero={recupero}
+            setRecupero={setRecupero}
             onTick={(min) => setMinutoCorrente(min)}
             onFinePrimoTempo={() => alert('Fine 1° Tempo!')}
             onFinePartita={() => {
-              alert('Partita terminata! Apertura referto di gara.');
+              alert('Partita terminata! Apertura referto.');
               setFaseApp('referto');
             }}
           />
@@ -229,9 +353,10 @@ export default function App() {
           {/* Modulo Eventi */}
           <GestioneEventi
             giocatori={rosa}
-            setGiocatori={setRosa}
+            setGiocatori={handleAggiornaRosa}
             eventi={eventi}
             setEventi={setEventi}
+            onNuovoEvento={handleNuovoEvento}
             minutoCorrente={minutoCorrente}
             tempoGara={tempoGara}
             slotUsati={slotUsati}
