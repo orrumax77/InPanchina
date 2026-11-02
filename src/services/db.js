@@ -141,3 +141,77 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
   }));
   await supabase.from('giocatori').upsert(righe);
 }
+
+// --- FUNZIONI SUPERADMIN & AUTENTICAZIONE ---
+
+// Creazione completa di una nuova squadra con trial 30 giorni
+export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }) {
+  const societaId = codice.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  const dataScadenza = new Date();
+  dataScadenza.setDate(dataScadenza.getDate() + 30); // 30 giorni di prova
+
+  const { data, error } = await supabase.from('societa').upsert({
+    id: societaId,
+    codice_societa: codice.toUpperCase(),
+    nome: nome,
+    indirizzo_campo: indirizzoCampo || '',
+    logo_url: logoUrl || '',
+    data_scadenza_prova: dataScadenza.toISOString(),
+    attiva: true
+  }).select().single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Creazione utente da parte dell'Admin
+export async function adminCreaUtente({ societaId, username, password, ruolo, stagione }) {
+  const { data, error } = await supabase.from('utenti_panchina').insert([{
+    id: `${societaId}_${username.toLowerCase()}`,
+    societa_id: societaId,
+    username: username.trim(),
+    password_chiaro: password.trim(),
+    ruolo: ruolo || 'dirigente',
+    stagione: stagione || '2026/2027'
+  }]).select().single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Recupera tutti gli utenti di una società per l'Admin
+export async function adminGetUtentiSocieta(societaId) {
+  const { data, error } = await supabase
+    .from('utenti_panchina')
+    .select('*')
+    .eq('societa_id', societaId);
+  return data || [];
+}
+
+// Login per i dirigenti sul campo
+export async function loginDirigente(username, password) {
+  // 1. Cerca l'utente
+  const { data: utente, error: errUtente } = await supabase
+    .from('utenti_panchina')
+    .select('*, societa(*)')
+    .eq('username', username.trim())
+    .eq('password_chiaro', password.trim())
+    .single();
+
+  if (errUtente || !utente) {
+    return { success: false, messaggio: 'Username o password non corretti.' };
+  }
+
+  // 2. Verifica se la prova di 30 giorni è ancora attiva
+  const dataScadenza = new Date(utente.societa.data_scadenza_prova);
+  const oggi = new Date();
+
+  if (!utente.societa.attiva || oggi > dataScadenza) {
+    return { 
+      success: false, 
+      messaggio: 'Il periodo di prova di 30 giorni per questa società è scaduto. Contatta l\'amministratore.' 
+    };
+  }
+
+  return { success: true, utente, societa: utente.societa };
+}
