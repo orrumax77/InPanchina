@@ -12,17 +12,6 @@ export async function getSocieta() {
   return data || [];
 }
 
-export async function creaSocieta(id, nome) {
-  const { data, error } = await supabase
-    .from('societa')
-    .insert([{ id, nome }])
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-// Carica lo stato completo della partita dal database
 export async function caricaStatoPartita(partitaId) {
   try {
     const { data: partita } = await supabase
@@ -49,7 +38,6 @@ export async function caricaStatoPartita(partitaId) {
   }
 }
 
-// Salva distinta iniziale
 export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, giocatori) {
   try {
     await supabase.from('partite').upsert({
@@ -85,7 +73,6 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-// Sincronizza lo stato di gioco e il timestamp di avvio
 export async function syncStatoPartitaSuDb(partitaId, dati) {
   const updateData = {
     gol_casa: dati.golCasa,
@@ -107,7 +94,6 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
   await supabase.from('partite').update(updateData).eq('id', partitaId);
 }
 
-// Inserisce un evento live sul cloud
 export async function registraEventoCloud(partitaId, evento) {
   await supabase.from('eventi').insert([{
     id: evento.id,
@@ -119,12 +105,10 @@ export async function registraEventoCloud(partitaId, evento) {
   }]);
 }
 
-// Elimina un evento live
 export async function eliminaEventoCloud(eventoId) {
   await supabase.from('eventi').delete().eq('id', eventoId);
 }
 
-// Aggiorna lo stato dei giocatori (per sostituzioni e cartellini)
 export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
   const righe = giocatori.map(g => ({
     id: `${partitaId}_${g.id}`,
@@ -142,13 +126,58 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
   await supabase.from('giocatori').upsert(righe);
 }
 
-// --- FUNZIONI SUPERADMIN & AUTENTICAZIONE ---
+// --- GESTIONE LOGIN & SUPERADMIN ---
 
-// Creazione completa di una nuova squadra con trial 30 giorni
+export async function loginSistema(username, password) {
+  const u = username.trim().toLowerCase();
+  const p = password.trim();
+
+  // 1. Check SuperAdmin Globale: entra sempre e ovunque
+  if (u === 'admin' && p === 'admin2026') {
+    return {
+      success: true,
+      isAdmin: true,
+      utente: { username: 'admin', ruolo: 'superadmin' }
+    };
+  }
+
+  // 2. Login Utente Normale legato alla Squadra
+  const { data: utente, error } = await supabase
+    .from('utenti_panchina')
+    .select('*, societa(*)')
+    .eq('username', username.trim())
+    .eq('password_chiaro', p)
+    .single();
+
+  if (error || !utente) {
+    return { success: false, messaggio: 'Credenziali non valide.' };
+  }
+
+  if (!utente.societa) {
+    return { success: false, messaggio: 'Nessuna società associata a questo profilo.' };
+  }
+
+  // Verifica Scadenza Prova 30 giorni
+  const scadenza = new Date(utente.societa.data_scadenza_prova);
+  if (!utente.societa.attiva || new Date() > scadenza) {
+    return {
+      success: false,
+      messaggio: 'Periodo di prova di 30 giorni scaduto. Contatta l\'amministratore.'
+    };
+  }
+
+  return {
+    success: true,
+    isAdmin: false,
+    utente,
+    societa: utente.societa
+  };
+}
+
 export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }) {
   const societaId = codice.toLowerCase().replace(/[^a-z0-9]/g, '-');
   const dataScadenza = new Date();
-  dataScadenza.setDate(dataScadenza.getDate() + 30); // 30 giorni di prova
+  dataScadenza.setDate(dataScadenza.getDate() + 30);
 
   const { data, error } = await supabase.from('societa').upsert({
     id: societaId,
@@ -164,7 +193,6 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
   return data;
 }
 
-// Creazione utente da parte dell'Admin
 export async function adminCreaUtente({ societaId, username, password, ruolo, stagione }) {
   const { data, error } = await supabase.from('utenti_panchina').insert([{
     id: `${societaId}_${username.toLowerCase()}`,
@@ -179,39 +207,10 @@ export async function adminCreaUtente({ societaId, username, password, ruolo, st
   return data;
 }
 
-// Recupera tutti gli utenti di una società per l'Admin
 export async function adminGetUtentiSocieta(societaId) {
   const { data, error } = await supabase
     .from('utenti_panchina')
     .select('*')
     .eq('societa_id', societaId);
   return data || [];
-}
-
-// Login per i dirigenti sul campo
-export async function loginDirigente(username, password) {
-  // 1. Cerca l'utente
-  const { data: utente, error: errUtente } = await supabase
-    .from('utenti_panchina')
-    .select('*, societa(*)')
-    .eq('username', username.trim())
-    .eq('password_chiaro', password.trim())
-    .single();
-
-  if (errUtente || !utente) {
-    return { success: false, messaggio: 'Username o password non corretti.' };
-  }
-
-  // 2. Verifica se la prova di 30 giorni è ancora attiva
-  const dataScadenza = new Date(utente.societa.data_scadenza_prova);
-  const oggi = new Date();
-
-  if (!utente.societa.attiva || oggi > dataScadenza) {
-    return { 
-      success: false, 
-      messaggio: 'Il periodo di prova di 30 giorni per questa società è scaduto. Contatta l\'amministratore.' 
-    };
-  }
-
-  return { success: true, utente, societa: utente.societa };
 }
