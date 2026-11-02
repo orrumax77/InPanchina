@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X } from 'lucide-react';
+import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight } from 'lucide-react';
 
 export default function Distinta({ onConfermaDistinta, societa, partitaIniziale, rosaIniziale }) {
   const [partitaInfo, setPartitaInfo] = useState({
     squadraCasa: (societa?.nome || '').toUpperCase(),
     squadraOspite: '',
     allenatore: '',
-    dirigente: ''
+    dirigente: '',
+    isNostraCasa: true
   });
 
   const [giocatori, setGiocatori] = useState([]);
 
-  // Campi per nuovo giocatore (senza ruolo)
+  // Campi per nuovo giocatore
   const [nuovoNome, setNuovoNome] = useState('');
   const [nuovoNumero, setNuovoNumero] = useState('');
 
@@ -20,31 +21,50 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const [editNome, setEditNome] = useState('');
   const [editNumero, setEditNumero] = useState('');
 
-  // Sincronizza i dati ricevuti esclusivamente dal Cloud
+  // Sincronizza i dati dal Cloud: recupera sempre la rosa permanente
   useEffect(() => {
-    if (partitaIniziale) {
-      setPartitaInfo({
-        squadraCasa: (partitaIniziale.squadraCasa || societa?.nome || '').toUpperCase(),
-        squadraOspite: (partitaIniziale.squadraOspite || '').toUpperCase(),
-        allenatore: (partitaIniziale.allenatore || '').toUpperCase(),
-        dirigente: (partitaIniziale.dirigente || '').toUpperCase()
-      });
-    } else {
-      setPartitaInfo(prev => ({
-        ...prev,
-        squadraCasa: (societa?.nome || '').toUpperCase()
-      }));
-    }
+    // 1. Staff Tecnico permanente
+    const staffSalvato = societa?.staff_base || {};
+    const allenatoreBase = (staffSalvato.allenatore || partitaIniziale?.allenatore || '').toUpperCase();
+    const dirigenteBase = (staffSalvato.dirigente || partitaIniziale?.dirigente || '').toUpperCase();
 
-    if (rosaIniziale && rosaIniziale.length > 0) {
-      setGiocatori(rosaIniziale.map(g => ({
+    setPartitaInfo(prev => ({
+      ...prev,
+      squadraCasa: (societa?.nome || '').toUpperCase(),
+      squadraOspite: '', // Sempre vuoto da compilare per la nuova gara
+      allenatore: allenatoreBase,
+      dirigente: dirigenteBase,
+      isNostraCasa: true
+    }));
+
+    // 2. Rosa permanente (da rosaIniziale o dalla rosa_base della società)
+    const rosaPermanente = (rosaIniziale && rosaIniziale.length > 0)
+      ? rosaIniziale
+      : (societa?.rosa_base && societa.rosa_base.length > 0)
+        ? societa.rosa_base
+        : [];
+
+    if (rosaPermanente.length > 0) {
+      setGiocatori(rosaPermanente.map(g => ({
         ...g,
         nome: (g.nome || '').toUpperCase()
       })));
-    } else {
-      setGiocatori([]);
     }
-  }, [societa?.nome, partitaIniziale, rosaIniziale]);
+  }, [societa, partitaIniziale, rosaIniziale]);
+
+  // Funzione per invertire Casa / Fuori Casa con le frecce
+  const invertiCasaTrasferta = () => {
+    setPartitaInfo(prev => {
+      const nuovaCasa = prev.squadraOspite;
+      const nuovaOspite = prev.squadraCasa;
+      return {
+        ...prev,
+        squadraCasa: nuovaCasa,
+        squadraOspite: nuovaOspite,
+        isNostraCasa: !prev.isNostraCasa
+      };
+    });
+  };
 
   const titolariCount = giocatori.filter(g => g.isTitolare).length;
 
@@ -128,6 +148,14 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setEditNumero('');
   };
 
+  const handleConferma = () => {
+    if (!partitaInfo.squadraCasa.trim() || !partitaInfo.squadraOspite.trim()) {
+      alert("Inserisci il nome di entrambe le squadre!");
+      return;
+    }
+    onConfermaDistinta({ partitaInfo, giocatori });
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
       {/* Banner Intestazione con Logo e Società */}
@@ -152,32 +180,64 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
       </div>
 
-      {/* Configurazione Partita (Campi in Maiuscolo) */}
-      <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md">
-        <h2 className="text-lg font-bold flex items-center gap-2 mb-4 text-emerald-400 uppercase">
-          <Shield className="w-5 h-5" /> Configurazione Partita
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs uppercase text-slate-400 font-semibold">Squadra Casa</label>
+      {/* Configurazione Partita con Tasto Inversione Casa/Fuori */}
+      <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold flex items-center gap-2 text-emerald-400 uppercase">
+            <Shield className="w-5 h-5" /> Partita di Oggi
+          </h2>
+          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-950 border border-slate-700 text-slate-300">
+            {partitaInfo.isNostraCasa ? '🏠 GIOCHIAMO IN CASA' : '🚌 GIOCHIAMO FUORI CASA'}
+          </span>
+        </div>
+
+        {/* Squadre con pulsante centrale per invertire */}
+        <div className="grid grid-cols-1 md:grid-cols-9 gap-3 items-end">
+          <div className="md:col-span-4">
+            <label className="text-xs uppercase text-slate-400 font-semibold block mb-1">
+              Squadra Casa {partitaInfo.isNostraCasa && <span className="text-emerald-400">(La Tua Squadra)</span>}
+            </label>
             <input
               type="text"
-              placeholder="ES. NOSTRA SQUADRA"
+              placeholder="ES. SQUADRA CASA"
               value={partitaInfo.squadraCasa}
               onChange={(e) => setPartitaInfo({ ...partitaInfo, squadraCasa: e.target.value.toUpperCase() })}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              className={`w-full bg-slate-950 border rounded-lg p-2.5 outline-none text-white text-sm uppercase font-semibold ${
+                partitaInfo.isNostraCasa ? 'border-emerald-500/50' : 'border-slate-700'
+              }`}
             />
           </div>
-          <div>
-            <label className="text-xs uppercase text-slate-400 font-semibold">Squadra Ospite</label>
+
+          {/* Tasto Inversione Casa <-> Trasferta */}
+          <div className="md:col-span-1 flex justify-center pb-0.5">
+            <button
+              type="button"
+              onClick={invertiCasaTrasferta}
+              className="p-3 rounded-xl bg-slate-950 hover:bg-emerald-600 border border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-white transition shadow-md flex items-center justify-center gap-1 w-full md:w-auto"
+              title="Scambia Casa / Fuori Casa"
+            >
+              <ArrowLeftRight className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="md:col-span-4">
+            <label className="text-xs uppercase text-slate-400 font-semibold block mb-1">
+              Squadra Ospite {!partitaInfo.isNostraCasa && <span className="text-emerald-400">(La Tua Squadra)</span>}
+            </label>
             <input
               type="text"
-              placeholder="ES. SQUADRA OSPITE"
+              placeholder="DIGITA SQUADRA AVVERSARIA"
               value={partitaInfo.squadraOspite}
               onChange={(e) => setPartitaInfo({ ...partitaInfo, squadraOspite: e.target.value.toUpperCase() })}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              className={`w-full bg-slate-950 border rounded-lg p-2.5 outline-none text-white text-sm uppercase font-semibold ${
+                !partitaInfo.isNostraCasa ? 'border-emerald-500/50' : 'border-slate-700'
+              }`}
             />
           </div>
+        </div>
+
+        {/* Staff Tecnico */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           <div>
             <label className="text-xs uppercase text-slate-400 font-semibold">Allenatore</label>
             <input
@@ -201,7 +261,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
       </div>
 
-      {/* Inserimento Nuovo Giocatore: Senza Ruolo */}
+      {/* Inserimento Nuovo Giocatore */}
       <form onSubmit={aggiungiGiocatore} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap gap-3 items-end">
         <div className="w-24">
           <label className="text-xs text-slate-400 uppercase font-semibold">N° Maglia</label>
@@ -233,12 +293,15 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </button>
       </form>
 
-      {/* Rosa con Modifica Inline */}
+      {/* Rosa con Modifica Inline Permanente */}
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold flex items-center gap-2 uppercase">
-            <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatori.length})
-          </h2>
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2 uppercase">
+              <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatori.length})
+            </h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">Questa rosa resta memorizzata stabilmente per tutte le partite.</p>
+          </div>
           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
             Titolari: {titolariCount} / 11
           </span>
@@ -360,7 +423,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
       <div className="pt-2">
         <button
-          onClick={() => onConfermaDistinta && onConfermaDistinta({ partitaInfo, giocatori })}
+          onClick={handleConferma}
           disabled={titolariCount !== 11}
           className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider flex justify-center items-center gap-2 transition ${
             titolariCount === 11
