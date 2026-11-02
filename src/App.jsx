@@ -3,11 +3,12 @@ import Distinta from './components/Distinta';
 import Cronometro from './components/Cronometro';
 import GestioneEventi from './components/GestioneEventi';
 import FeedEventi from './components/FeedEventi';
+import RefertoGara from './components/RefertoGara';
 import { getSocieta, creaSocieta, salvaDistintaSuDb } from './services/db';
-import { ArrowLeft, Shield, Building2, Plus, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Shield, Building2, Plus, CheckCircle2, FileText } from 'lucide-react';
 
 export default function App() {
-  const [faseApp, setFaseApp] = useState('seleziona_societa');
+  const [faseApp, setFaseApp] = useState('seleziona_societa'); // 'seleziona_societa' | 'distinta' | 'partita' | 'referto'
   
   // Società
   const [listaSocieta, setListaSocieta] = useState([]);
@@ -179,11 +180,19 @@ export default function App() {
               onClick={() => setFaseApp('distinta')}
               className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5"
             >
-              <ArrowLeft className="w-4 h-4" /> Torna a Distinta
+              <ArrowLeft className="w-4 h-4" /> Distinta
             </button>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              {societaAttiva?.nome}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setFaseApp('referto')}
+                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
+              >
+                <FileText className="w-3.5 h-3.5" /> Referto
+              </button>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                {societaAttiva?.nome}
+              </span>
+            </div>
           </div>
 
           {/* Punteggio */}
@@ -211,10 +220,13 @@ export default function App() {
             setTempo={setTempoGara}
             onTick={(min) => setMinutoCorrente(min)}
             onFinePrimoTempo={() => alert('Fine 1° Tempo!')}
-            onFinePartita={() => alert('Partita terminata!')}
+            onFinePartita={() => {
+              alert('Partita terminata! Apertura referto di gara.');
+              setFaseApp('referto');
+            }}
           />
 
-          {/* Modulo Eventi: Sostituzioni, Cartellini, Gol */}
+          {/* Modulo Eventi */}
           <GestioneEventi
             giocatori={rosa}
             setGiocatori={setRosa}
@@ -232,6 +244,19 @@ export default function App() {
           {/* Timeline Eventi */}
           <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
         </div>
+      )}
+
+      {/* 4. REFERTO FINALE */}
+      {faseApp === 'referto' && (
+        <RefertoGara
+          partitaInfo={partitaInfo}
+          societaNome={societaAttiva?.nome}
+          golCasa={golCasa}
+          golOspiti={golOspiti}
+          eventi={eventi}
+          giocatori={rosa}
+          onChiudi={() => setFaseApp('partita')}
+        />
       )}
     </div>
   );
