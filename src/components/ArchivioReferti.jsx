@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
-import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
+import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock } from 'lucide-react';
 
 export default function ArchivioReferti({ societa, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
@@ -32,7 +32,7 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
     t += `⚽ *${(p.squadra_casa || 'CASA').toUpperCase()} ${p.gol_casa} - ${p.gol_ospite} ${(p.squadra_ospite || 'OSPITE').toUpperCase()}*\n\n`;
 
     t += `👤 *STAFF:*\n`;
-    t += `• Mister: ${(p.allenatore || '-').toUpperCase()}\n`;
+    t += `• Allenatore: ${(p.allenatore || '-').toUpperCase()}\n`;
     t += `• Dirigente: ${(p.dirigente || '-').toUpperCase()}\n\n`;
 
     const eventi = p.referto_eventi || [];
@@ -62,6 +62,18 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
     if (cambi.length > 0) {
       t += `🔄 *SOSTITUZIONI:*\n`;
       cambi.forEach(c => { t += `• ${c.minuto}' ${c.dettagli.toUpperCase()}\n`; });
+      t += `\n`;
+    }
+
+    const rosa = p.referto_giocatori || [];
+    if (rosa.length > 0) {
+      t += `⏱️ *MINUTAGGIO ROSA GIOCATORI:*\n`;
+      rosa.forEach(g => {
+        const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
+        const minStr = g.minuti !== undefined ? `${g.minuti}' giocati` : `${g.isTitolare ? "90'" : "0'"} giocati`;
+        const statoStr = g.stato ? ` (${g.stato})` : '';
+        t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}: ${minStr}${statoStr}\n`;
+      });
     }
 
     return t;
