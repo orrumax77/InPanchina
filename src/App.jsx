@@ -4,6 +4,7 @@ import Cronometro from './components/Cronometro';
 import GestioneEventi from './components/GestioneEventi';
 import FeedEventi from './components/FeedEventi';
 import RefertoGara from './components/RefertoGara';
+import ArchivioReferti from './components/ArchivioReferti';
 import AdminPanel from './components/AdminPanel';
 import { 
   loginSistema, 
@@ -15,13 +16,14 @@ import {
   aggiornaGiocatoriCloud,
   salvaRosaBaseSocieta,
   getSocietaById,
-  caricaRosaSocieta
+  caricaRosaSocieta,
+  archiviaPartitaEResettaLive
 } from './services/db';
 import { supabase } from './supabaseClient';
-import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight, Archive, RotateCcw } from 'lucide-react';
 
 export default function App() {
-  const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto'
+  const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto' | 'archivio'
   
   // Dati Autenticazione
   const [utenteConnesso, setUtenteConnesso] = useState(null);
@@ -77,7 +79,7 @@ export default function App() {
     const allenatoreBase = (socFresca.allenatore_predefinito || staffBase.allenatore || '').toUpperCase();
     const dirigenteBase = (socFresca.dirigente_predefinito || staffBase.dirigente || '').toUpperCase();
 
-    if (stato && stato.partita) {
+    if (stato && stato.partita && stato.partita.stato === 'in-corso') {
       const pInfo = {
         squadraCasa: (stato.partita.squadra_casa || socFresca.nome || '').toUpperCase(),
         squadraOspite: (stato.partita.squadra_ospite || '').toUpperCase(),
@@ -97,20 +99,9 @@ export default function App() {
       setSlotUsati(stato.partita.slot_usati || 0);
       setCambiEffettuati(stato.partita.cambi_effettuati || 0);
 
-      if (stato.partita.in_esecuzione && stato.partita.timer_avviato_il) {
-        setSecondiGara(Math.floor((Date.now() - stato.partita.timer_avviato_il) / 1000));
-      } else {
-        setSecondiGara(stato.partita.secondi_gara || 0);
-      }
-
       setRosa(rosaSalvataNelDb);
       setEventi(stato.eventi || []);
-
-      if (stato.partita.stato === 'in-corso') {
-        setFaseApp('partita');
-      } else {
-        setFaseApp('distinta');
-      }
+      setFaseApp('partita');
     } else {
       setPartitaInfo({
         squadraCasa: (socFresca.nome || '').toUpperCase(),
@@ -213,8 +204,8 @@ export default function App() {
     if (nuovoTempo === 2) {
       setInEsecuzione(false);
       setTempoGara(2);
-      setSecondiGara(0); // Azzera il timer a 00:00 per il 2° Tempo
-      setRecupero(0);    // Azzera il recupero della prima frazione
+      setSecondiGara(0);
+      setRecupero(0);
       setMinutoCorrente(46);
 
       syncStatoPartitaSuDb(partitaId, {
@@ -307,6 +298,54 @@ export default function App() {
       slotUsati,
       cambiEffettuati
     });
+  };
+
+  // TERMINA LIVE: ARCHIVIA E PREPARA LA PROSSIMA GARA
+  const handleTerminaLiveEResetta = async () => {
+    setSalvataggioInCorso(true);
+
+    const res = await archiviaPartitaEResettaLive(
+      societaAttiva.id,
+      partitaId,
+      partitaInfo,
+      { golCasa, golOspiti },
+      eventi,
+      rosa
+    );
+
+    setSalvataggioInCorso(false);
+
+    if (res.success) {
+      alert("Partita archiviata con successo! Punteggio ed eventi azzerati per la prossima gara.");
+
+      // Reset stati locali
+      setGolCasa(0);
+      setGolOspiti(0);
+      setTempoGara(1);
+      setSecondiGara(0);
+      setInEsecuzione(false);
+      setRecupero(0);
+      setMinutoCorrente(1);
+      setSlotUsati(0);
+      setCambiEffettuati(0);
+      setEventi([]);
+
+      // Reset ammonizioni/espulsioni della rosa locale
+      setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+
+      // Ripristina distinta azzerando l'avversario
+      setPartitaInfo(prev => ({
+        ...prev,
+        squadraCasa: societaAttiva?.nome || '',
+        squadraOspite: '',
+        dataPartita: new Date().toISOString().split('T')[0],
+        isNostraCasa: true
+      }));
+
+      setFaseApp('distinta');
+    } else {
+      alert("Errore durante l'archiviazione della partita.");
+    }
   };
 
   const disconnetti = () => {
@@ -424,7 +463,17 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              {/* TASTO ARCHIVIO REFERTI STORICI */}
+              <button
+                type="button"
+                onClick={() => setFaseApp('archivio')}
+                className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition"
+                title="Visualizza tutti i referti passati"
+              >
+                <Archive className="w-3.5 h-3.5" /> Archivio Referti
+              </button>
+
               <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
                 <UserCircle2 className="w-4 h-4 text-emerald-400" />
                 <div className="text-left">
@@ -442,14 +491,14 @@ export default function App() {
                   onClick={() => setFaseApp('admin')}
                   className="text-xs text-blue-400 hover:underline uppercase font-semibold"
                 >
-                  Pannello Admin
+                  Admin
                 </button>
               )}
               <button
                 onClick={disconnetti}
                 className="text-xs text-rose-400 hover:underline uppercase font-semibold"
               >
-                Disconnetti
+                Esci
               </button>
             </div>
           </div>
@@ -475,20 +524,22 @@ export default function App() {
             </button>
             
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-xs">
-                <UserCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-slate-300 font-semibold font-mono">
-                  {utenteConnesso?.username || loginUser}
-                </span>
-              </div>
+              <button
+                type="button"
+                onClick={() => setFaseApp('archivio')}
+                className="bg-slate-900 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
+                title="Vedi referti archiviati"
+              >
+                <Archive className="w-3.5 h-3.5" /> Archivio
+              </button>
 
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 uppercase">
-                <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live {stagioneSelezionata}
+                <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live
               </span>
 
               <button
                 onClick={() => setFaseApp('referto')}
-                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 uppercase"
+                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
               >
                 <FileText className="w-3.5 h-3.5" /> Referto
               </button>
@@ -550,6 +601,17 @@ export default function App() {
           />
 
           <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
+
+          {/* TASTO RAPIDO TERMINA E ARCHIVIA IN FONDO AL MATCH */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleTerminaLiveEResetta}
+              className="w-full py-3 rounded-xl border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition"
+            >
+              <RotateCcw className="w-4 h-4" /> Termina Live e Archivia per Prossima Gara
+            </button>
+          </div>
         </div>
       )}
 
@@ -563,6 +625,15 @@ export default function App() {
           eventi={eventi}
           giocatori={rosa}
           onChiudi={() => setFaseApp('partita')}
+          onTerminaEResetta={handleTerminaLiveEResetta}
+        />
+      )}
+
+      {/* 6. ARCHIVIO REFERTI STORICI */}
+      {faseApp === 'archivio' && (
+        <ArchivioReferti
+          societa={societaAttiva}
+          onTornaIndietro={() => setFaseApp(partitaInfo ? 'distinta' : 'distinta')}
         />
       )}
     </div>
