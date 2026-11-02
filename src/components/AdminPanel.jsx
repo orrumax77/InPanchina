@@ -1,591 +1,612 @@
 import React, { useState, useEffect } from 'react';
 import { 
+  getSocieta, 
   adminCreaSquadra, 
   adminCreaUtente, 
   adminGetUtentiSocieta, 
-  getSocieta, 
-  adminAggiornaStatoSocieta,
-  adminEliminaSocietaCompleta,
-  adminEliminaUtente,
-  adminModificaPasswordUtente
+  adminAggiornaStatoSocieta, 
+  adminEliminaSocietaCompleta, 
+  adminEliminaUtente, 
+  adminModificaPasswordUtente 
 } from '../services/db';
 import { 
   Shield, 
   Plus, 
   Users, 
-  Image as ImageIcon, 
-  ArrowLeft, 
-  CheckCircle2, 
-  ExternalLink, 
+  Trash2, 
+  Key, 
   Lock, 
   Unlock, 
-  Infinity as InfinityIcon, 
-  Calendar,
-  Trash2,
-  KeyRound,
-  X
+  Calendar, 
+  ExternalLink, 
+  LogOut, 
+  CheckCircle2, 
+  Copy, 
+  Check, 
+  Pencil, 
+  MapPin, 
+  X 
 } from 'lucide-react';
 
 export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const [societaList, setSocietaList] = useState([]);
-  const [societaSelezionata, setSocietaSelezionata] = useState(null);
-  const [utentiSocieta, setUtentiSocieta] = useState([]);
+  const [caricamento, setCaricamento] = useState(true);
+  const [notifica, setNotifica] = useState('');
 
-  // Form Nuova Squadra (Campi testuali in Maiuscolo)
-  const [codice, setCodice] = useState('');
-  const [nome, setNome] = useState('');
-  const [indirizzo, setIndirizzo] = useState('');
-  const [logoBase64, setLogoBase64] = useState('');
+  // Form Creazione Squadra
+  const [nuovoCodice, setNuovoCodice] = useState('');
+  const [nuovoNome, setNuovoNome] = useState('');
+  const [nuovoIndirizzo, setNuovoIndirizzo] = useState('');
+  const [nuovoLogo, setNuovoLogo] = useState('');
 
-  // Form Nuovo Utente (Username e Password mantengono maiuscolo/minuscolo digitato)
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [stagione, setStagione] = useState('2026/2027');
+  // Modal Gestione Credenziali e Utenti
+  const [squadraSelezionata, setSquadraSelezionata] = useState(null);
+  const [utentiSquadra, setUtentiSquadra] = useState([]);
+  const [nuovoUsername, setNuovoUsername] = useState('');
+  const [nuovaPassword, setNuovaPassword] = useState('');
+  const [ruoloNuovoUtente, setRuoloNuovoUtente] = useState('dirigente');
+  const [copiatoId, setCopiatoId] = useState(null);
 
-  // Modale Modifica Password
-  const [modalPasswordUtente, setModalPasswordUtente] = useState(null);
-  const [nuovaPasswordInput, setNuovaPasswordInput] = useState('');
+  // Modifica password rapida
+  const [modificaPassId, setModificaPassId] = useState(null);
+  const [tempPass, setTempPass] = useState('');
 
-  const [messaggio, setMessaggio] = useState('');
+  const mostraNotifica = (msg) => {
+    setNotifica(msg);
+    setTimeout(() => setNotifica(''), 3000);
+  };
 
-  const ricaricaDati = async () => {
-    const list = await getSocieta();
-    setSocietaList(list);
-    if (societaSelezionata) {
-      const aggiornata = list.find(s => s.id === societaSelezionata.id);
-      if (aggiornata) setSocietaSelezionata(aggiornata);
-    }
+  const caricaDati = async () => {
+    setCaricamento(true);
+    const lista = await getSocieta();
+    setSocietaList(lista);
+    setCaricamento(false);
   };
 
   useEffect(() => {
-    ricaricaDati();
+    caricaDati();
   }, []);
-
-  useEffect(() => {
-    if (societaSelezionata) {
-      adminGetUtentiSocieta(societaSelezionata.id).then(setUtentiSocieta);
-    } else {
-      setUtentiSocieta([]);
-    }
-  }, [societaSelezionata]);
-
-  // CANCELLAZIONE COMPLETA SQUADRA
-  const handleEliminaSquadra = async () => {
-    if (!societaSelezionata) return;
-    const socId = societaSelezionata.id;
-    const socNome = societaSelezionata.nome;
-
-    const conferma = window.prompt(
-      `ATTENZIONE: Stai per eliminare ${socNome} e TUTTI i suoi dati (giocatori, partite, referti, dirigenti).\n\nPer confermare, scrivi il nome esatto: "${socNome}"`
-    );
-
-    if (conferma?.trim().toUpperCase() !== socNome.trim().toUpperCase()) {
-      alert("Eliminazione annullata: il nome inserito non corrisponde.");
-      return;
-    }
-
-    try {
-      await adminEliminaSocietaCompleta(socId);
-      setMessaggio(`Squadra ${socNome} eliminata definitivamente con tutto il suo archivio.`);
-      setSocietaSelezionata(null);
-      ricaricaDati();
-    } catch {
-      alert("Errore durante l'eliminazione della società.");
-    }
-  };
-
-  // CANCELLAZIONE SINGOLO DIRIGENTE
-  const handleEliminaUtente = async (u) => {
-    if (!window.confirm(`Vuoi rimuovere l'accesso per l'utente "${u.username}"?`)) return;
-    try {
-      await adminEliminaUtente(u.id);
-      setMessaggio(`Utente ${u.username} rimosso con successo.`);
-      const lista = await adminGetUtentiSocieta(societaSelezionata.id);
-      setUtentiSocieta(lista);
-    } catch {
-      alert("Errore durante l'eliminazione dell'utente.");
-    }
-  };
-
-  // MODIFICA PASSWORD UTENTE (mantiene case-sensitive esatto)
-  const handleSalvaNuovaPassword = async (e) => {
-    e.preventDefault();
-    if (!nuovaPasswordInput.trim()) return;
-    try {
-      await adminModificaPasswordUtente(modalPasswordUtente.id, nuovaPasswordInput);
-      setMessaggio(`Password aggiornata per l'utente ${modalPasswordUtente.username}!`);
-      setModalPasswordUtente(null);
-      setNuovaPasswordInput('');
-      const lista = await adminGetUtentiSocieta(societaSelezionata.id);
-      setUtentiSocieta(lista);
-    } catch {
-      alert("Errore durante l'aggiornamento della password.");
-    }
-  };
-
-  // GESTIONE STATO / SBLOCCO SQUADRA
-  const handleSbloccaIllimitato = async () => {
-    try {
-      const data2099 = new Date('2099-12-31T23:59:59Z').toISOString();
-      const aggiornata = await adminAggiornaStatoSocieta(societaSelezionata.id, {
-        attiva: true,
-        dataScadenza: data2099
-      });
-      setSocietaSelezionata(aggiornata);
-      setMessaggio(`Accesso ILLIMITATO attivato per ${aggiornata.nome}!`);
-      ricaricaDati();
-    } catch {
-      alert("Errore durante l'aggiornamento.");
-    }
-  };
-
-  const handleProroga30Giorni = async () => {
-    try {
-      const nuovaData = new Date();
-      nuovaData.setDate(nuovaData.getDate() + 30);
-      const aggiornata = await adminAggiornaStatoSocieta(societaSelezionata.id, {
-        attiva: true,
-        dataScadenza: nuovaData.toISOString()
-      });
-      setSocietaSelezionata(aggiornata);
-      setMessaggio(`Proroga di 30 giorni applicata a ${aggiornata.nome}!`);
-      ricaricaDati();
-    } catch {
-      alert("Errore durante l'aggiornamento.");
-    }
-  };
-
-  const handleBloccaSquadra = async () => {
-    if (!window.confirm(`Sei sicuro di voler bloccare l'accesso per ${societaSelezionata.nome}?`)) return;
-    try {
-      const aggiornata = await adminAggiornaStatoSocieta(societaSelezionata.id, {
-        attiva: false
-      });
-      setSocietaSelezionata(aggiornata);
-      setMessaggio(`Accesso BLOCCATO per ${aggiornata.nome}.`);
-      ricaricaDati();
-    } catch {
-      alert("Errore durante l'aggiornamento.");
-    }
-  };
-
-  const handleCaricaLogo = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const maxDim = 200;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > maxDim) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          }
-        } else {
-          if (height > maxDim) {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        setLogoBase64(canvas.toDataURL('image/png'));
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  };
 
   const handleCreaSquadra = async (e) => {
     e.preventDefault();
-    if (!codice || !nome) return;
+    if (!nuovoCodice.trim() || !nuovoNome.trim()) return;
+
     try {
-      const nuova = await adminCreaSquadra({
-        codice: codice.trim().toUpperCase(),
-        nome: nome.trim().toUpperCase(),
-        indirizzoCampo: indirizzo.trim().toUpperCase(),
-        logoUrl: logoBase64
+      await adminCreaSquadra({
+        codice: nuovoCodice,
+        nome: nuovoNome,
+        indirizzoCampo: nuovoIndirizzo,
+        logoUrl: nuovoLogo
       });
-      setMessaggio(`Squadra ${nuova.nome} registrata con 30 giorni di prova!`);
-      setCodice('');
-      setNome('');
-      setIndirizzo('');
-      setLogoBase64('');
-      ricaricaDati();
-      setSocietaSelezionata(nuova);
-    } catch {
-      alert('Errore: Codice società già esistente.');
+      setNuovoCodice('');
+      setNuovoNome('');
+      setNuovoIndirizzo('');
+      setNuovoLogo('');
+      mostraNotifica('Squadra creata con successo!');
+      await caricaDati();
+    } catch (err) {
+      alert('Errore nella creazione squadra: ' + err.message);
     }
+  };
+
+  const apriGestioneUtenti = async (soc) => {
+    setSquadraSelezionata(soc);
+    const utenti = await adminGetUtentiSocieta(soc.id);
+    setUtentiSquadra(utenti);
+    setNuovoUsername('');
+    setNuovaPassword('');
   };
 
   const handleCreaUtente = async (e) => {
     e.preventDefault();
-    if (!username || !password || !societaSelezionata) return;
+    if (!nuovoUsername.trim() || !nuovaPassword.trim()) return;
+
     try {
       await adminCreaUtente({
-        societaId: societaSelezionata.id,
-        username: username.trim(), // username preserva il case
-        password: password.trim(), // password preserva il case
-        ruolo: 'dirigente',
-        stagione
+        societaId: squadraSelezionata.id,
+        username: nuovoUsername,
+        password: nuovaPassword,
+        ruolo: ruoloNuovoUtente
       });
-      setMessaggio(`Utente ${username.trim()} creato per ${societaSelezionata.nome}!`);
-      setUsername('');
-      setPassword('');
-      const u = await adminGetUtentiSocieta(societaSelezionata.id);
-      setUtentiSocieta(u);
-    } catch {
-      alert('Errore: Username già utilizzato.');
+      setNuovoUsername('');
+      setNuovaPassword('');
+      const utenti = await adminGetUtentiSocieta(squadraSelezionata.id);
+      setUtentiSquadra(utenti);
+      mostraNotifica('Utente dirigente creato con successo!');
+    } catch (err) {
+      alert("Errore nella creazione dell'utente: " + err.message);
     }
   };
 
-  const isIllimitata = (scadenza) => {
-    return new Date(scadenza).getFullYear() >= 2090;
+  const handleToggleAttiva = async (soc) => {
+    try {
+      await adminAggiornaStatoSocieta(soc.id, { attiva: !soc.attiva });
+      await caricaDati();
+      mostraNotifica(`Stato squadra ${soc.attiva ? 'bloccata' : 'attivata'}!`);
+    } catch (err) {
+      alert('Errore aggiornamento stato: ' + err.message);
+    }
+  };
+
+  const handleProroga30Giorni = async (soc) => {
+    try {
+      const dataAttuale = new Date(soc.data_scadenza_prova || new Date());
+      const nuovaData = new Date(Math.max(dataAttuale.getTime(), Date.now()));
+      nuovaData.setDate(nuovaData.getDate() + 30);
+
+      await adminAggiornaStatoSocieta(soc.id, { 
+        attiva: true, 
+        dataScadenza: nuovaData.toISOString() 
+      });
+      await caricaDati();
+      mostraNotifica('Licenza prorogata di 30 giorni!');
+    } catch (err) {
+      alert('Errore proroga licenza: ' + err.message);
+    }
+  };
+
+  const handleEliminaSquadra = async (soc) => {
+    const conferma = window.confirm(`Sei sicuro di voler eliminare DEFINITIVAMENTE la società "${soc.nome}" e tutti i suoi utenti/dati? L'operazione non è reversibile!`);
+    if (!conferma) return;
+
+    try {
+      await adminEliminaSocietaCompleta(soc.id);
+      await caricaDati();
+      mostraNotifica('Società eliminata dal database.');
+    } catch (err) {
+      alert("Errore durante l'eliminazione: " + err.message);
+    }
+  };
+
+  const handleEliminaUtente = async (utenteId) => {
+    if (!window.confirm("Vuoi revocare l'accesso a questo utente?")) return;
+    try {
+      await adminEliminaUtente(utenteId);
+      const utenti = await adminGetUtentiSocieta(squadraSelezionata.id);
+      setUtentiSquadra(utenti);
+      mostraNotifica('Utente eliminato.');
+    } catch (err) {
+      alert('Errore eliminazione: ' + err.message);
+    }
+  };
+
+  const handleSalvaNuovaPassword = async (utenteId) => {
+    if (!tempPass.trim()) return;
+    try {
+      await adminModificaPasswordUtente(utenteId, tempPass);
+      setModificaPassId(null);
+      setTempPass('');
+      const utenti = await adminGetUtentiSocieta(squadraSelezionata.id);
+      setUtentiSquadra(utenti);
+      mostraNotifica('Password aggiornata con successo!');
+    } catch (err) {
+      alert('Errore aggiornamento password: ' + err.message);
+    }
+  };
+
+  const copiaCredenziali = (u) => {
+    const testo = `⚽ CREDENZIALI INPANCHINA\nSocietà: ${squadraSelezionata?.nome}\nUsername: ${u.username}\nPassword: ${u.password_chiaro}`;
+    navigator.clipboard.writeText(testo);
+    setCopiatoId(u.id);
+    setTimeout(() => setCopiatoId(null), 2000);
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-        <button
-          onClick={onEsci}
-          className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5"
-        >
-          <ArrowLeft className="w-4 h-4" /> Disconnetti Admin
-        </button>
-        <span className="text-xs font-bold px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase">
-          SuperAdmin Globale
-        </span>
-      </div>
-
-      {messaggio && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-semibold rounded-xl flex items-center gap-2 uppercase">
-          <CheckCircle2 className="w-4 h-4" /> {messaggio}
+    <div className="max-w-6xl mx-auto space-y-5 px-2 sm:px-4 pb-12">
+      {/* Header Pannello Amministratore */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 flex-shrink-0">
+            <Shield className="w-6 h-6 sm:w-7 sm:h-7" />
+          </div>
+          <div>
+            <h1 className="text-base sm:text-lg font-black text-white uppercase tracking-tight leading-tight">
+              Gestione Squadre & Credenziali Dirigenti
+            </h1>
+            <p className="text-xs text-slate-400">Pannello Amministratore Globale InPanchina</p>
+          </div>
         </div>
-      )}
 
-      {/* 1. SELEZIONE SQUADRA E GESTIONE INTEGRALE */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2 uppercase">
-          <Users className="w-5 h-5 text-blue-400" /> Gestione Squadre & Credenziali Dirigenti
-        </h2>
-
-        <div>
-          <label className="text-xs text-slate-400 uppercase font-semibold">Scegli una Squadra:</label>
-          <select
-            value={societaSelezionata?.id || ''}
-            onChange={(e) => setSocietaSelezionata(societaList.find(s => s.id === e.target.value))}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1 uppercase"
+        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+          <span className="text-xs font-mono font-bold bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl text-emerald-400 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5" /> SuperAdmin
+          </span>
+          <button
+            type="button"
+            onClick={onEsci}
+            className="px-4 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600 border border-rose-500/30 text-rose-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer min-h-[40px]"
           >
-            <option value="">-- SELEZIONA UNA SQUADRA DA GESTIRE --</option>
-            {societaList.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.nome} ({s.codice_societa || s.id}) - {s.attiva ? 'ATTIVA' : 'BLOCCATA'}
-              </option>
-            ))}
-          </select>
+            <LogOut className="w-3.5 h-3.5" /> Esci
+          </button>
         </div>
-
-        {societaSelezionata && (
-          <div className="space-y-4">
-            {/* Scheda Riepilogo Stato Squadra */}
-            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  {societaSelezionata.logo_url && (
-                    <img src={societaSelezionata.logo_url} alt="Logo" className="w-12 h-12 rounded-full object-cover border border-slate-700" />
-                  )}
-                  <div>
-                    <h4 className="font-bold text-white text-base uppercase">{societaSelezionata.nome}</h4>
-                    <p className="text-xs text-slate-400 uppercase">Codice: {societaSelezionata.codice_societa || societaSelezionata.id}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className={`px-2.5 py-1 rounded text-xs font-bold uppercase ${
-                    societaSelezionata.attiva 
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                      : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                  }`}>
-                    {societaSelezionata.attiva ? '● Attiva' : '✕ Bloccata'}
-                  </span>
-
-                  <span className="px-2.5 py-1 rounded bg-slate-800 text-xs font-semibold text-slate-300 uppercase">
-                    {isIllimitata(societaSelezionata.data_scadenza_prova)
-                      ? 'Licenza: Illimitata'
-                      : `Scadenza: ${new Date(societaSelezionata.data_scadenza_prova).toLocaleDateString()}`}
-                  </span>
-                </div>
-              </div>
-
-              {/* PULSANTI CONTROLLO E AZIONI */}
-              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSbloccaIllimitato}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
-                >
-                  <InfinityIcon className="w-4 h-4" /> Sblocca Illimitata
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleProroga30Giorni}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
-                >
-                  <Calendar className="w-4 h-4 text-emerald-400" /> +30 Giorni
-                </button>
-
-                {societaSelezionata.attiva ? (
-                  <button
-                    type="button"
-                    onClick={handleBloccaSquadra}
-                    className="bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/30 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
-                  >
-                    <Lock className="w-4 h-4" /> Blocca
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleProroga30Giorni}
-                    className="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
-                  >
-                    <Unlock className="w-4 h-4" /> Sblocca
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => onSelezionaSquadraDaAdmin(societaSelezionata)}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
-                >
-                  <ExternalLink className="w-4 h-4" /> Entra in Panchina
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleEliminaSquadra}
-                  className="ml-auto bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/40 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition uppercase"
-                >
-                  <Trash2 className="w-4 h-4" /> Elimina Squadra
-                </button>
-              </div>
-            </div>
-
-            {/* GESTIONE UTENTI DELLA SQUADRA */}
-            <div className="pt-2 border-t border-slate-800 space-y-3">
-              <h4 className="text-xs font-bold uppercase text-slate-400">Dirigenti Abilitati per {societaSelezionata.nome}:</h4>
-
-              <div className="space-y-1.5">
-                {utentiSocieta.length === 0 ? (
-                  <p className="text-xs text-slate-500 uppercase">Nessun dirigente configurato per questa squadra.</p>
-                ) : (
-                  utentiSocieta.map(u => (
-                    <div key={u.id} className="p-2.5 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between gap-2 text-xs">
-                      <div>
-                        <span className="font-bold text-white font-mono">{u.username}</span>
-                        <span className="text-slate-400 ml-3">Password: <code className="text-emerald-400 font-mono">{u.password_chiaro}</code></span>
-                        <span className="ml-2 px-1.5 py-0.5 rounded bg-slate-800 text-blue-400 font-semibold">{u.stagione}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModalPasswordUtente(u);
-                            setNuovaPasswordInput(u.password_chiaro || '');
-                          }}
-                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 font-semibold uppercase"
-                          title="Modifica Password"
-                        >
-                          <KeyRound className="w-3.5 h-3.5 text-amber-400" /> Cambia Password
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleEliminaUtente(u)}
-                          className="p-1.5 rounded bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white transition"
-                          title="Elimina Dirigente"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Form Aggiunta Dirigente: Username e Password non forzati in maiuscolo */}
-              <form onSubmit={handleCreaUtente} className="grid grid-cols-1 md:grid-cols-3 gap-2.5 items-end pt-2">
-                <div>
-                  <label className="text-xs text-slate-400 uppercase font-semibold">Nuovo Username</label>
-                  <input
-                    type="text"
-                    placeholder="es. mister_rossi"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm font-medium"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-400 uppercase font-semibold">Password Assegnata</label>
-                  <input
-                    type="text"
-                    placeholder="Pass2026!"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm font-mono"
-                    required
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-xs text-slate-400 uppercase font-semibold">Stagione</label>
-                    <select
-                      value={stagione}
-                      onChange={(e) => setStagione(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-sm uppercase"
-                    >
-                      <option value="2026/2027">2026/2027</option>
-                      <option value="2027/2028">2027/2028</option>
-                    </select>
-                  </div>
-                  <button
-                    type="submit"
-                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2.5 rounded-lg text-sm flex items-center justify-center gap-1 self-end uppercase"
-                  >
-                    <Plus className="w-4 h-4" /> Aggiungi
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* POPUP MODALE MODIFICA PASSWORD */}
-      {modalPasswordUtente && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <form onSubmit={handleSalvaNuovaPassword} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm space-y-4">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-              <h3 className="font-bold text-white flex items-center gap-2 text-sm uppercase">
-                <KeyRound className="w-4 h-4 text-amber-400" /> Nuova Password per {modalPasswordUtente.username}
-              </h3>
-              <button type="button" onClick={() => setModalPasswordUtente(null)} className="text-slate-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div>
-              <label className="text-xs text-slate-400 uppercase font-semibold">Inserisci la nuova password:</label>
-              <input
-                type="text"
-                value={nuovaPasswordInput}
-                onChange={(e) => setNuovaPasswordInput(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1 outline-none font-mono"
-                required
-                autoFocus
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setModalPasswordUtente(null)}
-                className="px-3 py-2 bg-slate-800 text-slate-300 rounded-lg text-xs uppercase font-semibold"
-              >
-                Annulla
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold uppercase"
-              >
-                Salva Password
-              </button>
-            </div>
-          </form>
+      {notifica && (
+        <div className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 px-4 py-3 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> {notifica}
         </div>
       )}
 
-      {/* REGISTRAZIONE NUOVA SQUADRA (Campi Società forzati in Maiuscolo) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2 uppercase">
-          <Shield className="w-5 h-5 text-emerald-400" /> Registra Nuova Squadra (Prova 30 Giorni)
+      {/* Form Creazione Nuova Squadra */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3.5">
+        <h2 className="text-sm font-black text-white uppercase flex items-center gap-2">
+          <Plus className="w-4 h-4 text-emerald-400" /> Registra Nuova Squadra / Società
         </h2>
 
-        <form onSubmit={handleCreaSquadra} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <form onSubmit={handleCreaSquadra} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
-            <label className="text-xs text-slate-400 uppercase font-semibold">Codice Società</label>
+            <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Codice Identificativo</label>
             <input
               type="text"
-              placeholder="ES. FULGOR_2026"
-              value={codice}
-              onChange={(e) => setCodice(e.target.value.toUpperCase())}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white uppercase text-sm mt-1 font-semibold"
+              placeholder="ES. US-AURORA"
+              value={nuovoCodice}
+              onChange={(e) => setNuovoCodice(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white uppercase font-bold outline-none focus:border-emerald-500"
               required
             />
           </div>
 
           <div>
-            <label className="text-xs text-slate-400 uppercase font-semibold">Nome Società</label>
+            <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Nome Società</label>
             <input
               type="text"
-              placeholder="ES. ASD FULGOR CALCIO"
-              value={nome}
-              onChange={(e) => setNome(e.target.value.toUpperCase())}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1 uppercase font-semibold"
+              placeholder="ES. U.S. AURORA CALCIO"
+              value={nuovoNome}
+              onChange={(e) => setNuovoNome(e.target.value.toUpperCase())}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white uppercase font-bold outline-none focus:border-emerald-500"
               required
             />
           </div>
 
           <div>
-            <label className="text-xs text-slate-400 uppercase font-semibold">Indirizzo Campo</label>
+            <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Indirizzo Campo Sportivo</label>
             <input
               type="text"
-              placeholder="ES. VIA DELLO SPORT 12, MILANO"
-              value={indirizzo}
-              onChange={(e) => setIndirizzo(e.target.value.toUpperCase())}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white text-sm mt-1 uppercase font-semibold"
+              placeholder="ES. VIA DELLO SPORT 1, COMO"
+              value={nuovoIndirizzo}
+              onChange={(e) => setNuovoIndirizzo(e.target.value.toUpperCase())}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white uppercase font-medium outline-none focus:border-emerald-500"
             />
           </div>
 
           <div>
-            <label className="text-xs text-slate-400 uppercase font-semibold block mb-1">Logo Squadra</label>
-            <div className="flex items-center gap-3">
-              <label className="flex-1 cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg p-2 flex items-center justify-center gap-2 text-xs text-slate-300 uppercase">
-                <ImageIcon className="w-4 h-4 text-emerald-400" />
-                <span>{logoBase64 ? 'Cambia Immagine' : 'Carica Logo (File)'}</span>
-                <input type="file" accept="image/*" onChange={handleCaricaLogo} className="hidden" />
-              </label>
-              {logoBase64 && (
-                <div className="w-10 h-10 rounded-full border border-slate-700 overflow-hidden bg-slate-950 flex-shrink-0">
-                  <img src={logoBase64} alt="Logo" className="w-full h-full object-cover" />
-                </div>
-              )}
-            </div>
+            <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">URL Logo (Opzionale)</label>
+            <input
+              type="url"
+              placeholder="https://.../logo.png"
+              value={nuovoLogo}
+              onChange={(e) => setNuovoLogo(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white font-mono outline-none focus:border-emerald-500"
+            />
           </div>
 
-          <div className="md:col-span-2 pt-2">
+          <div className="sm:col-span-2 lg:col-span-4 pt-1">
             <button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 transition text-sm uppercase"
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-950 cursor-pointer min-h-[44px]"
             >
-              <Plus className="w-4 h-4" /> Attiva Squadra (Inizia Prova 30 Giorni)
+              <Plus className="w-4 h-4" /> Aggiungi Società Sportiva
             </button>
           </div>
         </form>
       </div>
+
+      {/* Lista Società con Pulsantiera Mobile Ottimizzata */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h2 className="text-sm font-black text-white uppercase flex items-center gap-2">
+            <Users className="w-4 h-4 text-blue-400" /> Società Iscritte ({societaList.length})
+          </h2>
+        </div>
+
+        {caricamento ? (
+          <div className="text-center py-10 text-xs text-slate-500 uppercase animate-pulse">
+            Caricamento elenco squadre...
+          </div>
+        ) : societaList.length === 0 ? (
+          <div className="text-center py-10 text-xs text-slate-500 uppercase">
+            Nessuna società ancora inserita.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {societaList.map((soc) => {
+              const scadenza = new Date(soc.data_scadenza_prova);
+              const isScaduta = new Date() > scadenza || !soc.attiva;
+              const dataFormatted = soc.data_scadenza_prova ? scadenza.toLocaleDateString('it-IT') : 'N/D';
+
+              return (
+                <div 
+                  key={soc.id}
+                  className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 hover:border-slate-700 transition"
+                >
+                  {/* Dati Società */}
+                  <div className="flex items-start gap-3 min-w-0">
+                    {soc.logo_url ? (
+                      <img 
+                        src={soc.logo_url} 
+                        alt="Logo" 
+                        className="w-12 h-12 rounded-full object-cover border border-slate-700 flex-shrink-0 mt-0.5" 
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 flex-shrink-0 mt-0.5">
+                        <Shield className="w-6 h-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-black text-white uppercase truncate">{soc.nome}</h3>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 uppercase">
+                          {soc.codice_societa || soc.id}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate uppercase">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                        {soc.indirizzo_campo || 'Campo non impostato'}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${
+                          !isScaduta 
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                            : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                        }`}>
+                          {!isScaduta ? 'Licenza Attiva' : 'Licenza Scaduta / Bloccata'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-500" /> Scadenza: {dataFormatted}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PULSANTIERA AZIONI MOBILE-FIRST OTTIMIZZATA */}
+                  <div className="flex flex-col sm:grid sm:grid-cols-2 xl:flex xl:flex-row items-stretch xl:items-center gap-2 pt-3 xl:pt-0 border-t xl:border-t-0 border-slate-800/80 w-full xl:w-auto">
+                    {/* Riga 1 su mobile: Azioni primarie */}
+                    <div className="grid grid-cols-2 gap-2 sm:contents">
+                      <button
+                        type="button"
+                        onClick={() => apriGestioneUtenti(soc)}
+                        className="px-3.5 py-2.5 rounded-xl bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition min-h-[44px] cursor-pointer"
+                        title="Gestisci credenziali dirigenti"
+                      >
+                        <Key className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                        <span>Credenziali</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onSelezionaSquadraDaAdmin(soc)}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition min-h-[44px] shadow-md shadow-emerald-950 cursor-pointer"
+                        title="Entra nella panchina live della società"
+                      >
+                        <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                        <span>Entra Live</span>
+                      </button>
+                    </div>
+
+                    {/* Riga 2 su mobile: Gestione licenza */}
+                    <div className="grid grid-cols-2 gap-2 sm:contents">
+                      <button
+                        type="button"
+                        onClick={() => handleProroga30Giorni(soc)}
+                        className="px-3 py-2.5 rounded-xl bg-amber-600/20 hover:bg-amber-600 border border-amber-500/30 text-amber-300 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition min-h-[44px] cursor-pointer"
+                        title="Rinnova di 30 giorni la prova"
+                      >
+                        <Calendar className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                        <span>+30 Giorni</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAttiva(soc)}
+                        className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition min-h-[44px] border cursor-pointer ${
+                          soc.attiva 
+                            ? 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700' 
+                            : 'bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border-emerald-500/40'
+                        }`}
+                        title={soc.attiva ? 'Blocca accesso società' : 'Sblocca accesso società'}
+                      >
+                        {soc.attiva ? <Lock className="w-4 h-4 text-slate-400 flex-shrink-0" /> : <Unlock className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
+                        <span>{soc.attiva ? 'Blocca' : 'Attiva'}</span>
+                      </button>
+                    </div>
+
+                    {/* Riga 3 su mobile: Elimina a tutta larghezza */}
+                    <button
+                      type="button"
+                      onClick={() => handleEliminaSquadra(soc)}
+                      className="w-full sm:col-span-2 xl:w-auto px-3.5 py-2.5 rounded-xl text-rose-400 hover:text-white bg-slate-900 hover:bg-rose-950 border border-rose-900/40 transition flex items-center justify-center gap-1.5 min-h-[44px] cursor-pointer font-bold text-xs"
+                      title="Elimina società e tutti i dati"
+                    >
+                      <Trash2 className="w-4 h-4 flex-shrink-0" />
+                      <span className="xl:hidden">Elimina Società</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* MODAL GESTIONE UTENTI E CREDENZIALI OTTIMIZZATO PER SMARTPHONE */}
+      {squadraSelezionata && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 max-w-2xl w-full max-h-[92vh] overflow-y-auto space-y-5 shadow-2xl">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="min-w-0 pr-2">
+                <h3 className="text-sm sm:text-base font-black text-white uppercase flex items-center gap-2 truncate">
+                  <Key className="w-4 h-4 text-blue-400 flex-shrink-0" /> Credenziali Dirigenti
+                </h3>
+                <p className="text-xs text-slate-400 uppercase truncate">
+                  Società: {squadraSelezionata.nome}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSquadraSelezionata(null)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer flex-shrink-0"
+                title="Chiudi finestra"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form Aggiunta Nuovo Dirigente */}
+            <form onSubmit={handleCreaUtente} className="bg-slate-950 p-3.5 sm:p-4 rounded-xl border border-slate-800 space-y-3">
+              <h4 className="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5 text-emerald-400" /> Rilascia Nuovo Profilo Dirigente
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Username Accesso</label>
+                  <input
+                    type="text"
+                    placeholder="ES. mister.aurora"
+                    value={nuovoUsername}
+                    onChange={(e) => setNuovoUsername(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-medium outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Password</label>
+                  <input
+                    type="text"
+                    placeholder="ES. aurora2026"
+                    value={nuovaPassword}
+                    onChange={(e) => setNuovaPassword(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Ruolo</label>
+                  <select
+                    value={ruoloNuovoUtente}
+                    onChange={(e) => setRuoloNuovoUtente(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white uppercase outline-none focus:border-blue-500"
+                  >
+                    <option value="dirigente">Dirigente Ufficiale</option>
+                    <option value="allenatore">Mister / Staff</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase transition tracking-wide flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-blue-950 min-h-[44px]"
+              >
+                <Plus className="w-4 h-4" /> Crea Profilo di Accesso
+              </button>
+            </form>
+
+            {/* Elenco Utenti Attivi della Squadra */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center justify-between">
+                <span>Account Configurati ({utentiSquadra.length})</span>
+                <span className="text-[10px] text-slate-500">Credenziali in chiaro</span>
+              </h4>
+
+              {utentiSquadra.length === 0 ? (
+                <div className="text-center py-6 text-xs text-slate-500 uppercase bg-slate-950 rounded-xl border border-dashed border-slate-800">
+                  Nessun profilo utente associato. Creane uno per consentire l'accesso al dirigente.
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                  {utentiSquadra.map((u) => {
+                    const inModifica = modificaPassId === u.id;
+
+                    return (
+                      <div 
+                        key={u.id}
+                        className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white uppercase truncate">{u.username}</span>
+                            <span className="text-[10px] px-2 py-0.5 bg-slate-900 border border-slate-700 text-slate-400 rounded uppercase flex-shrink-0">
+                              {u.ruolo || 'dirigente'}
+                            </span>
+                          </div>
+                          
+                          {inModifica ? (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <input
+                                type="text"
+                                value={tempPass}
+                                onChange={(e) => setTempPass(e.target.value)}
+                                className="bg-slate-900 border border-emerald-500 text-white font-mono px-2.5 py-1.5 rounded-lg text-xs outline-none w-36"
+                                placeholder="Nuova password"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSalvaNuovaPassword(u.id)}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
+                              >
+                                Salva
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setModificaPassId(null)}
+                                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 cursor-pointer"
+                              >
+                                Annulla
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 font-mono text-xs text-emerald-400">
+                              <span>Password: <strong>{u.password_chiaro}</strong></span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setModificaPassId(u.id);
+                                  setTempPass(u.password_chiaro);
+                                }}
+                                className="text-slate-500 hover:text-amber-400 p-1 rounded"
+                                title="Cambia password"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Pulsanti Azione Utente */}
+                        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60">
+                          <button
+                            type="button"
+                            onClick={() => copiaCredenziali(u)}
+                            className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition min-h-[40px] cursor-pointer"
+                          >
+                            {copiatoId === u.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiatoId === u.id ? 'Copiato!' : 'Copia'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleEliminaUtente(u.id)}
+                            className="px-3 py-2 rounded-xl text-rose-400 hover:text-white bg-slate-900 hover:bg-rose-950/60 border border-rose-900/40 transition flex items-center justify-center gap-1.5 min-h-[40px] cursor-pointer font-bold"
+                            title="Elimina utente"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="sm:hidden">Elimina</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
