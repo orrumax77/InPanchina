@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowLeftRight, Square, CircleDot, AlertTriangle, X } from 'lucide-react';
+import { ArrowLeftRight, Square, CircleDot, X } from 'lucide-react';
 
 export default function GestioneEventi({
   giocatori,
   setGiocatori,
   eventi,
-  setEventi,
+  onNuovoEvento,
   minutoCorrente,
   tempoGara,
   slotUsati,
@@ -14,56 +14,51 @@ export default function GestioneEventi({
   setCambiEffettuati,
   onGolSegnato
 }) {
-  const [modalAperta, setModalAperta] = useState(null); // 'SOSTITUZIONE' | 'CARTELLINO' | 'GOL'
+  const [modalAperta, setModalAperta] = useState(null);
   const [giocatoreEsce, setGiocatoreEsce] = useState(null);
 
-  // Filtra chi è in campo e chi è in panchina
   const inCampo = giocatori.filter(g => g.isTitolare && !g.espulso);
   const inPanchina = giocatori.filter(g => !g.isTitolare && !g.espulso);
 
-  // 1. GESTIONE SOSTITUZIONE
   const eseguiSostituzione = (giocatoreEntra) => {
     if (!giocatoreEsce) return;
     if (cambiEffettuati >= 5) {
-      alert('Hai già effettuato tutti i 5 cambi a disposizione!');
+      alert('Tutti i 5 cambi sono stati utilizzati!');
       return;
     }
     if (slotUsati >= 3) {
-      alert('Attenzione: hai già consumato tutti i 3 slot temporali per i cambi!');
+      alert('Tutti i 3 slot per i cambi sono stati utilizzati!');
       return;
     }
 
-    // Aggiorna stato titolari/panchina
-    setGiocatori(giocatori.map(g => {
+    const nuovaRosa = giocatori.map(g => {
       if (g.id === giocatoreEsce.id) return { ...g, isTitolare: false };
       if (g.id === giocatoreEntra.id) return { ...g, isTitolare: true };
       return g;
-    }));
+    });
 
-    // Registra evento
+    setGiocatori(nuovaRosa);
+
     const nuovoEvento = {
       id: Date.now().toString(),
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: 'SOSTITUZIONE',
-      dettagli: `Esce #${giocatoreEsce.numero} ${giocatoreEsce.nome} ➔ Entra #${giocatoreEntra.numero} ${giocatoreEntra.nome}`,
-      idEsce: giocatoreEsce.id,
-      idEntra: giocatoreEntra.id
+      dettagli: `Esce #${giocatoreEsce.numero} ${giocatoreEsce.nome} ➔ Entra #${giocatoreEntra.numero} ${giocatoreEntra.nome}`
     };
 
-    setEventi([nuovoEvento, ...eventi]);
+    if (onNuovoEvento) onNuovoEvento(nuovoEvento);
     setCambiEffettuati(cambiEffettuati + 1);
     setSlotUsati(slotUsati + 1);
     setGiocatoreEsce(null);
     setModalAperta(null);
   };
 
-  // 2. GESTIONE CARTELLINI
   const assegnaCartellino = (giocatore, colore) => {
     let nuovoTipo = 'AMMONIZIONE';
     let dettagli = '';
 
-    setGiocatori(giocatori.map(g => {
+    const nuovaRosa = giocatori.map(g => {
       if (g.id === giocatore.id) {
         if (colore === 'giallo') {
           const nuoveAmm = (g.ammonizioni || 0) + 1;
@@ -80,41 +75,42 @@ export default function GestioneEventi({
         }
       }
       return g;
-    }));
+    });
 
-    setEventi([{
+    setGiocatori(nuovaRosa);
+
+    const ev = {
       id: Date.now().toString(),
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: nuovoTipo,
-      dettagli,
-      giocatoreId: giocatore.id
-    }, ...eventi]);
+      dettagli
+    };
 
+    if (onNuovoEvento) onNuovoEvento(ev);
     setModalAperta(null);
   };
 
-  // 3. GESTIONE GOL
   const registraGol = (giocatore) => {
     const dettagli = giocatore
       ? `Gol di #${giocatore.numero} ${giocatore.nome}`
       : 'Gol avversario';
 
-    setEventi([{
+    const ev = {
       id: Date.now().toString(),
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: 'GOL',
       dettagli
-    }, ...eventi]);
+    };
 
+    if (onNuovoEvento) onNuovoEvento(ev);
     onGolSegnato(Boolean(giocatore));
     setModalAperta(null);
   };
 
   return (
     <div className="space-y-4">
-      {/* Indicatori Slot e Cambi */}
       <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs font-semibold">
         <span className="text-slate-300">
           Cambi: <strong className="text-white">{cambiEffettuati}/5</strong>
@@ -124,7 +120,6 @@ export default function GestioneEventi({
         </span>
       </div>
 
-      {/* Pulsanti Grandi per Azioni Rapide a Bordo Campo */}
       <div className="grid grid-cols-3 gap-2">
         <button
           onClick={() => setModalAperta('SOSTITUZIONE')}
@@ -148,14 +143,13 @@ export default function GestioneEventi({
         </button>
       </div>
 
-      {/* POPUP MODALE SOSTITUZIONI */}
       {modalAperta === 'SOSTITUZIONE' && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-lg space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
               <h3 className="font-bold text-white flex items-center gap-2">
                 <ArrowLeftRight className="w-5 h-5 text-blue-400" />
-                {!giocatoreEsce ? '1. Seleziona chi ESCE dal campo' : `2. Chi ENTRA al posto di #${giocatoreEsce.numero}?`}
+                {!giocatoreEsce ? '1. Chi ESCE dal campo' : `2. Chi ENTRA al posto di #${giocatoreEsce.numero}?`}
               </h3>
               <button onClick={() => { setModalAperta(null); setGiocatoreEsce(null); }} className="text-slate-400">
                 <X className="w-5 h-5" />
@@ -193,7 +187,6 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* POPUP MODALE CARTELLINI */}
       {modalAperta === 'CARTELLINO' && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-lg space-y-4 max-h-[90vh] overflow-y-auto">
@@ -232,7 +225,6 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* POPUP MODALE GOL */}
       {modalAperta === 'GOL' && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-lg space-y-3 max-h-[90vh] overflow-y-auto">
