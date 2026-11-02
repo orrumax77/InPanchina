@@ -15,16 +15,30 @@ export default function Cronometro({
   onTick
 }) {
   const [moltiplicatore, setMoltiplicatore] = useState(1); // 1x | 2x | 5x | 10x
-  const baseMinuti = tempo === 2 ? 45 : 0;
-  const minutiTotali = baseMinuti + Math.floor(secondi / 60);
-  const secondiRimanenti = secondi % 60;
+
+  // Regola ufficiale: 45 minuti regolamentari (2700 secondi) per tempo
+  const SECONDI_REGOLAMENTARI_TEMPO = 45 * 60; // 2700 sec
+  const MINUTI_BASE = tempo === 2 ? 45 : 0;
+
+  // Calcolo tempo effettivo
+  const secondiTrascorsiTempo = Math.max(0, secondi);
+  const minutiTrascorsi = Math.floor(secondiTrascorsiTempo / 60);
+  const secondiRimanenti = secondiTrascorsiTempo % 60;
+
+  const minutoTabellone = MINUTI_BASE + minutiTrascorsi;
+
+  // Verifica se siamo entrati nella fase di recupero (oltre i 45' o i 90')
+  const isInRecupero = secondiTrascorsiTempo >= SECONDI_REGOLAMENTARI_TEMPO;
+  const secondiExtra = isInRecupero ? secondiTrascorsiTempo - SECONDI_REGOLAMENTARI_TEMPO : 0;
+  const minutiExtra = Math.floor(secondiExtra / 60);
+  const secondiExtraRimanenti = secondiExtra % 60;
 
   const onTickRef = useRef(onTick);
   useEffect(() => {
     onTickRef.current = onTick;
   }, [onTick]);
 
-  // Timer ad intervallo continuo calibrato sul moltiplicatore di velocità
+  // Aggiornamento continuo del cronometro tarato sul moltiplicatore di velocità
   useEffect(() => {
     let timer = null;
 
@@ -34,7 +48,7 @@ export default function Cronometro({
       timer = setInterval(() => {
         setSecondi((prev) => {
           const prox = prev + 1;
-          const minAttuale = baseMinuti + Math.floor(prox / 60);
+          const minAttuale = MINUTI_BASE + Math.floor(prox / 60);
           if (onTickRef.current) onTickRef.current(minAttuale);
           return prox;
         });
@@ -42,15 +56,15 @@ export default function Cronometro({
     }
 
     return () => clearInterval(timer);
-  }, [inEsecuzione, moltiplicatore, baseMinuti, setSecondi]);
+  }, [inEsecuzione, moltiplicatore, MINUTI_BASE, setSecondi]);
 
   const formatNumero = (num) => String(num).padStart(2, '0');
 
-  // Avanzamento rapido istantaneo di N minuti
+  // Avanzamento rapido istantaneo
   const avanzaSecondi = (secAggiuntivi) => {
     setSecondi((prev) => {
       const nuovo = prev + secAggiuntivi;
-      const minAttuale = baseMinuti + Math.floor(nuovo / 60);
+      const minAttuale = MINUTI_BASE + Math.floor(nuovo / 60);
       if (onTickRef.current) onTickRef.current(minAttuale);
       return nuovo;
     });
@@ -70,7 +84,7 @@ export default function Cronometro({
       <div className="flex justify-between items-center text-sm font-semibold tracking-wider uppercase text-slate-400">
         <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
           <Clock className="w-4 h-4" />
-          {tempo === 1 ? '1° Tempo' : '2° Tempo'}
+          {tempo === 1 ? '1° Tempo (45\')' : '2° Tempo (45\')'}
         </span>
 
         <div className="flex items-center gap-2">
@@ -81,19 +95,31 @@ export default function Cronometro({
           )}
 
           {recupero > 0 && (
-            <span className="bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2.5 py-0.5 rounded-full text-xs font-bold">
-              +{recupero}' Rec
+            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-xs font-bold">
+              +{recupero}' Recupero Segnalato
             </span>
           )}
         </div>
       </div>
 
-      {/* Cifre del Timer */}
-      <div className="font-mono text-6xl md:text-7xl font-black text-white tracking-tight py-1 select-none">
-        {formatNumero(minutiTotali)}:{formatNumero(secondiRimanenti)}
+      {/* Cifre del Timer Principale */}
+      <div className="py-1 select-none">
+        <div className={`font-mono text-6xl md:text-7xl font-black tracking-tight ${
+          isInRecupero ? 'text-amber-400' : 'text-white'
+        }`}>
+          {formatNumero(minutoTabellone)}:{formatNumero(secondiRimanenti)}
+        </div>
+
+        {/* Indicatore visivo esplicito per l'extra-time oltre i 45' o i 90' */}
+        {isInRecupero && (
+          <div className="mt-1 text-xs font-mono font-bold text-amber-400 bg-amber-950/40 border border-amber-500/30 inline-block px-3 py-1 rounded-full uppercase">
+            Tempo Addizionale: +{formatNumero(minutiExtra)}:{formatNumero(secondiExtraRimanenti)} 
+            {recupero > 0 && ` / ${recupero}'`}
+          </div>
+        )}
       </div>
 
-      {/* Barra Selettore Velocità (1x, 2x, 5x, 10x) */}
+      {/* Selettore Velocità per simulare / velocizzare la partita */}
       <div className="flex items-center justify-between bg-slate-950 p-2 rounded-xl border border-slate-800 text-xs">
         <span className="text-slate-400 font-bold flex items-center gap-1.5 pl-1 uppercase text-[11px]">
           <Gauge className="w-4 h-4 text-emerald-400" /> Velocità:
@@ -116,7 +142,7 @@ export default function Cronometro({
         </div>
       </div>
 
-      {/* Controlli Principali: Avvia / Stoppa + Recupero */}
+      {/* Controlli Principali: Avvia / Stoppa + Aggiunta Recupero */}
       <div className="grid grid-cols-3 gap-2">
         {inEsecuzione ? (
           <button
@@ -140,6 +166,7 @@ export default function Cronometro({
           type="button"
           onClick={() => setRecupero((prev) => prev + 1)}
           className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-3 rounded-xl font-bold flex items-center justify-center gap-1 text-sm uppercase"
+          title="Aggiungi 1 minuto di recupero ufficiale"
         >
           <Plus className="w-4 h-4" /> 1' Rec
         </button>
@@ -164,14 +191,14 @@ export default function Cronometro({
         </button>
       </div>
 
-      {/* Tasto Fine Tempo / Partita */}
+      {/* Passaggio 2° Tempo o Chiusura Partita */}
       <div className="pt-1">
         <button
           type="button"
           onClick={cambiaFase}
           className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 py-2.5 rounded-xl font-medium text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition"
         >
-          {tempo === 1 ? 'Passa al 2° Tempo' : 'Termina Partita'}
+          {tempo === 1 ? 'Passa al 2° Tempo (da 45\')' : 'Termina Partita (Referto)'}
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
