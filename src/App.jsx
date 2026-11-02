@@ -13,7 +13,8 @@ import {
   registraEventoCloud, 
   eliminaEventoCloud, 
   aggiornaGiocatoriCloud,
-  salvaRosaBaseSocieta 
+  salvaRosaBaseSocieta,
+  getSocietaById
 } from './services/db';
 import { supabase } from './supabaseClient';
 import { ArrowLeft, Shield, LogIn, FileText, Radio, MapPin, CheckCircle2, UserCircle2, ArrowLeftRight } from 'lucide-react';
@@ -62,23 +63,28 @@ export default function App() {
     });
   }, []);
 
-  // Caricamento partita direttamente dal Cloud
+  // Caricamento partita direttamente dal Cloud con dati sempre freschi della società
   const avviaSessioneSocieta = async (soc) => {
-    setSocietaAttiva(soc);
-    const idPartita = `${soc.id}_PARTITA_LIVE`;
+    // 1. Rileggi i dati freschi della società dal DB
+    const socFresca = await getSocietaById(soc.id) || soc;
+    setSocietaAttiva(socFresca);
+
+    const idPartita = `${socFresca.id}_PARTITA_LIVE`;
     const stato = await caricaStatoPartita(idPartita);
 
-    // Se esiste già una rosa permanente memorizzata per la società, la usiamo come base
-    const rosaBaseSocieta = (soc.rosa_base && soc.rosa_base.length > 0)
-      ? soc.rosa_base.map(g => ({ ...g, nome: (g.nome || '').toUpperCase() }))
+    // 2. Prendi la rosa e lo staff base memorizzati
+    const rosaBaseSocieta = (socFresca.rosa_base && socFresca.rosa_base.length > 0)
+      ? socFresca.rosa_base.map(g => ({ ...g, nome: (g.nome || '').toUpperCase() }))
       : [];
+
+    const staffBase = socFresca.staff_base || {};
 
     if (stato && stato.partita && stato.partita.stato === 'in-corso') {
       const pInfo = {
-        squadraCasa: (stato.partita.squadra_casa || soc.nome || '').toUpperCase(),
+        squadraCasa: (stato.partita.squadra_casa || socFresca.nome || '').toUpperCase(),
         squadraOspite: (stato.partita.squadra_ospite || '').toUpperCase(),
-        allenatore: (stato.partita.allenatore || soc.staff_base?.allenatore || '').toUpperCase(),
-        dirigente: (stato.partita.dirigente || soc.staff_base?.dirigente || '').toUpperCase()
+        allenatore: (stato.partita.allenatore || staffBase.allenatore || '').toUpperCase(),
+        dirigente: (stato.partita.dirigente || staffBase.dirigente || '').toUpperCase()
       };
       setPartitaInfo(pInfo);
       setGolCasa(stato.partita.gol_casa || 0);
@@ -118,10 +124,10 @@ export default function App() {
     } else {
       // Nuova gara: la rosa base e lo staff rimangono, l'avversario è vuoto
       setPartitaInfo({
-        squadraCasa: (soc.nome || '').toUpperCase(),
+        squadraCasa: (socFresca.nome || '').toUpperCase(),
         squadraOspite: '',
-        allenatore: (soc.staff_base?.allenatore || '').toUpperCase(),
-        dirigente: (soc.staff_base?.dirigente || '').toUpperCase()
+        allenatore: (staffBase.allenatore || '').toUpperCase(),
+        dirigente: (staffBase.dirigente || '').toUpperCase()
       });
       setRosa(rosaBaseSocieta);
       setEventi([]);
@@ -129,7 +135,7 @@ export default function App() {
     }
   };
 
-  // Login
+  // Login: supporta password manager nativo del browser
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -236,7 +242,7 @@ export default function App() {
     }
   };
 
-  // Conferma Distinta: salva la partita live E memorizza la rosa e lo staff in modo permanente
+  // Conferma Distinta: salva per la gara live E memorizza permanentemente la rosa e lo staff
   const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
@@ -245,7 +251,7 @@ export default function App() {
     // 1. Salva la distinta per il live match
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatori);
 
-    // 2. Salva la rosa e lo staff come predefiniti per tutte le partite future
+    // 2. Salva stabilmente la rosa e lo staff per tutte le partite future
     await salvaRosaBaseSocieta(societaAttiva.id, giocatori, {
       allenatore: pInfo.allenatore,
       dirigente: pInfo.dirigente
@@ -311,6 +317,7 @@ export default function App() {
     });
   };
 
+  // Disconnessione
   const disconnetti = () => {
     setUtenteConnesso(null);
     setSocietaAttiva(null);
@@ -362,6 +369,7 @@ export default function App() {
               </select>
             </div>
 
+            {/* Username preserva minuscolo/maiuscolo digitato */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Username</label>
               <input
@@ -377,6 +385,7 @@ export default function App() {
               />
             </div>
 
+            {/* Password preserva minuscolo/maiuscolo digitato */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Password</label>
               <input
@@ -427,6 +436,7 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* BADGE UTENTE CONNESSO IN EVIDENZA */}
               <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
                 <UserCircle2 className="w-4 h-4 text-emerald-400" />
                 <div className="text-left">
