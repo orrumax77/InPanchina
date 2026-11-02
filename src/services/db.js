@@ -233,3 +233,36 @@ export async function adminAggiornaStatoSocieta(societaId, { attiva, dataScadenz
   if (error) throw error;
   return data;
 }
+
+// Elimina una società e tutti i dati correlati (a cascata)
+export async function adminEliminaSocietaCompleta(societaId) {
+  // Pulizia manuale di sicurezza nel caso i constraint non fossero attivi
+  await supabase.from('eventi').delete().in(
+    'partita_id',
+    (await supabase.from('partite').select('id').eq('societa_id', societaId)).data?.map(p => p.id) || []
+  );
+  await supabase.from('giocatori').delete().eq('societa_id', societaId);
+  await supabase.from('partite').delete().eq('societa_id', societaId);
+  await supabase.from('utenti_panchina').delete().eq('societa_id', societaId);
+  
+  const { error } = await supabase.from('societa').delete().eq('id', societaId);
+  if (error) throw error;
+  return { success: true };
+}
+
+// Elimina un singolo utente dirigente
+export async function adminEliminaUtente(utenteId) {
+  const { error } = await supabase.from('utenti_panchina').delete().eq('id', utenteId);
+  if (error) throw error;
+  return { success: true };
+}
+
+// Modifica la password di un utente
+export async function adminModificaPasswordUtente(utenteId, nuovaPassword) {
+  const { error } = await supabase
+    .from('utenti_panchina')
+    .update({ password_chiaro: nuovaPassword.trim() })
+    .eq('id', utenteId);
+  if (error) throw error;
+  return { success: true };
+}
