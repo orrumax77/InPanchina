@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { FileText, Copy, Share2, Check, ArrowLeft } from 'lucide-react';
+import { FileText, Copy, Share2, Check, ArrowLeft, CheckCircle2, RotateCcw } from 'lucide-react';
 
-export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspiti, eventi, giocatori, onChiudi }) {
+export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspiti, eventi, giocatori, onChiudi, onTerminaEResetta }) {
   const [copiato, setCopiato] = useState(false);
+  const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
   const golEventi = eventi.filter(e => e.tipo === 'GOL');
   const ammoniti = giocatori.filter(g => g.ammonizioni > 0 && !g.espulso);
@@ -11,6 +12,7 @@ export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspi
 
   const generaTestoReferto = () => {
     let t = `📋 *REFERTO GARA - InPanchina*\n`;
+    t += `📅 *Data:* ${partitaInfo?.dataPartita ? partitaInfo.dataPartita.split('-').reverse().join('/') : ''}\n`;
     t += `🏆 *${(societaNome || '').toUpperCase()}*\n`;
     t += `⚽ *${(partitaInfo?.squadraCasa || 'CASA').toUpperCase()} ${golCasa} - ${golOspiti} ${(partitaInfo?.squadraOspite || 'OSPITI').toUpperCase()}*\n\n`;
 
@@ -65,6 +67,19 @@ export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspi
     window.open(url, '_blank');
   };
 
+  const handleTerminaConferma = async () => {
+    const conferma = window.confirm(
+      "Vuoi terminare definitivamente la partita e archiviarla nello storico?\n\nIl live verrà azzerato e preparato per la prossima gara (la rosa rimarrà intatta)."
+    );
+    if (!conferma) return;
+
+    setSalvataggioInCorso(true);
+    if (onTerminaEResetta) {
+      await onTerminaEResetta();
+    }
+    setSalvataggioInCorso(false);
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -84,12 +99,14 @@ export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspi
           <FileText className="w-5 h-5 text-emerald-400" /> Riepilogo Referto Gara
         </h2>
 
-        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
           {testoReferto}
         </div>
 
-        <div className="grid grid-cols-2 gap-3 pt-2">
+        {/* Tasti Copia e WhatsApp */}
+        <div className="grid grid-cols-2 gap-3">
           <button
+            type="button"
             onClick={handleCopia}
             className="p-3.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center gap-2 transition border border-slate-700 uppercase"
           >
@@ -105,11 +122,32 @@ export default function RefertoGara({ partitaInfo, societaNome, golCasa, golOspi
           </button>
 
           <button
+            type="button"
             onClick={handleWhatsApp}
             className="p-3.5 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-950 uppercase"
           >
             <Share2 className="w-4 h-4" /> WhatsApp
           </button>
+        </div>
+
+        {/* TASTO TERMINA LIVE E ARCHIVIA */}
+        <div className="pt-2 border-t border-slate-800">
+          <button
+            type="button"
+            onClick={handleTerminaConferma}
+            disabled={salvataggioInCorso}
+            className="w-full py-4 rounded-xl font-black text-sm uppercase tracking-wider bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center gap-2 transition shadow-xl shadow-rose-950 cursor-pointer"
+          >
+            {salvataggioInCorso ? (
+              <CheckCircle2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <RotateCcw className="w-5 h-5" />
+            )}
+            Termina Live e Archivia per Prossima Partita
+          </button>
+          <p className="text-[11px] text-slate-500 text-center mt-2 uppercase">
+            Salva il referto nello storico e azzera il punteggio/eventi per la prossima domenica.
+          </p>
         </div>
       </div>
     </div>
