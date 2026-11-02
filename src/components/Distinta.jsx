@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserCheck, Shield, Plus, Users, Trash2 } from 'lucide-react';
+import { UserCheck, Shield, Plus, Users, Trash2, MapPin } from 'lucide-react';
 
 const DEFAULT_ROSA = [
   { id: '1', numero: '1', nome: 'Rossi Marco', ruolo: 'POR', isTitolare: true, isCapitano: false, isVice: false },
@@ -19,11 +19,11 @@ const DEFAULT_ROSA = [
   { id: '15', numero: '15', nome: 'Giordano Mattia', ruolo: 'ATT', isTitolare: false, isCapitano: false, isVice: false },
 ];
 
-export default function Distinta({ onConfermaDistinta }) {
+export default function Distinta({ onConfermaDistinta, societa }) {
   const [partitaInfo, setPartitaInfo] = useState(() => {
     const salvati = localStorage.getItem('panchina_partita_info');
     return salvati ? JSON.parse(salvati) : {
-      squadraCasa: 'ASD Nostra Squadra',
+      squadraCasa: societa?.nome || 'ASD Nostra Squadra',
       squadraOspite: 'Real Avversari',
       allenatore: 'M. Allegri',
       dirigente: 'G. Marotta'
@@ -99,9 +99,31 @@ export default function Distinta({ onConfermaDistinta }) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 space-y-6 bg-slate-900 text-slate-100 min-h-screen">
+    <div className="max-w-4xl mx-auto p-4 space-y-6 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
+      {/* Banner Intestazione con Logo Ufficiale Società */}
+      <div className="flex items-center gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
+        {societa?.logo_url ? (
+          <img
+            src={societa.logo_url}
+            alt="Logo Società"
+            className="w-16 h-16 rounded-full object-cover border-2 border-emerald-500/50 shadow-md flex-shrink-0"
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 flex-shrink-0">
+            <Shield className="w-8 h-8" />
+          </div>
+        )}
+        <div className="flex-1">
+          <h1 className="text-xl font-black text-white">{societa?.nome || 'Distinta di Gara'}</h1>
+          <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+            {societa?.indirizzo_campo || 'Campo Sportivo Ufficiale'}
+          </p>
+        </div>
+      </div>
+
       <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md">
-        <h2 className="text-xl font-bold flex items-center gap-2 mb-4 text-emerald-400">
+        <h2 className="text-lg font-bold flex items-center gap-2 mb-4 text-emerald-400">
           <Shield className="w-5 h-5" /> Configurazione Partita
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -111,7 +133,7 @@ export default function Distinta({ onConfermaDistinta }) {
               type="text"
               value={partitaInfo.squadraCasa}
               onChange={(e) => setPartitaInfo({ ...partitaInfo, squadraCasa: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white"
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm"
             />
           </div>
           <div>
@@ -120,7 +142,7 @@ export default function Distinta({ onConfermaDistinta }) {
               type="text"
               value={partitaInfo.squadraOspite}
               onChange={(e) => setPartitaInfo({ ...partitaInfo, squadraOspite: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white"
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm"
             />
           </div>
           <div>
@@ -129,7 +151,7 @@ export default function Distinta({ onConfermaDistinta }) {
               type="text"
               value={partitaInfo.allenatore}
               onChange={(e) => setPartitaInfo({ ...partitaInfo, allenatore: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white"
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm"
             />
           </div>
           <div>
@@ -138,7 +160,7 @@ export default function Distinta({ onConfermaDistinta }) {
               type="text"
               value={partitaInfo.dirigente}
               onChange={(e) => setPartitaInfo({ ...partitaInfo, dirigente: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white"
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm"
             />
           </div>
         </div>
@@ -152,7 +174,7 @@ export default function Distinta({ onConfermaDistinta }) {
             placeholder="10"
             value={nuovoNumero}
             onChange={(e) => setNuovoNumero(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-bold text-center"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-bold text-center text-sm"
           />
         </div>
         <div className="flex-1 min-w-[180px]">
@@ -162,7 +184,7 @@ export default function Distinta({ onConfermaDistinta }) {
             placeholder="Cognome Nome"
             value={nuovoNome}
             onChange={(e) => setNuovoNome(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white text-sm"
           />
         </div>
         <div className="w-28">
@@ -170,7 +192,7 @@ export default function Distinta({ onConfermaDistinta }) {
           <select
             value={nuovoRuolo}
             onChange={(e) => setNuovoRuolo(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white text-sm"
           >
             <option value="POR">POR</option>
             <option value="DIF">DIF</option>
@@ -180,7 +202,7 @@ export default function Distinta({ onConfermaDistinta }) {
         </div>
         <button
           type="submit"
-          className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-1 transition"
+          className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-1 transition text-sm"
         >
           <Plus className="w-4 h-4" /> Aggiungi
         </button>
@@ -191,7 +213,7 @@ export default function Distinta({ onConfermaDistinta }) {
           <h2 className="text-lg font-bold flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori
           </h2>
-          <span className={`px-3 py-1 rounded-full text-sm font-bold ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+          <span className={`px-3 py-1 rounded-full text-xs font-bold ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
             Titolari: {titolariCount} / 11
           </span>
         </div>
@@ -204,7 +226,7 @@ export default function Distinta({ onConfermaDistinta }) {
                   {g.numero}
                 </span>
                 <div>
-                  <span className="font-semibold text-white block">{g.nome}</span>
+                  <span className="font-semibold text-white block text-sm">{g.nome}</span>
                   <span className="text-xs text-slate-400 uppercase font-mono">{g.ruolo}</span>
                 </div>
               </div>
@@ -257,7 +279,7 @@ export default function Distinta({ onConfermaDistinta }) {
         <button
           onClick={() => onConfermaDistinta && onConfermaDistinta({ partitaInfo, giocatori })}
           disabled={titolariCount !== 11}
-          className={`w-full py-3.5 rounded-xl font-bold text-base uppercase tracking-wider flex justify-center items-center gap-2 transition ${
+          className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider flex justify-center items-center gap-2 transition ${
             titolariCount === 11
               ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-lg shadow-emerald-950'
               : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
