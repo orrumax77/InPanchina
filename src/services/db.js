@@ -33,7 +33,7 @@ export async function caricaStatoPartita(partitaId) {
   }
 }
 
-// Carica l'intera rosa salvata per la società (persistente sempre)
+// Carica l'intera rosa salvata per la società (persistente)
 export async function caricaRosaSocieta(societaId) {
   try {
     const { data, error } = await supabase
@@ -195,10 +195,6 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
     updated_at: new Date()
   };
 
-  if (dati.timerAvviatoIl !== undefined) {
-    updateData.timer_avviato_il = dati.timerAvviatoIl;
-  }
-
   await supabase.from('partite').update(updateData).eq('id', partitaId);
 }
 
@@ -267,6 +263,96 @@ export async function getSocietaById(societaId) {
     .single();
   if (error) return null;
   return data;
+}
+
+// ARCHIVIAZIONE DEFINITIVA PARTITA E RESET DEL LIVE
+export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori) {
+  try {
+    const storicoId = `STORICO_${societaId}_${Date.now()}`;
+
+    // 1. Salva la partita completata nello storico permanente
+    await supabase.from('partite').insert([{
+      id: storicoId,
+      societa_id: societaId,
+      squadra_casa: partitaInfo.squadraCasa,
+      squadra_ospite: partitaInfo.squadraOspite,
+      allenatore: partitaInfo.allenatore,
+      dirigente: partitaInfo.dirigente,
+      gol_casa: datiGara.golCasa,
+      gol_ospite: datiGara.golOspiti,
+      data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
+      stato: 'completata',
+      referto_eventi: eventi,
+      referto_giocatori: giocatori,
+      terminata_il: new Date().toISOString()
+    }]);
+
+    // 2. Resetta il record della partita LIVE per preparare la prossima
+    await supabase.from('partite').update({
+      squadra_ospite: '',
+      gol_casa: 0,
+      gol_ospite: 0,
+      tempo: 1,
+      secondi_gara: 0,
+      in_esecuzione: false,
+      recupero: 0,
+      minuto_corrente: 1,
+      slot_usati: 0,
+      cambi_effettuati: 0,
+      stato: 'bozza',
+      data_gara: new Date().toISOString().split('T')[0],
+      updated_at: new Date()
+    }).eq('id', livePartitaId);
+
+    // 3. Cancella gli eventi live della partita appena archiviata
+    await supabase.from('eventi').delete().eq('partita_id', livePartitaId);
+
+    // 4. Resetta ammonizioni ed espulsioni dei giocatori per la prossima partita
+    const resetGiocatori = giocatori.map(g => ({
+      ...g,
+      ammonizioni: 0,
+      espulso: false
+    }));
+    await aggiornaGiocatoriCloud(livePartitaId, societaId, resetGiocatori);
+
+    return { success: true, storicoId };
+  } catch (err) {
+    console.error('Errore archiviaPartitaEResettaLive:', err);
+    return { success: false, error: err };
+  }
+}
+
+// RECUPERO STORICO REFERTI DI UNA SOCIETA'
+export async function caricaStoricoReferti(societaId) {
+  try {
+    const { data, error } = await supabase
+      .from('partite')
+      .select('*')
+      .eq('societa_id', societaId)
+      .eq('stato', 'completata')
+      .order('terminata_il', { ascending: false });
+
+    if (error) {
+      console.error('Errore caricaStoricoReferti:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('Errore caricaStoricoReferti:', err);
+    return [];
+  }
+}
+
+// CANCELLAZIONE SINGOLO REFERTO DALLO STORICO
+export async function eliminaRefertoStorico(refertoId) {
+  try {
+    const { error } = await supabase.from('partite').delete().eq('id', refertoId);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Errore eliminaRefertoStorico:', err);
+    return false;
+  }
 }
 
 // --- GESTIONE LOGIN & SUPERADMIN ---
