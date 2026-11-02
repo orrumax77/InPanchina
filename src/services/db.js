@@ -297,3 +297,29 @@ export async function adminModificaPasswordUtente(utenteId, nuovaPassword) {
   if (error) throw error;
   return { success: true };
 }
+
+// Salva immediatamente le informazioni della partita di oggi (anche in bozza)
+export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
+  try {
+    const { data, error } = await supabase.from('partite').upsert({
+      id: partitaId,
+      societa_id: societaId,
+      squadra_casa: partitaInfo.squadraCasa || '',
+      squadra_ospite: partitaInfo.squadraOspite || '',
+      allenatore: partitaInfo.allenatore || '',
+      dirigente: partitaInfo.dirigente || '',
+      data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
+      is_nostra_casa: partitaInfo.isNostraCasa ?? true,
+      updated_at: new Date()
+    }).select().single();
+
+    if (error) {
+      console.error('Errore salvaBozzaPartitaSuDb:', error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error('Errore salvaBozzaPartitaSuDb:', err);
+    return null;
+  }
+}
