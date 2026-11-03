@@ -473,23 +473,22 @@ export default function App() {
       }
     }
 
-    // 3. ROLLBACK CARTELLINI: scala l'ammonizione o rimuove l'espulsione con ricalcolo esatto
+    // 3. ROLLBACK CARTELLINI: ricalcolo rigoroso basato sugli eventi rimanenti nel feed
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       if (eventoDaEliminare.giocatoreId) {
         let rosaAggiornata = [];
         setRosa(prevRosa => {
           rosaAggiornata = prevRosa.map(g => {
             if (g.id === eventoDaEliminare.giocatoreId) {
-              const nuoveAmm = eventoDaEliminare.tipo === 'AMMONIZIONE' 
-                ? Math.max(0, (g.ammonizioni || 0) - 1) 
-                : (g.ammonizioni || 0);
-              
-              const eraDoppiaAmm = eventoDaEliminare.dettagli?.toLowerCase().includes('doppia');
-              const ancoraEspulso = eraDoppiaAmm ? nuoveAmm >= 2 : (eventoDaEliminare.tipo === 'ESPULSIONE' ? false : g.espulso);
+              const eventiRimasti = eventi.filter(e => e.id !== id && e.giocatoreId === g.id);
+              const ammonizioniRimaste = eventiRimasti.filter(e => e.tipo === 'AMMONIZIONE').length;
+              const espulsioniRimaste = eventiRimasti.filter(e => e.tipo === 'ESPULSIONE').length;
+
+              const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniRimaste > 0;
 
               return {
                 ...g,
-                ammonizioni: nuoveAmm,
+                ammonizioni: ammonizioniRimaste,
                 espulso: ancoraEspulso,
                 isTitolare: !ancoraEspulso ? true : g.isTitolare
               };
