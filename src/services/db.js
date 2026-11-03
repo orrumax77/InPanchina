@@ -133,7 +133,7 @@ export async function dbAggiungiGiocatore(societaId, giocatore) {
 
     await supabase
       .from('societa')
-      .update({ rosa_base: nuovaRosa, updated_at: new Date() })
+      .update({ rosa_base: nuovaRosa })
       .eq('id', societaId);
   } catch (err) {
     console.error('Errore dbAggiungiGiocatore:', err);
@@ -179,7 +179,7 @@ export async function dbModificaGiocatore(societaId, giocatore) {
 
       await supabase
         .from('societa')
-        .update({ rosa_base: nuovaRosa, updated_at: new Date() })
+        .update({ rosa_base: nuovaRosa })
         .eq('id', societaId);
     }
   } catch (err) {
@@ -205,7 +205,7 @@ export async function dbEliminaGiocatore(societaId, giocatoreId) {
       const nuovaRosa = soc.rosa_base.filter(g => String(g.id) !== String(giocatoreId));
       await supabase
         .from('societa')
-        .update({ rosa_base: nuovaRosa, updated_at: new Date() })
+        .update({ rosa_base: nuovaRosa })
         .eq('id', societaId);
     }
   } catch (err) {
@@ -222,8 +222,7 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
       squadra_ospite: partitaInfo.squadraOspite,
       data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
       is_nostra_casa: partitaInfo.isNostraCasa ?? true,
-      stato: 'in-corso',
-      updated_at: new Date()
+      stato: 'in-corso'
     });
 
     const righeGiocatori = giocatori.map((g) => ({
@@ -248,7 +247,7 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-// SALVA LO STAFF ESCLUSIVAMENTE DENTRO staff_base (EVITA ERRORI PGRST204)
+// SALVA LO STAFF IN SOCIETA' INVIANDO SOLO staff_base (GARANTITO AL 100%)
 export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
   if (!societaId) return null;
   try {
@@ -277,17 +276,16 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       preparatorePortieri: partitaInfo.preparatorePortieri || ''
     };
 
-    // Invio protetto: aggiorna SOLO staff_base senza dipendere da colonne singole
+    // Aggiorna unicamente staff_base per evitare errori PGRST204
     const { error: errSoc } = await supabase
       .from('societa')
-      .update({
-        staff_base: staffAggiornato,
-        updated_at: new Date()
-      })
+      .update({ staff_base: staffAggiornato })
       .eq('id', societaId);
 
     if (errSoc) {
       console.error('Errore salvataggio staff in societa:', errSoc);
+    } else {
+      console.log('Staff salvato con successo in societa.staff_base');
     }
 
     if (partitaId) {
@@ -299,8 +297,7 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
           squadra_ospite: partitaInfo.squadraOspite || '',
           data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
           is_nostra_casa: partitaInfo.isNostraCasa ?? true,
-          stato: 'bozza',
-          updated_at: new Date()
+          stato: 'bozza'
         }, { onConflict: 'id' });
       } catch (errP) {
         console.warn('Avviso bozza partita:', errP);
@@ -337,8 +334,7 @@ export function salvaBozzaKeepalive(societaId, partitaInfo) {
         massaggiatore: partitaInfo.massaggiatore || '',
         preparatoreAtletico: partitaInfo.preparatoreAtletico || '',
         preparatorePortieri: partitaInfo.preparatorePortieri || ''
-      },
-      updated_at: new Date().toISOString()
+      }
     };
 
     fetch(`${supabaseUrl}/rest/v1/societa?id=eq.${societaId}`, {
@@ -368,8 +364,7 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
     recupero: dati.recupero,
     minuto_corrente: dati.minutoCorrente,
     slot_usati: dati.slotUsati,
-    cambi_effettuati: dati.cambiEffettuati,
-    updated_at: new Date()
+    cambi_effettuati: dati.cambiEffettuati
   };
 
   await supabase.from('partite').update(updateData).eq('id', partitaId);
@@ -409,7 +404,7 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
 
 export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
   try {
-    const payload = { updated_at: new Date() };
+    const payload = {};
 
     if (giocatori !== undefined) {
       payload.rosa_base = giocatori;
@@ -490,8 +485,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       slot_usati: 0,
       cambi_effettuati: 0,
       stato: 'bozza',
-      data_gara: new Date().toISOString().split('T')[0],
-      updated_at: new Date()
+      data_gara: new Date().toISOString().split('T')[0]
     }).eq('id', livePartitaId);
 
     const resetGiocatori = giocatori.map(g => ({
@@ -618,8 +612,7 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
     minuto_corrente: 1,
     slot_usati: 0,
     cambi_effettuati: 0,
-    data_gara: new Date().toISOString().split('T')[0],
-    updated_at: new Date()
+    data_gara: new Date().toISOString().split('T')[0]
   });
 
   return data;
