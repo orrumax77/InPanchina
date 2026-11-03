@@ -34,36 +34,16 @@ export async function caricaStatoPartita(partitaId) {
 }
 
 export async function caricaRosaSocieta(societaId) {
+  if (!societaId) return [];
   try {
-    // 1. Prova a caricare dalla tabella relazionale giocatori
-    const { data, error } = await supabase
-      .from('giocatori')
-      .select('*')
-      .eq('societa_id', societaId)
-      .order('numero', { ascending: true });
-
-    if (!error && data && data.length > 0) {
-      return data.map(g => ({
-        id: g.id.replace(`${societaId}_`, ''),
-        numero: String(g.numero),
-        nome: (g.nome || '').toUpperCase(),
-        ruolo: g.ruolo || '',
-        isTitolare: g.is_titolare,
-        isCapitano: g.isCapitano ?? g.is_capitano,
-        isVice: g.isVice ?? g.is_vice,
-        ammonizioni: g.ammonizioni || 0,
-        espulso: g.espulso || false
-      }));
-    }
-
-    // 2. Fallback: se la tabella giocatori è vuota, recupera rosa_base da societa
-    const { data: soc } = await supabase
+    // 1. Legge prima direttamente dalla tabella societa il campo rosa_base (il più affidabile e immediato)
+    const { data: soc, error: errSoc } = await supabase
       .from('societa')
       .select('rosa_base')
       .eq('id', societaId)
-      .single();
+      .maybeSingle();
 
-    if (soc?.rosa_base && Array.isArray(soc.rosa_base) && soc.rosa_base.length > 0) {
+    if (!errSoc && soc?.rosa_base && Array.isArray(soc.rosa_base) && soc.rosa_base.length > 0) {
       return soc.rosa_base.map(g => ({
         id: String(g.id),
         numero: String(g.numero),
@@ -77,6 +57,27 @@ export async function caricaRosaSocieta(societaId) {
       }));
     }
 
+    // 2. Se vuoto, cerca nella tabella giocatori
+    const { data: gList, error: errG } = await supabase
+      .from('giocatori')
+      .select('*')
+      .eq('societa_id', societaId)
+      .order('numero', { ascending: true });
+
+    if (!errG && gList && gList.length > 0) {
+      return gList.map(g => ({
+        id: g.id.replace(`${societaId}_`, ''),
+        numero: String(g.numero),
+        nome: (g.nome || '').toUpperCase(),
+        ruolo: g.ruolo || '',
+        isTitolare: g.is_titolare,
+        isCapitano: g.isCapitano ?? g.is_capitano,
+        isVice: g.isVice ?? g.is_vice,
+        ammonizioni: g.ammonizioni || 0,
+        espulso: g.espulso || false
+      }));
+    }
+
     return [];
   } catch (err) {
     console.error('Errore caricaRosaSocieta:', err);
@@ -85,7 +86,17 @@ export async function caricaRosaSocieta(societaId) {
 }
 
 export async function dbAggiungiGiocatore(societaId, giocatore) {
+  if (!societaId || !giocatore) return;
   try {
+    // 1. Assicura che la partita live esista prima di inserire nella tabella giocatori
+    await supabase.from('partite').upsert({
+      id: `${societaId}_PARTITA_LIVE`,
+      societa_id: societaId,
+      squadra_casa: societaId,
+      stato: 'bozza'
+    }, { onConflict: 'id' });
+
+    // 2. Inserisce nella tabella giocatori
     const riga = {
       id: `${societaId}_${giocatore.id}`,
       societa_id: societaId,
@@ -100,14 +111,43 @@ export async function dbAggiungiGiocatore(societaId, giocatore) {
       espulso: false
     };
 
-    const { error } = await supabase.from('giocatori').upsert(riga);
-    if (error) console.error('Errore dbAggiungiGiocatore:', error);
+    const { error: errG } = await supabase.from('giocatori').upsert(riga);
+    if (errG) console.error('Errore inserimento riga giocatore:', errG);
+
+    // 3. Aggiorna contemporaneamente anche il JSON rosa_base sulla tabella societa
+    const { data: soc } = await supabase
+      .from('societa')
+      .select('rosa_base')
+      .eq('id', societaId)
+      .single();
+
+    const rosaAttuale = Array.isArray(soc?.rosa_base) ? soc.rosa_base : [];
+    const nuovaRosa = [
+      ...rosaAttuale.filter(x => String(x.id) !== String(giocatore.id)),
+      {
+        id: String(giocatore.id),
+        numero: String(giocatore.numero),
+        nome: giocatore.nome.trim().toUpperCase(),
+        ruolo: '',
+        isTitolare: giocatore.isTitolare ?? false,
+        isCapitano: giocatore.isCapitano ?? false,
+        isVice: giocatore.isVice ?? false,
+        ammonizioni: 0,
+        espulso: false
+      }
+    ];
+
+    await supabase
+      .from('societa')
+      .update({ rosa_base: nuovaRosa, updated_at: new Date() })
+      .eq('id', societaId);
   } catch (err) {
     console.error('Errore dbAggiungiGiocatore:', err);
   }
 }
 
 export async function dbModificaGiocatore(societaId, giocatore) {
+  if (!societaId || !giocatore) return;
   try {
     const payload = {
       numero: giocatore.numero,
@@ -123,12 +163,41 @@ export async function dbModificaGiocatore(societaId, giocatore) {
       .eq('id', `${societaId}_${giocatore.id}`);
 
     if (error) console.error('Errore dbModificaGiocatore:', error);
+
+    // Aggiorna anche rosa_base nella tabella societa
+    const { data: soc } = await supabase
+      .from('societa')
+      .select('rosa_base')
+      .eq('id', societaId)
+      .single();
+
+    if (soc?.rosa_base && Array.isArray(soc.rosa_base)) {
+      const nuovaRosa = soc.rosa_base.map(g => {
+        if (String(g.id) === String(giocatore.id)) {
+          return {
+            ...g,
+            numero: String(giocatore.numero),
+            nome: giocatore.nome.trim().toUpperCase(),
+            isTitolare: giocatore.isTitolare,
+            isCapitano: giocatore.isCapitano,
+            isVice: giocatore.isVice
+          };
+        }
+        return g;
+      });
+
+      await supabase
+        .from('societa')
+        .update({ rosa_base: nuovaRosa, updated_at: new Date() })
+        .eq('id', societaId);
+    }
   } catch (err) {
     console.error('Errore dbModificaGiocatore:', err);
   }
 }
 
 export async function dbEliminaGiocatore(societaId, giocatoreId) {
+  if (!societaId || !giocatoreId) return;
   try {
     const { error } = await supabase
       .from('giocatori')
@@ -136,6 +205,21 @@ export async function dbEliminaGiocatore(societaId, giocatoreId) {
       .eq('id', `${societaId}_${giocatoreId}`);
 
     if (error) console.error('Errore dbEliminaGiocatore:', error);
+
+    // Rimuove anche da rosa_base nella tabella societa
+    const { data: soc } = await supabase
+      .from('societa')
+      .select('rosa_base')
+      .eq('id', societaId)
+      .single();
+
+    if (soc?.rosa_base && Array.isArray(soc.rosa_base)) {
+      const nuovaRosa = soc.rosa_base.filter(g => String(g.id) !== String(giocatoreId));
+      await supabase
+        .from('societa')
+        .update({ rosa_base: nuovaRosa, updated_at: new Date() })
+        .eq('id', societaId);
+    }
   } catch (err) {
     console.error('Errore dbEliminaGiocatore:', err);
   }
@@ -440,7 +524,7 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
   const dataScadenza = new Date();
   dataScadenza.setDate(dataScadenza.getDate() + 30);
 
-  // 1. Inserisce la società con rosa_base vuota
+  // 1. Inserisce la società inizializzando rosa_base vuota
   const { data, error } = await supabase.from('societa').upsert({
     id: societaId,
     codice_societa: codice.trim().toUpperCase(),
