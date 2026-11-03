@@ -18,7 +18,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
   const [partitaInfo, setPartitaInfo] = useState({
     squadraCasa: (partitaIniziale?.squadraCasa || staffSocieta.squadraCasa || societa?.nome || '').toUpperCase(),
-    squadraOspite: (partitaIniziale?.squadraOspite || staffSocieta.squadraOspite || '').toUpperCase(),
+    squadraOspite: (partitaIniziale?.squadraOspite || '').toUpperCase(), // <-- Svuotato per evitare residui della gara precedente
     allenatore: (partitaIniziale?.allenatore || staffSocieta.allenatore || societa?.allenatore_predefinito || '').toUpperCase(),
     allenatoreSeconda: (partitaIniziale?.allenatoreSeconda || staffSocieta.allenatoreSeconda || societa?.allenatore_seconda_predefinito || '').toUpperCase(),
     dirigente: (partitaIniziale?.dirigente || staffSocieta.dirigente || societa?.dirigente_predefinito || '').toUpperCase(),
@@ -96,14 +96,14 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     const prepAtlVal = (staff.preparatoreAtletico || partitaIniziale?.preparatoreAtletico || '').toUpperCase();
     const prepPortVal = (staff.preparatorePortieri || partitaIniziale?.preparatorePortieri || '').toUpperCase();
     const squadraCasaVal = (staff.squadraCasa || partitaIniziale?.squadraCasa || societa?.nome || '').toUpperCase();
-    const squadraOspiteVal = (staff.squadraOspite || partitaIniziale?.squadraOspite || '').toUpperCase();
+    const squadraOspiteVal = (partitaIniziale?.squadraOspite || '').toUpperCase(); // <-- Azzera se vuota
     const dataPartitaVal = partitaIniziale?.dataPartita || staff.dataPartita || oggiISO;
     const isNostraCasaVal = partitaIniziale?.isNostraCasa ?? staff.isNostraCasa ?? true;
 
     setPartitaInfo(prev => ({
       ...prev,
       squadraCasa: squadraCasaVal || prev.squadraCasa,
-      squadraOspite: squadraOspiteVal || prev.squadraOspite,
+      squadraOspite: squadraOspiteVal,
       allenatore: allenatoreVal || prev.allenatore,
       allenatoreSeconda: allenatoreSecVal || prev.allenatoreSeconda,
       dirigente: dirigenteVal || prev.dirigente,
@@ -514,7 +514,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </div>
         </div>
 
-        {/* Staff Tecnico & Dirigenziale Completo (9 Ruoli con Salvataggio Istantaneo e Keepalive) */}
+        {/* Staff Tecnico & Dirigenziale Completo */}
         <div className="pt-3 border-t border-slate-700/70 space-y-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase">
             <UserCog className="w-4 h-4 text-emerald-400" /> Staff Tecnico & Dirigenziale Ufficiale
