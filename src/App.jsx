@@ -291,6 +291,44 @@ export default function App() {
     });
   };
 
+  // AVANZAMENTO RAPIDO (+1 o +5 MIN) SENZA FERMARE IL CRONOMETRO
+  const gestisciAvanzamentoTempo = (secondiDelta, nuovoTotale) => {
+    const limiteMax = 45 * 60 + (recupero * 60);
+    const secondiFinali = Math.min(limiteMax, nuovoTotale);
+
+    setSecondiGara(secondiFinali);
+
+    if (inEsecuzione) {
+      setSecondiBase(prev => prev + secondiDelta);
+      syncStatoPartitaSuDb(partitaId, {
+        golCasa,
+        golOspiti,
+        tempoGara,
+        secondiGara: secondiFinali,
+        inEsecuzione: true,
+        avviatoAlle,
+        recupero,
+        minutoCorrente,
+        slotUsati,
+        cambiEffettuati
+      });
+    } else {
+      setSecondiBase(secondiFinali);
+      syncStatoPartitaSuDb(partitaId, {
+        golCasa,
+        golOspiti,
+        tempoGara,
+        secondiGara: secondiFinali,
+        inEsecuzione: false,
+        avviatoAlle: null,
+        recupero,
+        minutoCorrente,
+        slotUsati,
+        cambiEffettuati
+      });
+    }
+  };
+
   const cambiaFaseGara = (nuovoTempo) => {
     setModaleBloccoTempo(null);
 
@@ -689,7 +727,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* CRONOMETRO MULTI-DEVICE SINCRONIZZATO */}
+          {/* CRONOMETRO MULTI-DEVICE SINCRONIZZATO CON AVANZAMENTO SENZA STOP */}
           <Cronometro
             tempo={tempoGara}
             secondi={secondiGara}
@@ -699,6 +737,7 @@ export default function App() {
             secondiBase={secondiBase}
             onAvvia={avviaTimer}
             onPausa={mettiInPausaTimer}
+            onAvanzaTempo={gestisciAvanzamentoTempo}
             onFinePrimoTempo={() => cambiaFaseGara(2)}
             onFinePartita={() => cambiaFaseGara('fine')}
             recupero={recupero}
