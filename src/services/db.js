@@ -36,7 +36,7 @@ export async function caricaStatoPartita(partitaId) {
 export async function caricaRosaSocieta(societaId) {
   if (!societaId) return [];
   try {
-    // 1. Legge prima direttamente dalla tabella societa il campo rosa_base (il più affidabile e immediato)
+    // 1. Legge prima dal JSONB rosa_base di societa (immediato e permanente)
     const { data: soc, error: errSoc } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -57,7 +57,7 @@ export async function caricaRosaSocieta(societaId) {
       }));
     }
 
-    // 2. Fallback: cerca nella tabella relazionale giocatori
+    // 2. Fallback: tabella relazionale giocatori
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
@@ -256,10 +256,10 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-// SALVA LA BOZZA PARTITA SU "partite" E NELLA "societa" COSI' RIMANE SEMPRE DISPONIBILE
+// SALVATAGGIO BOZZA: SALVA ANCHE L'INTERO STAFF E PARTITA DENTRO staff_base DI societa
 export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
+  if (!societaId) return null;
   try {
-    // 1. Salva nella tabella partite
     await supabase.from('partite').upsert({
       id: partitaId,
       societa_id: societaId,
@@ -275,7 +275,6 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       updated_at: new Date()
     });
 
-    // 2. Salva nel record della SOCIETA' dentro staff_base (persistenza identica ad allenatore e rosa)
     const { data: soc } = await supabase.from('societa').select('staff_base').eq('id', societaId).single();
     const staffAttuale = soc?.staff_base || {};
 
@@ -363,7 +362,6 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
   await supabase.from('giocatori').upsert(righe);
 }
 
-// SALVA LO STAFF IN MODO ATOMICO E SICURO DENTRO staff_base
 export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
   try {
     const payload = { updated_at: new Date() };
