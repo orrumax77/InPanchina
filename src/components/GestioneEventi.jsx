@@ -423,7 +423,7 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* Modal Cartellino (Mostra tutti i non espulsi, con indicazione ammonizioni per poter correggere) */}
+      {/* Modal Cartellino */}
       {modalAmmonizione && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
@@ -464,11 +464,10 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* MODAL SOSTITUZIONE COMPLETO: 5 CAMBI, 3 SLOT, INTERVALLO E CAMBI MULTIPLI */}
+      {/* MODAL SOSTITUZIONE */}
       {modalSostituzione && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 max-w-2xl w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
-            {/* Header Modal */}
             <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-2.5 gap-2">
               <div>
                 <h4 className="text-sm font-black text-white uppercase flex items-center gap-2">
@@ -491,7 +490,6 @@ export default function GestioneEventi({
               </div>
             </div>
 
-            {/* Banner Regola Intervallo (0 Slot consumati) */}
             <div className="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -521,7 +519,6 @@ export default function GestioneEventi({
               </div>
             )}
 
-            {/* Liste a 2 colonne: Chi ESCE vs Chi ENTRA */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Colonna 1: Chi ESCE (Titolari) */}
               <div className="space-y-2">
@@ -612,7 +609,6 @@ export default function GestioneEventi({
               </div>
             </div>
 
-            {/* Anteprima del cambio attualmente selezionato */}
             {giocatoreEsce && giocatoreEntra && (
               <div className="space-y-2">
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs">
@@ -649,7 +645,6 @@ export default function GestioneEventi({
               </div>
             )}
 
-            {/* Elenco dei cambi raggruppati in questo slot */}
             {coppieInAttesa.length > 0 && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
                 <span className="text-[11px] font-bold text-slate-400 uppercase block">
@@ -677,7 +672,6 @@ export default function GestioneEventi({
               </div>
             )}
 
-            {/* Pulsanti Azione */}
             <div className="flex gap-2.5 pt-1">
               <button
                 type="button"
