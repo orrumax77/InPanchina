@@ -97,17 +97,20 @@ export default function App() {
     }
 
     const staffBase = socFresca.staff_base || {};
+    
+    // TUTTI I CAMPI DI PARTITA DI OGGI VENGONO RECUPERATI DA staff_base (STESSA LOGICA DELLA ROSA)
     const allenatoreBase = (socFresca.allenatore_predefinito || staffBase.allenatore || '').toUpperCase();
     const allenatoreSecondaBase = (socFresca.allenatore_seconda_predefinito || staffBase.allenatoreSeconda || '').toUpperCase();
     const dirigenteBase = (socFresca.dirigente_predefinito || staffBase.dirigente || '').toUpperCase();
     const dirigenteUfficialiBase = (socFresca.dirigente_ufficiali_predefinito || staffBase.dirigenteUfficiali || '').toUpperCase();
     const assistenteArbitroBase = (socFresca.assistente_arbitro_predefinito || staffBase.assistenteArbitro || '').toUpperCase();
-    
-    // NUOVI RUOLI DELLO STAFF TECNICO & DIRIGENZIALE
-    const medicoSocialeBase = (socFresca.medico_sociale_predefinito || staffBase.medicoSociale || '').toUpperCase();
-    const massaggiatoreBase = (socFresca.massaggiatore_predefinito || staffBase.massaggiatore || '').toUpperCase();
-    const preparatoreAtleticoBase = (socFresca.preparatore_atletico_predefinito || staffBase.preparatoreAtletico || '').toUpperCase();
-    const preparatorePortieriBase = (socFresca.preparatore_portieri_predefinito || staffBase.preparatorePortieri || '').toUpperCase();
+    const medicoSocialeBase = (staffBase.medicoSociale || '').toUpperCase();
+    const massaggiatoreBase = (staffBase.massaggiatore || '').toUpperCase();
+    const preparatoreAtleticoBase = (staffBase.preparatoreAtletico || '').toUpperCase();
+    const preparatorePortieriBase = (staffBase.preparatorePortieri || '').toUpperCase();
+    const squadraOspiteBase = (staffBase.squadraOspite || '').toUpperCase();
+    const isNostraCasaBase = staffBase.isNostraCasa ?? true;
+    const dataPartitaBase = staffBase.dataPartita || new Date().toISOString().split('T')[0];
 
     const stato = await caricaStatoPartita(idPartita);
     setRosa(rosaSalvataNelDb || []);
@@ -115,18 +118,18 @@ export default function App() {
     if (stato && stato.partita && stato.partita.stato === 'in-corso') {
       const pInfo = {
         squadraCasa: (stato.partita.squadra_casa || socFresca.nome || '').toUpperCase(),
-        squadraOspite: (stato.partita.squadra_ospite || '').toUpperCase(),
+        squadraOspite: (stato.partita.squadra_ospite || squadraOspiteBase).toUpperCase(),
         allenatore: (stato.partita.allenatore || allenatoreBase).toUpperCase(),
         allenatoreSeconda: (stato.partita.allenatore_seconda || allenatoreSecondaBase).toUpperCase(),
         dirigente: (stato.partita.dirigente || dirigenteBase).toUpperCase(),
         dirigenteUfficiali: (stato.partita.dirigente_ufficiali || dirigenteUfficialiBase).toUpperCase(),
         assistenteArbitro: (stato.partita.assistente_arbitro || assistenteArbitroBase).toUpperCase(),
-        medicoSociale: (stato.partita.medico_sociale || medicoSocialeBase).toUpperCase(),
-        massaggiatore: (stato.partita.massaggiatore || massaggiatoreBase).toUpperCase(),
-        preparatoreAtletico: (stato.partita.preparatore_atletico || preparatoreAtleticoBase).toUpperCase(),
-        preparatorePortieri: (stato.partita.preparatore_portieri || preparatorePortieriBase).toUpperCase(),
-        dataPartita: stato.partita.data_gara || new Date().toISOString().split('T')[0],
-        isNostraCasa: stato.partita.is_nostra_casa ?? true
+        medicoSociale: medicoSocialeBase,
+        massaggiatore: massaggiatoreBase,
+        preparatoreAtletico: preparatoreAtleticoBase,
+        preparatorePortieri: preparatorePortieriBase,
+        dataPartita: stato.partita.data_gara || dataPartitaBase,
+        isNostraCasa: stato.partita.is_nostra_casa ?? isNostraCasaBase
       };
 
       setPartitaInfo(pInfo);
@@ -158,20 +161,21 @@ export default function App() {
       setSalvataggioInCorso(false);
       setFaseApp('partita');
     } else {
+      // In modalità bozza/distinta: recupera tutto da staff_base salvato
       const pInfo = {
-        squadraCasa: (stato?.partita?.squadra_casa || socFresca.nome || '').toUpperCase(),
-        squadraOspite: (stato?.partita?.squadra_ospite || '').toUpperCase(),
+        squadraCasa: (stato?.partita?.squadra_casa || staffBase.squadraCasa || socFresca.nome || '').toUpperCase(),
+        squadraOspite: (stato?.partita?.squadra_ospite || squadraOspiteBase).toUpperCase(),
         allenatore: (stato?.partita?.allenatore || allenatoreBase).toUpperCase(),
         allenatoreSeconda: (stato?.partita?.allenatore_seconda || allenatoreSecondaBase).toUpperCase(),
         dirigente: (stato?.partita?.dirigente || dirigenteBase).toUpperCase(),
         dirigenteUfficiali: (stato?.partita?.dirigente_ufficiali || dirigenteUfficialiBase).toUpperCase(),
         assistenteArbitro: (stato?.partita?.assistente_arbitro || assistenteArbitroBase).toUpperCase(),
-        medicoSociale: (stato?.partita?.medico_sociale || medicoSocialeBase).toUpperCase(),
-        massaggiatore: (stato?.partita?.massaggiatore || massaggiatoreBase).toUpperCase(),
-        preparatoreAtletico: (stato?.partita?.preparatore_atletico || preparatoreAtleticoBase).toUpperCase(),
-        preparatorePortieri: (stato?.partita?.preparatore_portieri || preparatorePortieriBase).toUpperCase(),
-        dataPartita: stato?.partita?.data_gara || new Date().toISOString().split('T')[0],
-        isNostraCasa: stato?.partita?.is_nostra_casa ?? true
+        medicoSociale: medicoSocialeBase,
+        massaggiatore: massaggiatoreBase,
+        preparatoreAtletico: preparatoreAtleticoBase,
+        preparatorePortieri: preparatorePortieriBase,
+        dataPartita: stato?.partita?.data_gara || dataPartitaBase,
+        isNostraCasa: stato?.partita?.is_nostra_casa ?? isNostraCasaBase
       };
 
       setPartitaInfo(pInfo);
@@ -383,6 +387,10 @@ export default function App() {
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatori);
 
     await salvaRosaBaseSocieta(societaAttiva.id, giocatori, {
+      squadraCasa: pInfo.squadraCasa,
+      squadraOspite: pInfo.squadraOspite,
+      dataPartita: pInfo.dataPartita,
+      isNostraCasa: pInfo.isNostraCasa,
       allenatore: pInfo.allenatore,
       allenatoreSeconda: pInfo.allenatoreSeconda,
       dirigente: pInfo.dirigente,
