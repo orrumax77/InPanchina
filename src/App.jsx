@@ -319,6 +319,7 @@ export default function App() {
     });
   };
 
+  // AVANZAMENTO RAPIDO (+1 o +5 MIN) CON RE-ANCHORING PERFETTO DEL TIMER
   const gestisciAvanzamentoTempo = (secondiDelta, nuovoTotale) => {
     const limiteMax = 45 * 60 + (recupero * 60);
     const secondiFinali = Math.min(limiteMax, nuovoTotale);
@@ -326,14 +327,19 @@ export default function App() {
     setSecondiGara(secondiFinali);
 
     if (inEsecuzione) {
-      setSecondiBase(prev => prev + secondiDelta);
+      // Se il cronometro sta girando, aggiorniamo l'ancora temporale (avviatoAlle a 'adesso') 
+      // e impostiamo i secondiBase al nuovo totale esatto, azzerando qualsiasi drift.
+      const adessoISO = new Date().toISOString();
+      setAvviatoAlle(adessoISO);
+      setSecondiBase(secondiFinali);
+
       syncStatoPartitaSuDb(partitaId, {
         golCasa,
         golOspiti,
         tempoGara,
         secondiGara: secondiFinali,
         inEsecuzione: true,
-        avviatoAlle,
+        avviatoAlle: adessoISO,
         recupero,
         minutoCorrente,
         slotUsati,
@@ -355,7 +361,6 @@ export default function App() {
       });
     }
   };
-
   const cambiaFaseGara = (nuovoTempo) => {
     setModaleBloccoTempo(null);
 
