@@ -43,6 +43,7 @@ export default function App() {
   const [societaAttiva, setSocietaAttiva] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
+  // UNICO dato salvato in localStorage: il nome utente esatto senza maiuscole forzate
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
   const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
@@ -97,7 +98,7 @@ export default function App() {
 
     const staffBase = socFresca.staff_base || {};
     
-    // TUTTI I CAMPI DI PARTITA DI OGGI RECUPERATI DA staff_base (IDENTICA LOGICA DELLA ROSA)
+    // RECUPERO COMPLETO DI TUTTI I RUOLI DA staff_base (IDENTICA LOGICA DELLA ROSA)
     const allenatoreBase = (socFresca.allenatore_predefinito || staffBase.allenatore || '').toUpperCase();
     const allenatoreSecondaBase = (socFresca.allenatore_seconda_predefinito || staffBase.allenatoreSeconda || '').toUpperCase();
     const dirigenteBase = (socFresca.dirigente_predefinito || staffBase.dirigente || '').toUpperCase();
