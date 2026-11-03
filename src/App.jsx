@@ -449,6 +449,7 @@ export default function App() {
   };
 
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E DEFINITIVO (GOL, CAMBI E CARTELLINI)
+  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E AZZERAMENTO CARTOLINE
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
@@ -466,8 +467,8 @@ export default function App() {
       setGolOspiti(nuovoOspiti);
 
       syncStatoPartitaSuDb(partitaId, {
-        golCasa: nuevoCasa,
-        golOspiti: nuevoOspiti,
+        golCasa: nuovoCasa,
+        golOspiti: nuovoOspiti,
         tempoGara,
         secondiGara,
         inEsecuzione,
@@ -479,7 +480,7 @@ export default function App() {
       });
     }
 
-    // 2. ROLLBACK CAMBIO / SOSTITUZIONE (Storno cambi, slot e ripristino titolarità esatta)
+    // 2. ROLLBACK CAMBIO / SOSTITUZIONE
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       const nuoviCambi = Math.max(0, cambiEffettuati - 1);
       setCambiEffettuati(nuoviCambi);
@@ -493,7 +494,7 @@ export default function App() {
       if (eventoDaEliminare.esceId && eventoDaEliminare.entraId) {
         setRosa(prevRosa => prevRosa.map(g => {
           if (g.id === eventoDaEliminare.esceId) return { ...g, isTitolare: true };
-          if (g.id === eventoDaEliminare.entraId) return { ...g, isTitolare: false };
+          if (g.id === eventoDaEntry?.entraId || g.id === eventoDaEliminare.entraId) return { ...g, isTitolare: false };
           return g;
         }));
       }
@@ -512,13 +513,15 @@ export default function App() {
       });
     }
 
-    // 3. ROLLBACK CARTELLINI (Ricalcolo basato sugli eventi rimanenti dopo l'esclusione di questo ID)
+    // 3. ROLLBACK CARTELLINI (AGGIORNAMENTO NUMERICO ESATTO GIALLI E ROSSI)
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       if (eventoDaEliminare.giocatoreId) {
+        // Escludiamo l'evento che stiamo eliminando dal conteggio
         const eventiRimasti = eventi.filter(e => e.id !== id);
         
         setRosa(prevRosa => prevRosa.map(g => {
           if (g.id === eventoDaEliminare.giocatoreId) {
+            // Contiamo quanti gialli (ammonizioni) e rossi (espulsioni) sono rimasti effettivamente nel feed per questo giocatore
             const ammonizioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'AMMONIZIONE').length;
             const espulsioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'ESPULSIONE').length;
 
@@ -526,9 +529,9 @@ export default function App() {
 
             return {
               ...g,
-              ammonizioni: ammonizioniRimaste,
+              ammonizioni: ammonizioniRimaste, // <-- Aggiorna e azzera correttamente il contatore numerico dei gialli
               espulso: ancoraEspulso,
-              isTitolare: !ancoraEspulso ? true : g.isTitolare
+              isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
             };
           }
           return g;
@@ -538,6 +541,8 @@ export default function App() {
 
     const eventiAggiornati = eventi.filter(e => e.id !== id);
     setEventi(eventiAggiornati);
+    
+    // Sincronizziamo subito la rosa aggiornata nel database Cloud
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosa);
     await eliminaEventoCloud(id);
   };
