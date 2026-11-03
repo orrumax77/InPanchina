@@ -68,6 +68,7 @@ export default function Cronometro({
   secondiBase,      // Secondi accumulati prima dell'ultimo avvio
   onAvvia,
   onPausa,
+  onAvanzaTempo,    // Notifica ad App.jsx per l'avanzamento senza fermare il timer
   onFinePrimoTempo,
   onFinePartita,
   recupero,
@@ -99,6 +100,11 @@ export default function Cronometro({
   useEffect(() => {
     onPausaRef.current = onPausa;
   }, [onPausa]);
+
+  const onAvanzaTempoRef = useRef(onAvanzaTempo);
+  useEffect(() => {
+    onAvanzaTempoRef.current = onAvanzaTempo;
+  }, [onAvanzaTempo]);
 
   const onTriggerScadenzaRef = useRef(onTriggerScadenzaTempo);
   useEffect(() => {
@@ -142,10 +148,8 @@ export default function Cronometro({
         }
       };
 
-      // Aggiornamento immediato al montaggio o alla ricezione del payload realtime
       aggiornaTimerSincronizzato();
 
-      // Timer ad alta frequenza per garantire sincronia fluida
       const stepMs = Math.max(100, Math.floor(1000 / moltiplicatore));
       timer = setInterval(aggiornaTimerSincronizzato, stepMs);
     }
@@ -157,10 +161,28 @@ export default function Cronometro({
 
   const formatNumero = (num) => String(num).padStart(2, '0');
 
+  // Avanza il timer SENZA fermare l'esecuzione
   const avanzaSecondi = (secAggiuntivi) => {
     const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, secondi + secAggiuntivi);
     setSecondi(nuovo);
-    if (onPausaRef.current) onPausaRef.current(nuovo);
+
+    // Notifica ad App.jsx per aggiornare secondiBase e sincronizzare il DB senza stoppare
+    if (onAvanzaTempoRef.current) {
+      onAvanzaTempoRef.current(secAggiuntivi, nuovo);
+    }
+
+    const minAttuale = offsetMinutiPartita + Math.floor(nuovo / 60);
+    if (onTickRef.current) onTickRef.current(minAttuale);
+
+    // Va in pausa SOLO se si è raggiunto il limite massimo dei 45' + recupero
+    if (nuovo >= LIMITE_MASSIMO_CON_RECUPERO) {
+      if (onPausaRef.current) onPausaRef.current(nuovo);
+      if (!fischioGiaEseguito.current) {
+        fischioGiaEseguito.current = true;
+        riproduciFischioArbitro(tempo === 1 ? 'primo_tempo' : 'fine_gara');
+        if (onTriggerScadenzaRef.current) onTriggerScadenzaRef.current(tempo);
+      }
+    }
   };
 
   const cambiaFase = () => {
@@ -266,7 +288,7 @@ export default function Cronometro({
         </button>
       </div>
 
-      {/* Avanzamento Rapido Manuale */}
+      {/* Avanzamento Rapido Manuale (senza stop) */}
       <div className="grid grid-cols-2 gap-2 pt-1">
         <button
           type="button"
