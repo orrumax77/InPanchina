@@ -81,6 +81,7 @@ export default function App() {
 
   const avviaSessioneSocieta = async (soc) => {
     setSalvataggioInCorso(true);
+    // FORZA SEMPRE LA LETTURA FRESCA DAL DB
     const socFresca = (soc?.id ? await getSocietaById(soc.id) : null) || soc;
     setSocietaAttiva(socFresca);
 
@@ -114,7 +115,10 @@ export default function App() {
     const stato = await caricaStatoPartita(idPartita);
     setRosa(rosaSalvataNelDb || []);
 
-    if (stato && stato.partita && stato.partita.stato === 'in-corso') {
+    // CONTROLLO LIVE: Se la partita nel database risulta attiva o in corso, forza subito la schermata LIVE per chiunque entri
+    const partitaInCorsoCloud = stato && stato.partita && (stato.partita.stato === 'in-corso' || stato.partita.in_esecuzione || stato.partita.tempo > 0);
+
+    if (partitaInCorsoCloud) {
       const pInfo = {
         squadraCasa: (stato.partita.squadra_casa || squadraCasaBase).toUpperCase(),
         squadraOspite: (stato.partita.squadra_ospite || squadraOspiteBase).toUpperCase(),
@@ -158,7 +162,7 @@ export default function App() {
       setEventi(stato.eventi || []);
 
       setSalvataggioInCorso(false);
-      setFaseApp('partita');
+      setFaseApp('partita'); // <-- FORZA DIRETTAMENTE IL LIVE
     } else {
       const pInfo = {
         squadraCasa: (staffBase.squadraCasa || stato?.partita?.squadra_casa || socFresca.nome || '').toUpperCase(),
