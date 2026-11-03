@@ -105,7 +105,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
     setTimeout(() => {
       isLoaded.current = true;
-    }, 400);
+    }, 200);
   }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
 
   const mostraNotificaSalvataggio = () => {
@@ -140,25 +140,20 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     return String(num);
   };
 
+  // ESEGUE IL SALVATAGGIO IMMEDIATO SENZA ATTESE
+  const salvaSubitoSuCloud = async (infoDaSalvare) => {
+    if (!societa?.id) return;
+    await salvaBozzaPartitaSuDb(societa.id, partitaId, infoDaSalvare);
+    mostraNotificaSalvataggio();
+  };
+
   const salvaInfoPartitaCloud = (nuoveInfo) => {
     if (!societa?.id) return;
 
     if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
     infoDebounceRef.current = setTimeout(async () => {
-      await salvaBozzaPartitaSuDb(societa.id, partitaId, nuoveInfo);
-      await salvaRosaBaseSocieta(societa.id, undefined, {
-        allenatore: nuoveInfo.allenatore,
-        allenatoreSeconda: nuoveInfo.allenatoreSeconda,
-        dirigente: nuoveInfo.dirigente,
-        dirigenteUfficiali: nuoveInfo.dirigenteUfficiali,
-        assistenteArbitro: nuoveInfo.assistenteArbitro,
-        medicoSociale: nuoveInfo.medicoSociale,
-        massaggiatore: nuoveInfo.massaggiatore,
-        preparatoreAtletico: nuoveInfo.preparatoreAtletico,
-        preparatorePortieri: nuoveInfo.preparatorePortieri
-      });
-      mostraNotificaSalvataggio();
-    }, 300);
+      await salvaSubitoSuCloud(nuoveInfo);
+    }, 250);
   };
 
   const handleAggiornaCampo = (campo, valore) => {
@@ -166,6 +161,12 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     const nuoveInfo = { ...partitaInfo, [campo]: valoreFormattato };
     setPartitaInfo(nuoveInfo);
     salvaInfoPartitaCloud(nuoveInfo);
+  };
+
+  // QUANDO L'UTENTE ESCE DAL CAMPO DI TESTO, SALVA SUBITO SENZA DEBOUNCE
+  const handleBlurCampo = () => {
+    if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
+    salvaSubitoSuCloud(partitaInfo);
   };
 
   const invertiCasaTrasferta = () => {
@@ -176,7 +177,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isNostraCasa: !partitaInfo.isNostraCasa
     };
     setPartitaInfo(nuoveInfo);
-    salvaInfoPartitaCloud(nuoveInfo);
+    salvaSubitoSuCloud(nuoveInfo);
   };
 
   const formattaDataItaliana = (isoDate) => {
@@ -429,6 +430,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 type="date"
                 value={partitaInfo.dataPartita}
                 onChange={(e) => handleAggiornaCampo('dataPartita', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="opacity-0 w-0 h-0 absolute pointer-events-auto"
                 tabIndex={-1}
               />
@@ -451,6 +453,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
               placeholder="ES. SQUADRA CASA"
               value={partitaInfo.squadraCasa}
               onChange={(e) => handleAggiornaCampo('squadraCasa', e.target.value)}
+              onBlur={handleBlurCampo}
               className={`w-full bg-slate-950 border rounded-lg p-2.5 outline-none text-white text-sm uppercase font-semibold ${
                 partitaInfo.isNostraCasa ? 'border-emerald-500/50' : 'border-slate-700'
               }`}
@@ -477,6 +480,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
               placeholder="DIGITA SQUADRA AVVERSARIA"
               value={partitaInfo.squadraOspite}
               onChange={(e) => handleAggiornaCampo('squadraOspite', e.target.value)}
+              onBlur={handleBlurCampo}
               className={`w-full bg-slate-950 border rounded-lg p-2.5 outline-none text-white text-sm uppercase font-semibold ${
                 !partitaInfo.isNostraCasa ? 'border-emerald-500/50' : 'border-slate-700'
               }`}
@@ -498,6 +502,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. MARIO ROSSI"
                 value={partitaInfo.allenatore}
                 onChange={(e) => handleAggiornaCampo('allenatore', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
@@ -509,6 +514,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. PAOLO VERDI"
                 value={partitaInfo.allenatoreSeconda}
                 onChange={(e) => handleAggiornaCampo('allenatoreSeconda', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
@@ -520,6 +526,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. LUIGI BIANCHI"
                 value={partitaInfo.dirigente}
                 onChange={(e) => handleAggiornaCampo('dirigente', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
@@ -531,6 +538,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. ANDREA NERI"
                 value={partitaInfo.dirigenteUfficiali}
                 onChange={(e) => handleAggiornaCampo('dirigenteUfficiali', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
@@ -542,6 +550,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. GIOVANNI FERRARI"
                 value={partitaInfo.assistenteArbitro}
                 onChange={(e) => handleAggiornaCampo('assistenteArbitro', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
@@ -553,6 +562,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. DOTT. MARCO MANCINI"
                 value={partitaInfo.medicoSociale}
                 onChange={(e) => handleAggiornaCampo('medicoSociale', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
@@ -564,6 +574,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. LUCA COSTA"
                 value={partitaInfo.massaggiatore}
                 onChange={(e) => handleAggiornaCampo('massaggiatore', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
@@ -575,6 +586,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. MATTEO GALLI"
                 value={partitaInfo.preparatoreAtletico}
                 onChange={(e) => handleAggiornaCampo('preparatoreAtletico', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
@@ -586,6 +598,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. ROBERTO VILLA"
                 value={partitaInfo.preparatorePortieri}
                 onChange={(e) => handleAggiornaCampo('preparatorePortieri', e.target.value)}
+                onBlur={handleBlurCampo}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
