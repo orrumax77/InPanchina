@@ -220,11 +220,6 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
       societa_id: societaId,
       squadra_casa: partitaInfo.squadraCasa,
       squadra_ospite: partitaInfo.squadraOspite,
-      allenatore: partitaInfo.allenatore || '',
-      allenatore_seconda: partitaInfo.allenatoreSeconda || '',
-      dirigente: partitaInfo.dirigente || '',
-      dirigente_ufficiali: partitaInfo.dirigenteUfficiali || '',
-      assistente_arbitro: partitaInfo.assistenteArbitro || '',
       data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
       is_nostra_casa: partitaInfo.isNostraCasa ?? true,
       stato: 'in-corso',
@@ -253,7 +248,7 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-// SALVATAGGIO BOZZA: AGGIORNA PRIMA societa.staff_base, POI TENTA SU partite
+// SALVA LO STAFF ESCLUSIVAMENTE DENTRO staff_base (EVITA ERRORI PGRST204)
 export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
   if (!societaId) return null;
   try {
@@ -282,16 +277,11 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       preparatorePortieri: partitaInfo.preparatorePortieri || ''
     };
 
-    // 1. Salva subito nel record societario
+    // Invio protetto: aggiorna SOLO staff_base senza dipendere da colonne singole
     const { error: errSoc } = await supabase
       .from('societa')
       .update({
         staff_base: staffAggiornato,
-        allenatore_predefinito: partitaInfo.allenatore || '',
-        allenatore_seconda_predefinito: partitaInfo.allenatoreSeconda || '',
-        dirigente_predefinito: partitaInfo.dirigente || '',
-        dirigente_ufficiali_predefinito: partitaInfo.dirigenteUfficiali || '',
-        assistente_arbitro_predefinito: partitaInfo.assistenteArbitro || '',
         updated_at: new Date()
       })
       .eq('id', societaId);
@@ -300,7 +290,6 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       console.error('Errore salvataggio staff in societa:', errSoc);
     }
 
-    // 2. Aggiorna partita se esiste (protetto)
     if (partitaId) {
       try {
         await supabase.from('partite').upsert({
@@ -325,7 +314,6 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
   }
 }
 
-// SALVATAGGIO KEEPALIVE ALLA CHIUSURA IMPROVVISA DELLA SCHEDA/FINESTRA
 export function salvaBozzaKeepalive(societaId, partitaInfo) {
   if (!societaId || !partitaInfo) return;
   try {
@@ -350,11 +338,6 @@ export function salvaBozzaKeepalive(societaId, partitaInfo) {
         preparatoreAtletico: partitaInfo.preparatoreAtletico || '',
         preparatorePortieri: partitaInfo.preparatorePortieri || ''
       },
-      allenatore_predefinito: partitaInfo.allenatore || '',
-      allenatore_seconda_predefinito: partitaInfo.allenatoreSeconda || '',
-      dirigente_predefinito: partitaInfo.dirigente || '',
-      dirigente_ufficiali_predefinito: partitaInfo.dirigenteUfficiali || '',
-      assistente_arbitro_predefinito: partitaInfo.assistenteArbitro || '',
       updated_at: new Date().toISOString()
     };
 
@@ -444,12 +427,6 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
         ...staffPrecedente,
         ...staff
       };
-
-      if (staff.allenatore !== undefined) payload.allenatore_predefinito = staff.allenatore;
-      if (staff.allenatoreSeconda !== undefined) payload.allenatore_seconda_predefinito = staff.allenatoreSeconda;
-      if (staff.dirigente !== undefined) payload.dirigente_predefinito = staff.dirigente;
-      if (staff.dirigenteUfficiali !== undefined) payload.dirigente_ufficiali_predefinito = staff.dirigenteUfficiali;
-      if (staff.assistenteArbitro !== undefined) payload.assistente_arbitro_predefinito = staff.assistenteArbitro;
     }
 
     const { data, error } = await supabase
@@ -486,11 +463,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       societa_id: societaId,
       squadra_casa: partitaInfo.squadraCasa,
       squadra_ospite: partitaInfo.squadraOspite,
-      allenatore: partitaInfo.allenatore || '',
-      allenatore_seconda: partitaInfo.allenatoreSeconda || '',
-      dirigente: partitaInfo.dirigente || '',
-      dirigente_ufficiali: partitaInfo.dirigenteUfficiali || '',
-      assistente_arbitro: partitaInfo.assistenteArbitro || '',
       gol_casa: datiGara.golCasa,
       gol_ospite: datiGara.golOspiti,
       data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
