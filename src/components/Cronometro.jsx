@@ -163,14 +163,14 @@ export default function Cronometro({
 
   // Avanza il timer SENZA fermare l'esecuzione (con calcolo esatto del delta in secondi)
   const avanzaSecondi = (secAggiuntivi) => {
-    const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, secondi + secAggiuntivi);
+    const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, secondiTrascorsi + secAggiuntivi);
     setSecondi(nuovo);
 
-    // Notifica ad App.jsx per aggiornare secondiBase e sincronizzare il DB senza stoppare
     if (onAvanzaTempoRef.current) {
       onAvanzaTempoRef.current(secAggiuntivi, nuovo);
     }
-
+  };
+  
     const minAttuale = offsetMinutiPartita + Math.floor(nuovo / 60);
     if (onTickRef.current) onTickRef.current(minAttuale);
 
