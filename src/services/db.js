@@ -35,28 +35,49 @@ export async function caricaStatoPartita(partitaId) {
 
 export async function caricaRosaSocieta(societaId) {
   try {
+    // 1. Prova a caricare dalla tabella relazionale giocatori
     const { data, error } = await supabase
       .from('giocatori')
       .select('*')
       .eq('societa_id', societaId)
       .order('numero', { ascending: true });
 
-    if (error) {
-      console.error('Errore caricaRosaSocieta:', error);
-      return [];
+    if (!error && data && data.length > 0) {
+      return data.map(g => ({
+        id: g.id.replace(`${societaId}_`, ''),
+        numero: String(g.numero),
+        nome: (g.nome || '').toUpperCase(),
+        ruolo: g.ruolo || '',
+        isTitolare: g.is_titolare,
+        isCapitano: g.isCapitano ?? g.is_capitano,
+        isVice: g.isVice ?? g.is_vice,
+        ammonizioni: g.ammonizioni || 0,
+        espulso: g.espulso || false
+      }));
     }
 
-    return (data || []).map(g => ({
-      id: g.id.replace(`${societaId}_`, ''),
-      numero: String(g.numero),
-      nome: (g.nome || '').toUpperCase(),
-      ruolo: g.ruolo || '',
-      isTitolare: g.is_titolare,
-      isCapitano: g.isCapitano ?? g.is_capitano,
-      isVice: g.isVice ?? g.is_vice,
-      ammonizioni: g.ammonizioni || 0,
-      espulso: g.espulso || false
-    }));
+    // 2. Fallback: se la tabella giocatori è vuota, recupera rosa_base da societa
+    const { data: soc } = await supabase
+      .from('societa')
+      .select('rosa_base')
+      .eq('id', societaId)
+      .single();
+
+    if (soc?.rosa_base && Array.isArray(soc.rosa_base) && soc.rosa_base.length > 0) {
+      return soc.rosa_base.map(g => ({
+        id: String(g.id),
+        numero: String(g.numero),
+        nome: (g.nome || '').toUpperCase(),
+        ruolo: g.ruolo || '',
+        isTitolare: g.isTitolare ?? g.is_titolare ?? false,
+        isCapitano: g.isCapitano ?? g.is_capitano ?? false,
+        isVice: g.isVice ?? g.is_vice ?? false,
+        ammonizioni: g.ammonizioni || 0,
+        espulso: g.espulso || false
+      }));
+    }
+
+    return [];
   } catch (err) {
     console.error('Errore caricaRosaSocieta:', err);
     return [];
@@ -419,6 +440,7 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
   const dataScadenza = new Date();
   dataScadenza.setDate(dataScadenza.getDate() + 30);
 
+  // 1. Inserisce la società con rosa_base vuota
   const { data, error } = await supabase.from('societa').upsert({
     id: societaId,
     codice_societa: codice.trim().toUpperCase(),
@@ -427,10 +449,31 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
     logo_url: logoUrl || '',
     data_scadenza_prova: dataScadenza.toISOString(),
     attiva: true,
-    staff_base: {}
+    staff_base: {},
+    rosa_base: []
   }).select().single();
 
   if (error) throw error;
+
+  // 2. Crea subito la riga LIVE in partite per garantire l'integrità referenziale dei giocatori
+  await supabase.from('partite').upsert({
+    id: `${societaId}_PARTITA_LIVE`,
+    societa_id: societaId,
+    squadra_casa: nome.trim().toUpperCase(),
+    squadra_ospite: '',
+    stato: 'bozza',
+    tempo: 1,
+    secondi_gara: 0,
+    in_esecuzione: false,
+    avviato_alle: null,
+    recupero: 0,
+    minuto_corrente: 1,
+    slot_usati: 0,
+    cambi_effettuati: 0,
+    data_gara: new Date().toISOString().split('T')[0],
+    updated_at: new Date()
+  });
+
   return data;
 }
 
