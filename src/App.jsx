@@ -320,6 +320,7 @@ export default function App() {
   };
 
   // AVANZAMENTO RAPIDO (+1 o +5 MIN) CON RE-ANCHORING PERFETTO DEL TIMER
+  // AVANZAMENTO RAPIDO (+1 o +5 MIN) PRECISO AL SECONDO
   const gestisciAvanzamentoTempo = (secondiDelta, nuovoTotale) => {
     const limiteMax = 45 * 60 + (recupero * 60);
     const secondiFinali = Math.min(limiteMax, nuovoTotale);
@@ -327,8 +328,8 @@ export default function App() {
     setSecondiGara(secondiFinali);
 
     if (inEsecuzione) {
-      // Se il cronometro sta girando, aggiorniamo l'ancora temporale (avviatoAlle a 'adesso') 
-      // e impostiamo i secondiBase al nuovo totale esatto, azzerando qualsiasi drift.
+      // Fissiamo il nuovo punto di partenza esatto (secondiBase = nuovoTotale) 
+      // e resettiamo l'orologio di sincronizzazione azzerando i secondi trascorsi intermedi.
       const adessoISO = new Date().toISOString();
       setAvviatoAlle(adessoISO);
       setSecondiBase(secondiFinali);
@@ -361,6 +362,7 @@ export default function App() {
       });
     }
   };
+  
   const cambiaFaseGara = (nuovoTempo) => {
     setModaleBloccoTempo(null);
 
