@@ -21,6 +21,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     dirigente: (partitaIniziale?.dirigente || societa?.dirigente_predefinito || '').toUpperCase(),
     dirigenteUfficiali: (partitaIniziale?.dirigenteUfficiali || societa?.dirigente_ufficiali_predefinito || '').toUpperCase(),
     assistenteArbitro: (partitaIniziale?.assistenteArbitro || societa?.assistente_arbitro_predefinito || '').toUpperCase(),
+    medicoSociale: (partitaIniziale?.medicoSociale || societa?.medico_sociale_predefinito || '').toUpperCase(),
+    massaggiatore: (partitaIniziale?.massaggiatore || societa?.massaggiatore_predefinito || '').toUpperCase(),
+    preparatoreAtletico: (partitaIniziale?.preparatoreAtletico || societa?.preparatore_atletico_predefinito || '').toUpperCase(),
+    preparatorePortieri: (partitaIniziale?.preparatorePortieri || societa?.preparatore_portieri_predefinito || '').toUpperCase(),
     dataPartita: partitaIniziale?.dataPartita || oggiISO,
     isNostraCasa: partitaIniziale?.isNostraCasa ?? true
   });
@@ -56,6 +60,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     const dirigenteBase = (societa?.dirigente_predefinito || staffSalvato.dirigente || partitaIniziale?.dirigente || '').toUpperCase();
     const dirigenteUfficialiBase = (societa?.dirigente_ufficiali_predefinito || staffSalvato.dirigenteUfficiali || partitaIniziale?.dirigenteUfficiali || '').toUpperCase();
     const assistenteArbitroBase = (societa?.assistente_arbitro_predefinito || staffSalvato.assistenteArbitro || partitaIniziale?.assistenteArbitro || '').toUpperCase();
+    const medicoSocialeBase = (societa?.medico_sociale_predefinito || staffSalvato.medicoSociale || partitaIniziale?.medicoSociale || '').toUpperCase();
+    const massaggiatoreBase = (societa?.massaggiatore_predefinito || staffSalvato.massaggiatore || partitaIniziale?.massaggiatore || '').toUpperCase();
+    const preparatoreAtleticoBase = (societa?.preparatore_atletico_predefinito || staffSalvato.preparatoreAtletico || partitaIniziale?.preparatoreAtletico || '').toUpperCase();
+    const preparatorePortieriBase = (societa?.preparatore_portieri_predefinito || staffSalvato.preparatorePortieri || partitaIniziale?.preparatorePortieri || '').toUpperCase();
 
     setPartitaInfo(prev => ({
       ...prev,
@@ -66,6 +74,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       dirigente: dirigenteBase,
       dirigenteUfficiali: dirigenteUfficialiBase,
       assistenteArbitro: assistenteArbitroBase,
+      medicoSociale: medicoSocialeBase,
+      massaggiatore: massaggiatoreBase,
+      preparatoreAtletico: preparatoreAtleticoBase,
+      preparatorePortieri: preparatorePortieriBase,
       dataPartita: partitaIniziale?.dataPartita || prev.dataPartita || oggiISO,
       isNostraCasa: partitaIniziale?.isNostraCasa ?? prev.isNostraCasa ?? true
     }));
@@ -94,7 +106,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setTimeout(() => setSalvataggioNotifica(false), 2000);
   };
 
-  // Calcola il primo numero libero procedendo DAL SUCCESSIVO a partireDa
   const trovaSuccessivoNumeroLibero = (aPartireDa = null, idDaEscludere = null) => {
     const numeriOccupati = new Set(
       giocatori
@@ -109,7 +120,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     } else if (ultimoNumeroSelezionato !== null) {
       base = ultimoNumeroSelezionato + 1;
     } else if (giocatori.length > 0) {
-      // Se non c'è una selezione precedente, parti dal massimo presente + 1
       const numeriPresenti = Array.from(numeriOccupati);
       base = numeriPresenti.length > 0 ? Math.max(...numeriPresenti) + 1 : 1;
     } else {
@@ -134,7 +144,11 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         allenatoreSeconda: nuoveInfo.allenatoreSeconda,
         dirigente: nuoveInfo.dirigente,
         dirigenteUfficiali: nuoveInfo.dirigenteUfficiali,
-        assistenteArbitro: nuoveInfo.assistenteArbitro
+        assistenteArbitro: nuoveInfo.assistenteArbitro,
+        medicoSociale: nuoveInfo.medicoSociale,
+        massaggiatore: nuoveInfo.massaggiatore,
+        preparatoreAtletico: nuoveInfo.preparatoreAtletico,
+        preparatorePortieri: nuoveInfo.preparatorePortieri
       });
       mostraNotificaSalvataggio();
     }, 300);
@@ -240,7 +254,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     } else {
       const giaPresente = giocatori.find(g => String(g.numero) === String(numeroScelto));
       if (giaPresente) {
-        // Suggerisce il primo libero successivo al numero digitato
         const successivoLibero = trovaSuccessivoNumeroLibero(parseInt(numeroScelto, 10));
         const accettaSuggerito = window.confirm(
           `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi procedere dal numero successivo libero (#${successivoLibero})?\n\n• Clicca OK per usare il #${successivoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
@@ -464,7 +477,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </div>
         </div>
 
-        {/* Staff Tecnico & Dirigenziale */}
+        {/* Staff Tecnico & Dirigenziale Completo */}
         <div className="pt-3 border-t border-slate-700/70 space-y-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase">
             <UserCog className="w-4 h-4 text-emerald-400" /> Staff Tecnico & Dirigenziale Ufficiale
@@ -522,6 +535,51 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                 placeholder="ES. GIOVANNI FERRARI"
                 value={partitaInfo.assistenteArbitro}
                 onChange={(e) => handleAggiornaCampo('assistenteArbitro', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              />
+            </div>
+
+            {/* NUOVE FIGURE DELLO STAFF */}
+            <div>
+              <label className="text-xs uppercase text-slate-400 font-semibold">Medico Sociale</label>
+              <input
+                type="text"
+                placeholder="ES. DOTT. MARCO MANCINI"
+                value={partitaInfo.medicoSociale}
+                onChange={(e) => handleAggiornaCampo('medicoSociale', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs uppercase text-slate-400 font-semibold">Massaggiatore</label>
+              <input
+                type="text"
+                placeholder="ES. LUCA COSTA"
+                value={partitaInfo.massaggiatore}
+                onChange={(e) => handleAggiornaCampo('massaggiatore', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs uppercase text-slate-400 font-semibold">Preparatore Atletico</label>
+              <input
+                type="text"
+                placeholder="ES. MATTEO GALLI"
+                value={partitaInfo.preparatoreAtletico}
+                onChange={(e) => handleAggiornaCampo('preparatoreAtletico', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs uppercase text-slate-400 font-semibold">Preparatore dei Portieri</label>
+              <input
+                type="text"
+                placeholder="ES. ROBERTO VILLA"
+                value={partitaInfo.preparatorePortieri}
+                onChange={(e) => handleAggiornaCampo('preparatorePortieri', e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-emerald-500 outline-none text-white text-sm uppercase font-semibold"
               />
             </div>
