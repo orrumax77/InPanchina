@@ -256,46 +256,37 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-// SALVATAGGIO BOZZA: SALVA ANCHE L'INTERO STAFF E PARTITA DENTRO staff_base DI societa
+// SALVATAGGIO BOZZA: AGGIORNA PRIMA staff_base IN societa, POI TENTA LA TABELLA partite
 export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
   if (!societaId) return null;
   try {
-    await supabase.from('partite').upsert({
-      id: partitaId,
-      societa_id: societaId,
-      squadra_casa: partitaInfo.squadraCasa || '',
-      squadra_ospite: partitaInfo.squadraOspite || '',
-      allenatore: partitaInfo.allenatore || '',
-      allenatore_seconda: partitaInfo.allenatoreSeconda || '',
-      dirigente: partitaInfo.dirigente || '',
-      dirigente_ufficiali: partitaInfo.dirigenteUfficiali || '',
-      assistente_arbitro: partitaInfo.assistenteArbitro || '',
-      data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
-      is_nostra_casa: partitaInfo.isNostraCasa ?? true,
-      updated_at: new Date()
-    });
+    // 1. Aggiorna lo staff completo dentro societa.staff_base (JSONB, sempre valido al 100%)
+    const { data: soc } = await supabase
+      .from('societa')
+      .select('staff_base')
+      .eq('id', societaId)
+      .maybeSingle();
 
-    const { data: soc } = await supabase.from('societa').select('staff_base').eq('id', societaId).single();
-    const staffAttuale = soc?.staff_base || {};
+    const staffPrecedente = soc?.staff_base || {};
 
     const staffAggiornato = {
-      ...staffAttuale,
-      squadraCasa: partitaInfo.squadraCasa,
-      squadraOspite: partitaInfo.squadraOspite,
-      dataPartita: partitaInfo.dataPartita,
-      isNostraCasa: partitaInfo.isNostraCasa,
-      allenatore: partitaInfo.allenatore,
-      allenatoreSeconda: partitaInfo.allenatoreSeconda,
-      dirigente: partitaInfo.dirigente,
-      dirigenteUfficiali: partitaInfo.dirigenteUfficiali,
-      assistenteArbitro: partitaInfo.assistenteArbitro,
-      medicoSociale: partitaInfo.medicoSociale,
-      massaggiatore: partitaInfo.massaggiatore,
-      preparatoreAtletico: partitaInfo.preparatoreAtletico,
-      preparatorePortieri: partitaInfo.preparatorePortieri
+      ...staffPrecedente,
+      squadraCasa: partitaInfo.squadraCasa || '',
+      squadraOspite: partitaInfo.squadraOspite || '',
+      dataPartita: partitaInfo.dataPartita || '',
+      isNostraCasa: partitaInfo.isNostraCasa ?? true,
+      allenatore: partitaInfo.allenatore || '',
+      allenatoreSeconda: partitaInfo.allenatoreSeconda || '',
+      dirigente: partitaInfo.dirigente || '',
+      dirigenteUfficiali: partitaInfo.dirigenteUfficiali || '',
+      assistenteArbitro: partitaInfo.assistenteArbitro || '',
+      medicoSociale: partitaInfo.medicoSociale || '',
+      massaggiatore: partitaInfo.massaggiatore || '',
+      preparatoreAtletico: partitaInfo.preparatoreAtletico || '',
+      preparatorePortieri: partitaInfo.preparatorePortieri || ''
     };
 
-    await supabase.from('societa').update({
+    const updatePayload = {
       staff_base: staffAggiornato,
       allenatore_predefinito: partitaInfo.allenatore || '',
       allenatore_seconda_predefinito: partitaInfo.allenatoreSeconda || '',
@@ -303,7 +294,33 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       dirigente_ufficiali_predefinito: partitaInfo.dirigenteUfficiali || '',
       assistente_arbitro_predefinito: partitaInfo.assistenteArbitro || '',
       updated_at: new Date()
-    }).eq('id', societaId);
+    };
+
+    const { error: errSoc } = await supabase
+      .from('societa')
+      .update(updatePayload)
+      .eq('id', societaId);
+
+    if (errSoc) {
+      console.error('Errore salvataggio staff in societa:', errSoc);
+    } else {
+      console.log('Staff salvato con successo in societa.staff_base:', staffAggiornato);
+    }
+
+    // 2. Tenta l'aggiornamento della tabella partite (isolato per non bloccare lo staff se fallisce)
+    try {
+      await supabase.from('partite').upsert({
+        id: partitaId,
+        societa_id: societaId,
+        squadra_casa: partitaInfo.squadraCasa || '',
+        squadra_ospite: partitaInfo.squadraOspite || '',
+        data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
+        is_nostra_casa: partitaInfo.isNostraCasa ?? true,
+        updated_at: new Date()
+      }, { onConflict: 'id' });
+    } catch (errPartita) {
+      console.warn('Avviso aggiornamento tabella partite:', errPartita);
+    }
 
     return true;
   } catch (err) {
