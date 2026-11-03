@@ -209,6 +209,7 @@ export default function App() {
       setFaseApp('distinta');
     }
   };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -319,8 +320,6 @@ export default function App() {
     });
   };
 
-  // AVANZAMENTO RAPIDO (+1 o +5 MIN) CON RE-ANCHORING PERFETTO DEL TIMER
-  // AVANZAMENTO RAPIDO (+1 o +5 MIN) PRECISO AL SECONDO
   const gestisciAvanzamentoTempo = (secondiDelta, nuovoTotale) => {
     const limiteMax = 45 * 60 + (recupero * 60);
     const secondiFinali = Math.min(limiteMax, nuovoTotale);
@@ -328,8 +327,6 @@ export default function App() {
     setSecondiGara(secondiFinali);
 
     if (inEsecuzione) {
-      // Fissiamo il nuovo punto di partenza esatto (secondiBase = nuovoTotale) 
-      // e resettiamo l'orologio di sincronizzazione azzerando i secondi trascorsi intermedi.
       const adessoISO = new Date().toISOString();
       setAvviatoAlle(adessoISO);
       setSecondiBase(secondiFinali);
@@ -451,7 +448,7 @@ export default function App() {
     await registraEventoCloud(partitaId, evento);
   };
 
-  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO (GOL, CAMBI E CARTELLINI)
+  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E DEFINITIVO (GOL, CAMBI E CARTELLINI)
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
@@ -469,8 +466,8 @@ export default function App() {
       setGolOspiti(nuovoOspiti);
 
       syncStatoPartitaSuDb(partitaId, {
-        golCasa: nuovoCasa,
-        golOspiti: nuovoOspiti,
+        golCasa: nuevoCasa,
+        golOspiti: nuevoOspiti,
         tempoGara,
         secondiGara,
         inEsecuzione,
@@ -482,11 +479,15 @@ export default function App() {
       });
     }
 
-    // 2. ROLLBACK CAMBIO / SOSTITUZIONE (Ripristino titolarità e rilascio cambio/slot)
+    // 2. ROLLBACK CAMBIO / SOSTITUZIONE (Storno cambi, slot e ripristino titolarità esatta)
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
-      setCambiEffettuati(prev => Math.max(0, prev - 1));
-      if (!eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo')) {
-        setSlotUsati(prev => Math.max(0, prev - 1));
+      const nuoviCambi = Math.max(0, cambiEffettuati - 1);
+      setCambiEffettuati(nuoviCambi);
+
+      const isIntervallo = eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo');
+      const nuoviSlot = isIntervallo ? slotUsati : Math.max(0, slotUsati - 1);
+      if (!isIntervallo) {
+        setSlotUsati(nuoviSlot);
       }
 
       if (eventoDaEliminare.esceId && eventoDaEliminare.entraId) {
@@ -496,6 +497,19 @@ export default function App() {
           return g;
         }));
       }
+
+      syncStatoPartitaSuDb(partitaId, {
+        golCasa,
+        golOspiti,
+        tempoGara,
+        secondiGara,
+        inEsecuzione,
+        avviatoAlle,
+        recupero,
+        minutoCorrente,
+        slotUsati: nuoviSlot,
+        cambiEffettuati: nuoviCambi
+      });
     }
 
     // 3. ROLLBACK CARTELLINI (Ricalcolo basato sugli eventi rimanenti dopo l'esclusione di questo ID)
