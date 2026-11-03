@@ -3,6 +3,7 @@ import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, Arrow
 import { 
   salvaRosaBaseSocieta, 
   salvaBozzaPartitaSuDb, 
+  salvaBozzaKeepalive,
   dbAggiungiGiocatore, 
   dbModificaGiocatore, 
   dbEliminaGiocatore 
@@ -46,6 +47,33 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
   const infoDebounceRef = useRef(null);
   const isLoaded = useRef(false);
+
+  // Riferimento sempre sincronizzato per garantire il salvataggio alla chiusura improvvisa
+  const partitaInfoRef = useRef(partitaInfo);
+  useEffect(() => {
+    partitaInfoRef.current = partitaInfo;
+  }, [partitaInfo]);
+
+  // Listener nativi del browser per salvataggio garantito se la scheda viene chiusa di colpo
+  useEffect(() => {
+    const salvaAllaChiusura = () => {
+      if (infoDebounceRef.current) {
+        clearTimeout(infoDebounceRef.current);
+      }
+      if (societa?.id && partitaInfoRef.current) {
+        salvaBozzaKeepalive(societa.id, partitaInfoRef.current);
+      }
+    };
+
+    window.addEventListener('beforeunload', salvaAllaChiusura);
+    window.addEventListener('pagehide', salvaAllaChiusura);
+
+    return () => {
+      window.removeEventListener('beforeunload', salvaAllaChiusura);
+      window.removeEventListener('pagehide', salvaAllaChiusura);
+      salvaAllaChiusura();
+    };
+  }, [societa?.id]);
 
   const ordinaPerNumeroMaglia = (lista) => {
     return [...lista].sort((a, b) => {
@@ -140,7 +168,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     return String(num);
   };
 
-  // SALVATAGGIO IMMEDIATO DI TUTTI I 9 RUOLI
   const salvaSubitoSuCloud = async (infoDaSalvare) => {
     if (!societa?.id) return;
     await salvaBozzaPartitaSuDb(societa.id, partitaId, infoDaSalvare);
@@ -487,7 +514,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           </div>
         </div>
 
-        {/* Staff Tecnico & Dirigenziale Completo (9 Ruoli con Salvataggio Istantaneo) */}
+        {/* Staff Tecnico & Dirigenziale Completo (9 Ruoli con Salvataggio Istantaneo e Keepalive) */}
         <div className="pt-3 border-t border-slate-700/70 space-y-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase">
             <UserCog className="w-4 h-4 text-emerald-400" /> Staff Tecnico & Dirigenziale Ufficiale
