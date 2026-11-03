@@ -166,11 +166,11 @@ export default function Cronometro({
     const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, secondiTrascorsi + secAggiuntivi);
     setSecondi(nuovo);
 
+    // Notifica ad App.jsx per aggiornare secondiBase e sincronizzare il DB senza stoppare
     if (onAvanzaTempoRef.current) {
       onAvanzaTempoRef.current(secAggiuntivi, nuovo);
     }
-  };
-  
+
     const minAttuale = offsetMinutiPartita + Math.floor(nuovo / 60);
     if (onTickRef.current) onTickRef.current(minAttuale);
 
