@@ -57,7 +57,7 @@ export async function caricaRosaSocieta(societaId) {
       }));
     }
 
-    // 2. Se vuoto, cerca nella tabella giocatori
+    // 2. Fallback: cerca nella tabella relazionale giocatori
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
@@ -88,7 +88,6 @@ export async function caricaRosaSocieta(societaId) {
 export async function dbAggiungiGiocatore(societaId, giocatore) {
   if (!societaId || !giocatore) return;
   try {
-    // 1. Assicura che la partita live esista prima di inserire nella tabella giocatori
     await supabase.from('partite').upsert({
       id: `${societaId}_PARTITA_LIVE`,
       societa_id: societaId,
@@ -96,7 +95,6 @@ export async function dbAggiungiGiocatore(societaId, giocatore) {
       stato: 'bozza'
     }, { onConflict: 'id' });
 
-    // 2. Inserisce nella tabella giocatori
     const riga = {
       id: `${societaId}_${giocatore.id}`,
       societa_id: societaId,
@@ -114,7 +112,6 @@ export async function dbAggiungiGiocatore(societaId, giocatore) {
     const { error: errG } = await supabase.from('giocatori').upsert(riga);
     if (errG) console.error('Errore inserimento riga giocatore:', errG);
 
-    // 3. Aggiorna contemporaneamente anche il JSON rosa_base sulla tabella societa
     const { data: soc } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -157,14 +154,11 @@ export async function dbModificaGiocatore(societaId, giocatore) {
       is_vice: giocatore.isVice
     };
 
-    const { error } = await supabase
+    await supabase
       .from('giocatori')
       .update(payload)
       .eq('id', `${societaId}_${giocatore.id}`);
 
-    if (error) console.error('Errore dbModificaGiocatore:', error);
-
-    // Aggiorna anche rosa_base nella tabella societa
     const { data: soc } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -199,14 +193,11 @@ export async function dbModificaGiocatore(societaId, giocatore) {
 export async function dbEliminaGiocatore(societaId, giocatoreId) {
   if (!societaId || !giocatoreId) return;
   try {
-    const { error } = await supabase
+    await supabase
       .from('giocatori')
       .delete()
       .eq('id', `${societaId}_${giocatoreId}`);
 
-    if (error) console.error('Errore dbEliminaGiocatore:', error);
-
-    // Rimuove anche da rosa_base nella tabella societa
     const { data: soc } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -265,9 +256,11 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
+// SALVA LA BOZZA PARTITA SU "partite" E NELLA "societa" COSI' RIMANE SEMPRE DISPONIBILE
 export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
   try {
-    const { data, error } = await supabase.from('partite').upsert({
+    // 1. Salva nella tabella partite
+    await supabase.from('partite').upsert({
       id: partitaId,
       societa_id: societaId,
       squadra_casa: partitaInfo.squadraCasa || '',
@@ -280,17 +273,46 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
       is_nostra_casa: partitaInfo.isNostraCasa ?? true,
       updated_at: new Date()
-    }).select().single();
+    });
 
-    if (error) console.error('Errore salvaBozzaPartitaSuDb:', error);
-    return data;
+    // 2. Salva nel record della SOCIETA' dentro staff_base (persistenza identica ad allenatore e rosa)
+    const { data: soc } = await supabase.from('societa').select('staff_base').eq('id', societaId).single();
+    const staffAttuale = soc?.staff_base || {};
+
+    const staffAggiornato = {
+      ...staffAttuale,
+      squadraCasa: partitaInfo.squadraCasa,
+      squadraOspite: partitaInfo.squadraOspite,
+      dataPartita: partitaInfo.dataPartita,
+      isNostraCasa: partitaInfo.isNostraCasa,
+      allenatore: partitaInfo.allenatore,
+      allenatoreSeconda: partitaInfo.allenatoreSeconda,
+      dirigente: partitaInfo.dirigente,
+      dirigenteUfficiali: partitaInfo.dirigenteUfficiali,
+      assistenteArbitro: partitaInfo.assistenteArbitro,
+      medicoSociale: partitaInfo.medicoSociale,
+      massaggiatore: partitaInfo.massaggiatore,
+      preparatoreAtletico: partitaInfo.preparatoreAtletico,
+      preparatorePortieri: partitaInfo.preparatorePortieri
+    };
+
+    await supabase.from('societa').update({
+      staff_base: staffAggiornato,
+      allenatore_predefinito: partitaInfo.allenatore || '',
+      allenatore_seconda_predefinito: partitaInfo.allenatoreSeconda || '',
+      dirigente_predefinito: partitaInfo.dirigente || '',
+      dirigente_ufficiali_predefinito: partitaInfo.dirigenteUfficiali || '',
+      assistente_arbitro_predefinito: partitaInfo.assistenteArbitro || '',
+      updated_at: new Date()
+    }).eq('id', societaId);
+
+    return true;
   } catch (err) {
     console.error('Errore salvaBozzaPartitaSuDb:', err);
     return null;
   }
 }
 
-// SINCRONIZZAZIONE REALTIME CON TIMESTAMP ASSOLUTO
 export async function syncStatoPartitaSuDb(partitaId, dati) {
   const updateData = {
     gol_casa: dati.golCasa,
@@ -341,6 +363,7 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
   await supabase.from('giocatori').upsert(righe);
 }
 
+// SALVA LO STAFF IN MODO ATOMICO E SICURO DENTRO staff_base
 export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
   try {
     const payload = { updated_at: new Date() };
@@ -350,16 +373,25 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
     }
 
     if (staff !== undefined) {
-      payload.staff_base = staff;
+      const { data: socCorrente } = await supabase
+        .from('societa')
+        .select('staff_base')
+        .eq('id', societaId)
+        .single();
+
+      const staffPrecedente = socCorrente?.staff_base || {};
+      const staffCompleto = {
+        ...staffPrecedente,
+        ...staff
+      };
+
+      payload.staff_base = staffCompleto;
+
       if (staff.allenatore !== undefined) payload.allenatore_predefinito = staff.allenatore;
       if (staff.allenatoreSeconda !== undefined) payload.allenatore_seconda_predefinito = staff.allenatoreSeconda;
       if (staff.dirigente !== undefined) payload.dirigente_predefinito = staff.dirigente;
       if (staff.dirigenteUfficiali !== undefined) payload.dirigente_ufficiali_predefinito = staff.dirigenteUfficiali;
       if (staff.assistenteArbitro !== undefined) payload.assistente_arbitro_predefinito = staff.assistenteArbitro;
-      if (staff.medicoSociale !== undefined) payload.medico_sociale_predefinito = staff.medicoSociale;
-      if (staff.massaggiatore !== undefined) payload.massaggiatore_predefinito = staff.massaggiatore;
-      if (staff.preparatoreAtletico !== undefined) payload.preparatore_atletico_predefinito = staff.preparatoreAtletico;
-      if (staff.preparatorePortieri !== undefined) payload.preparatore_portieri_predefinito = staff.preparatorePortieri;
     }
 
     const { data, error } = await supabase
@@ -376,6 +408,7 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
     return null;
   }
 }
+
 export async function getSocietaById(societaId) {
   const { data, error } = await supabase
     .from('societa')
@@ -527,7 +560,6 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
   const dataScadenza = new Date();
   dataScadenza.setDate(dataScadenza.getDate() + 30);
 
-  // 1. Inserisce la società inizializzando rosa_base vuota
   const { data, error } = await supabase.from('societa').upsert({
     id: societaId,
     codice_societa: codice.trim().toUpperCase(),
@@ -542,7 +574,6 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
 
   if (error) throw error;
 
-  // 2. Crea subito la riga LIVE in partite per garantire l'integrità referenziale dei giocatori
   await supabase.from('partite').upsert({
     id: `${societaId}_PARTITA_LIVE`,
     societa_id: societaId,
