@@ -473,24 +473,33 @@ export default function App() {
       }
     }
 
-    // 3. ROLLBACK CARTELLINI: scala l'ammonizione o rimuove l'espulsione del giocatore
+    // 3. ROLLBACK CARTELLINI: scala l'ammonizione o rimuove l'espulsione con ricalcolo esatto
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       if (eventoDaEliminare.giocatoreId) {
-        setRosa(prevRosa => prevRosa.map(g => {
-          if (g.id === eventoDaEliminare.giocatoreId) {
-            const ammonizioniRimanenti = eventoDaEliminare.tipo === 'AMMONIZIONE' 
-              ? Math.max(0, (g.ammonizioni || 0) - 1) 
-              : g.ammonizioni;
-            
-            return {
-              ...g,
-              ammonizioni: ammonizioniRimanenti,
-              espulso: eventoDaEliminare.tipo === 'ESPULSIONE' ? false : g.espulso,
-              isTitolare: eventoDaEliminare.tipo === 'ESPULSIONE' ? true : g.isTitolare
-            };
-          }
-          return g;
-        }));
+        let rosaAggiornata = [];
+        setRosa(prevRosa => {
+          rosaAggiornata = prevRosa.map(g => {
+            if (g.id === eventoDaEliminare.giocatoreId) {
+              const nuoveAmm = eventoDaEliminare.tipo === 'AMMONIZIONE' 
+                ? Math.max(0, (g.ammonizioni || 0) - 1) 
+                : (g.ammonizioni || 0);
+              
+              const eraDoppiaAmm = eventoDaEliminare.dettagli?.toLowerCase().includes('doppia');
+              const ancoraEspulso = eraDoppiaAmm ? nuoveAmm >= 2 : (eventoDaEliminare.tipo === 'ESPULSIONE' ? false : g.espulso);
+
+              return {
+                ...g,
+                ammonizioni: nuoveAmm,
+                espulso: ancoraEspulso,
+                isTitolare: !ancoraEspulso ? true : g.isTitolare
+              };
+            }
+            return g;
+          });
+          return rosaAggiornata;
+        });
+
+        await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosa);
       }
     }
 
