@@ -31,6 +31,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   // Campi per nuovo giocatore
   const [nuovoNome, setNuovoNome] = useState('');
   const [nuovoNumero, setNuovoNumero] = useState('');
+  const [ultimoNumeroSelezionato, setUltimoNumeroSelezionato] = useState(null);
 
   // Modifica inline giocatore
   const [editingId, setEditingId] = useState(null);
@@ -40,7 +41,6 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const infoDebounceRef = useRef(null);
   const isLoaded = useRef(false);
 
-  // Funzione di utilità per ordinare i calciatori per numero crescente
   const ordinaPerNumeroMaglia = (lista) => {
     return [...lista].sort((a, b) => {
       const numA = parseInt(a.numero, 10) || 0;
@@ -94,7 +94,8 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     setTimeout(() => setSalvataggioNotifica(false), 2000);
   };
 
-  const trovaPrimoNumeroLibero = (idDaEscludere = null) => {
+  // Calcola il primo numero libero procedendo DAL SUCCESSIVO a partireDa
+  const trovaSuccessivoNumeroLibero = (aPartireDa = null, idDaEscludere = null) => {
     const numeriOccupati = new Set(
       giocatori
         .filter(g => g.id !== idDaEscludere)
@@ -102,7 +103,20 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         .filter(n => !isNaN(n))
     );
 
-    let num = 1;
+    let base;
+    if (aPartireDa !== null && !isNaN(parseInt(aPartireDa, 10))) {
+      base = parseInt(aPartireDa, 10) + 1;
+    } else if (ultimoNumeroSelezionato !== null) {
+      base = ultimoNumeroSelezionato + 1;
+    } else if (giocatori.length > 0) {
+      // Se non c'è una selezione precedente, parti dal massimo presente + 1
+      const numeriPresenti = Array.from(numeriOccupati);
+      base = numeriPresenti.length > 0 ? Math.max(...numeriPresenti) + 1 : 1;
+    } else {
+      base = 1;
+    }
+
+    let num = Math.max(1, base);
     while (numeriOccupati.has(num)) {
       num++;
     }
@@ -222,21 +236,27 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     let numeroScelto = nuovoNumero.trim();
 
     if (!numeroScelto) {
-      numeroScelto = trovaPrimoNumeroLibero();
+      numeroScelto = trovaSuccessivoNumeroLibero();
     } else {
       const giaPresente = giocatori.find(g => String(g.numero) === String(numeroScelto));
       if (giaPresente) {
-        const primoLibero = trovaPrimoNumeroLibero();
+        // Suggerisce il primo libero successivo al numero digitato
+        const successivoLibero = trovaSuccessivoNumeroLibero(parseInt(numeroScelto, 10));
         const accettaSuggerito = window.confirm(
-          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi assegnare il primo numero libero (#${primoLibero})?\n\n• Clicca OK per usare il #${primoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
+          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi procedere dal numero successivo libero (#${successivoLibero})?\n\n• Clicca OK per usare il #${successivoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
         );
 
         if (accettaSuggerito) {
-          numeroScelto = primoLibero;
+          numeroScelto = successivoLibero;
         } else {
           return;
         }
       }
+    }
+
+    const numParsed = parseInt(numeroScelto, 10);
+    if (!isNaN(numParsed)) {
+      setUltimoNumeroSelezionato(numParsed);
     }
 
     const nuovo = {
@@ -283,21 +303,26 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     let numeroScelto = editNumero.trim();
 
     if (!numeroScelto) {
-      numeroScelto = trovaPrimoNumeroLibero(id);
+      numeroScelto = trovaSuccessivoNumeroLibero(null, id);
     } else {
       const giaPresente = giocatori.find(g => g.id !== id && String(g.numero) === String(numeroScelto));
       if (giaPresente) {
-        const primoLibero = trovaPrimoNumeroLibero(id);
+        const successivoLibero = trovaSuccessivoNumeroLibero(parseInt(numeroScelto, 10), id);
         const accettaSuggerito = window.confirm(
-          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi assegnare il primo numero libero (#${primoLibero})?\n\n• Clicca OK per usare il #${primoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
+          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi procedere dal numero successivo libero (#${successivoLibero})?\n\n• Clicca OK per usare il #${successivoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
         );
 
         if (accettaSuggerito) {
-          numeroScelto = primoLibero;
+          numeroScelto = successivoLibero;
         } else {
           return;
         }
       }
+    }
+
+    const numParsed = parseInt(numeroScelto, 10);
+    if (!isNaN(numParsed)) {
+      setUltimoNumeroSelezionato(numParsed);
     }
 
     const aggiornato = {
@@ -329,7 +354,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     onConfermaDistinta({ partitaInfo, giocatori: ordinaPerNumeroMaglia(giocatori) });
   };
 
-  const numeroSuggeritoPlaceholder = trovaPrimoNumeroLibero();
+  const numeroSuggeritoPlaceholder = trovaSuccessivoNumeroLibero();
   const giocatoriOrdinati = ordinaPerNumeroMaglia(giocatori);
 
   return (
@@ -416,7 +441,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
             <button
               type="button"
               onClick={invertiCasaTrasferta}
-              className="p-3 rounded-xl bg-slate-950 hover:bg-emerald-600 border border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-white transition shadow-md flex items-center justify-center gap-1 w-full md:w-auto"
+              className="p-3 rounded-xl bg-slate-950 hover:bg-emerald-600 border border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-white transition shadow-md flex items-center justify-center gap-1 w-full md:w-auto cursor-pointer"
               title="Scambia Casa / Fuori Casa"
             >
               <ArrowLeftRight className="w-5 h-5" />
@@ -514,7 +539,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
             value={nuovoNumero}
             onChange={(e) => setNuovoNumero(e.target.value)}
             className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-bold text-center text-sm"
-            title="Lascia vuoto per assegnare automaticamente il primo numero disponibile"
+            title="Lascia vuoto per procedere automaticamente dal numero successivo disponibile"
           />
         </div>
         <div className="flex-1 min-w-[180px]">
@@ -536,7 +561,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </button>
       </form>
 
-      {/* Elenco Rosa Giocatori - OTTIMIZZATO PER SMARTPHONE */}
+      {/* Elenco Rosa Giocatori */}
       <div className="bg-slate-800 p-3 sm:p-5 rounded-xl border border-slate-700 shadow-md">
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -602,7 +627,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                     </div>
                   ) : (
                     <>
-                      {/* Sinistra: N° Maglia + Nome sempre visibile (non collassa su mobile) */}
+                      {/* Sinistra: N° Maglia + Nome sempre visibile */}
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <span className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400 font-mono flex-shrink-0 shadow-sm">
                           {g.numero}
@@ -622,7 +647,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                         )}
                       </div>
 
-                      {/* Destra: Blocco Pulsanti pulito e allineato */}
+                      {/* Destra: Blocco Pulsanti */}
                       <div className="flex items-center justify-end gap-1.5 flex-shrink-0 pt-1 sm:pt-0">
                         {/* Modifica */}
                         <button
