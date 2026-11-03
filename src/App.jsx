@@ -81,7 +81,6 @@ export default function App() {
 
   const avviaSessioneSocieta = async (soc) => {
     setSalvataggioInCorso(true);
-    // FORZA SEMPRE LA LETTURA FRESCA DAL DB
     const socFresca = (soc?.id ? await getSocietaById(soc.id) : null) || soc;
     setSocietaAttiva(socFresca);
 
@@ -98,7 +97,6 @@ export default function App() {
 
     const staffBase = socFresca.staff_base || {};
     
-    // RECUPERO RIGOROSO DI TUTTI I 9 RUOLI DA staff_base E DAI CAMPI SOCIETÀ
     const allenatoreBase = (staffBase.allenatore || socFresca.allenatore_predefinito || '').toUpperCase();
     const allenatoreSecondaBase = (staffBase.allenatoreSeconda || socFresca.allenatore_seconda_predefinito || '').toUpperCase();
     const dirigenteBase = (staffBase.dirigente || socFresca.dirigente_predefinito || '').toUpperCase();
@@ -267,7 +265,6 @@ export default function App() {
     };
   }, [partitaId]);
 
-  // AVVIO CON TIMESTAMP ASSOLUTO CONDIVISO
   const avviaTimer = () => {
     const adessoISO = new Date().toISOString();
     setInEsecuzione(true);
@@ -288,7 +285,6 @@ export default function App() {
     });
   };
 
-  // STOP CON CONGELAMENTO DEI SECONDI ACCUMULATI
   const mettiInPausaTimer = (secondiFinali = secondiGara) => {
     setInEsecuzione(false);
     setAvviatoAlle(null);
@@ -309,7 +305,6 @@ export default function App() {
     });
   };
 
-  // AVANZAMENTO RAPIDO (+1 o +5 MIN) SENZA FERMARE IL CRONOMETRO
   const gestisciAvanzamentoTempo = (secondiDelta, nuovoTotale) => {
     const limiteMax = 45 * 60 + (recupero * 60);
     const secondiFinali = Math.min(limiteMax, nuovoTotale);
@@ -435,11 +430,12 @@ export default function App() {
     await registraEventoCloud(partitaId, evento);
   };
 
+  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO (GOL, CAMBI E CARTELLINI)
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
 
-    // 1. ROLLBACK GOL: storno del punteggio se si elimina un gol
+    // 1. ROLLBACK GOL
     if (eventoDaEliminare.tipo === 'GOL') {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
@@ -465,44 +461,49 @@ export default function App() {
       });
     }
 
-    // 2. ROLLBACK CAMBIO/SOSTITUZIONE: restituisce il cambio e lo slot
+    // 2. ROLLBACK CAMBIO / SOSTITUZIONE (Ripristino titolarità e rilascio cambio/slot)
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       setCambiEffettuati(prev => Math.max(0, prev - 1));
       if (!eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo')) {
         setSlotUsati(prev => Math.max(0, prev - 1));
       }
-    }
 
-    // 3. ROLLBACK CARTELLINI: ricalcolo rigoroso basato sugli eventi rimanenti nel feed
-    if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
-      if (eventoDaEliminare.giocatoreId) {
-        let rosaAggiornata = [];
-        setRosa(prevRosa => {
-          rosaAggiornata = prevRosa.map(g => {
-            if (g.id === eventoDaEliminare.giocatoreId) {
-              const eventiRimasti = eventi.filter(e => e.id !== id && e.giocatoreId === g.id);
-              const ammonizioniRimaste = eventiRimasti.filter(e => e.tipo === 'AMMONIZIONE').length;
-              const espulsioniRimaste = eventiRimasti.filter(e => e.tipo === 'ESPULSIONE').length;
-
-              const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniRimaste > 0;
-
-              return {
-                ...g,
-                ammonizioni: ammonizioniRimaste,
-                espulso: ancoraEspulso,
-                isTitolare: !ancoraEspulso ? true : g.isTitolare
-              };
-            }
-            return g;
-          });
-          return rosaAggiornata;
-        });
-
-        await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosa);
+      if (eventoDaEliminare.esceId && eventoDaEliminare.entraId) {
+        setRosa(prevRosa => prevRosa.map(g => {
+          if (g.id === eventoDaEliminare.esceId) return { ...g, isTitolare: true };
+          if (g.id === eventoDaEliminare.entraId) return { ...g, isTitolare: false };
+          return g;
+        }));
       }
     }
 
-    setEventi(prev => prev.filter(e => e.id !== id));
+    // 3. ROLLBACK CARTELLINI (Ricalcolo basato sugli eventi rimanenti dopo l'esclusione di questo ID)
+    if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
+      if (eventoDaEliminare.giocatoreId) {
+        const eventiRimasti = eventi.filter(e => e.id !== id);
+        
+        setRosa(prevRosa => prevRosa.map(g => {
+          if (g.id === eventoDaEliminare.giocatoreId) {
+            const ammonizioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'AMMONIZIONE').length;
+            const espulsioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'ESPULSIONE').length;
+
+            const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniRimaste > 0;
+
+            return {
+              ...g,
+              ammonizioni: ammonizioniRimaste,
+              espulso: ancoraEspulso,
+              isTitolare: !ancoraEspulso ? true : g.isTitolare
+            };
+          }
+          return g;
+        }));
+      }
+    }
+
+    const eventiAggiornati = eventi.filter(e => e.id !== id);
+    setEventi(eventiAggiornati);
+    await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosa);
     await eliminaEventoCloud(id);
   };
 
