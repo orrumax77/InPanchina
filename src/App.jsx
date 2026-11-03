@@ -82,6 +82,7 @@ export default function App() {
 
   const avviaSessioneSocieta = async (soc) => {
     setSalvataggioInCorso(true);
+    // FORZA SEMPRE LA LETTURA FRESCA DAL DB
     const socFresca = await getSocietaById(soc.id) || soc;
     setSocietaAttiva(socFresca);
 
@@ -98,16 +99,17 @@ export default function App() {
 
     const staffBase = socFresca.staff_base || {};
     
-    // RECUPERO COMPLETO DI TUTTI I RUOLI DA staff_base (IDENTICA LOGICA DELLA ROSA)
-    const allenatoreBase = (socFresca.allenatore_predefinito || staffBase.allenatore || '').toUpperCase();
-    const allenatoreSecondaBase = (socFresca.allenatore_seconda_predefinito || staffBase.allenatoreSeconda || '').toUpperCase();
-    const dirigenteBase = (socFresca.dirigente_predefinito || staffBase.dirigente || '').toUpperCase();
-    const dirigenteUfficialiBase = (socFresca.dirigente_ufficiali_predefinito || staffBase.dirigenteUfficiali || '').toUpperCase();
-    const assistenteArbitroBase = (socFresca.assistente_arbitro_predefinito || staffBase.assistenteArbitro || '').toUpperCase();
+    // RECUPERO RIGOROSO DI TUTTI I 9 RUOLI DA staff_base E DAI CAMPI SOCIETÀ
+    const allenatoreBase = (staffBase.allenatore || socFresca.allenatore_predefinito || '').toUpperCase();
+    const allenatoreSecondaBase = (staffBase.allenatoreSeconda || socFresca.allenatore_seconda_predefinito || '').toUpperCase();
+    const dirigenteBase = (staffBase.dirigente || socFresca.dirigente_predefinito || '').toUpperCase();
+    const dirigenteUfficialiBase = (staffBase.dirigenteUfficiali || socFresca.dirigente_ufficiali_predefinito || '').toUpperCase();
+    const assistenteArbitroBase = (staffBase.assistenteArbitro || socFresca.assistente_arbitro_predefinito || '').toUpperCase();
     const medicoSocialeBase = (staffBase.medicoSociale || '').toUpperCase();
     const massaggiatoreBase = (staffBase.massaggiatore || '').toUpperCase();
     const preparatoreAtleticoBase = (staffBase.preparatoreAtletico || '').toUpperCase();
     const preparatorePortieriBase = (staffBase.preparatorePortieri || '').toUpperCase();
+    const squadraCasaBase = (staffBase.squadraCasa || socFresca.nome || '').toUpperCase();
     const squadraOspiteBase = (staffBase.squadraOspite || '').toUpperCase();
     const isNostraCasaBase = staffBase.isNostraCasa ?? true;
     const dataPartitaBase = staffBase.dataPartita || new Date().toISOString().split('T')[0];
@@ -117,7 +119,7 @@ export default function App() {
 
     if (stato && stato.partita && stato.partita.stato === 'in-corso') {
       const pInfo = {
-        squadraCasa: (stato.partita.squadra_casa || socFresca.nome || '').toUpperCase(),
+        squadraCasa: (stato.partita.squadra_casa || squadraCasaBase).toUpperCase(),
         squadraOspite: (stato.partita.squadra_ospite || squadraOspiteBase).toUpperCase(),
         allenatore: (stato.partita.allenatore || allenatoreBase).toUpperCase(),
         allenatoreSeconda: (stato.partita.allenatore_seconda || allenatoreSecondaBase).toUpperCase(),
@@ -162,7 +164,7 @@ export default function App() {
       setFaseApp('partita');
     } else {
       const pInfo = {
-        squadraCasa: (stato?.partita?.squadra_casa || staffBase.squadraCasa || socFresca.nome || '').toUpperCase(),
+        squadraCasa: (stato?.partita?.squadra_casa || squadraCasaBase).toUpperCase(),
         squadraOspite: (stato?.partita?.squadra_ospite || squadraOspiteBase).toUpperCase(),
         allenatore: (stato?.partita?.allenatore || allenatoreBase).toUpperCase(),
         allenatoreSeconda: (stato?.partita?.allenatore_seconda || allenatoreSecondaBase).toUpperCase(),
