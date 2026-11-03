@@ -115,34 +115,45 @@ export default function App() {
     const stato = await caricaStatoPartita(idPartita);
     setRosa(rosaSalvataNelDb || []);
 
-    // CONTROLLO LIVE: Se la partita nel database risulta attiva o in corso, forza subito la schermata LIVE per chiunque entri
-    const partitaInCorsoCloud = stato && stato.partita && (stato.partita.stato === 'in-corso' || stato.partita.in_esecuzione || stato.partita.tempo > 0);
+    const partitaDB = stato?.partita;
 
-    if (partitaInCorsoCloud) {
+    // CONTROLLO LIVE ESTESO (Funziona anche in pausa, durante l'intervallo e con eventi registrati)
+    const isLiveInCorso = partitaDB && (
+      partitaDB.in_esecuzione === true || 
+      (partitaDB.secondi_gara !== undefined && partitaDB.secondi_gara > 0) || 
+      partitaDB.tempo > 1 || 
+      (stato.eventi && stato.eventi.length > 0) ||
+      partitaDB.slot_usati > 0 ||
+      partitaDB.cambi_effettuati > 0 ||
+      partitaDB.gol_casa > 0 ||
+      partitaDB.gol_ospite > 0
+    );
+
+    if (isLiveInCorso) {
       const pInfo = {
-        squadraCasa: (stato.partita.squadra_casa || squadraCasaBase).toUpperCase(),
-        squadraOspite: (stato.partita.squadra_ospite || squadraOspiteBase).toUpperCase(),
-        allenatore: (stato.partita.allenatore || allenatoreBase).toUpperCase(),
-        allenatoreSeconda: (stato.partita.allenatore_seconda || allenatoreSecondaBase).toUpperCase(),
-        dirigente: (stato.partita.dirigente || dirigenteBase).toUpperCase(),
-        dirigenteUfficiali: (stato.partita.dirigente_ufficiali || dirigenteUfficialiBase).toUpperCase(),
-        assistenteArbitro: (stato.partita.assistente_arbitro || assistenteArbitroBase).toUpperCase(),
+        squadraCasa: (partitaDB.squadra_casa || squadraCasaBase).toUpperCase(),
+        squadraOspite: (partitaDB.squadra_ospite || squadraOspiteBase).toUpperCase(),
+        allenatore: (partitaDB.allenatore || allenatoreBase).toUpperCase(),
+        allenatoreSeconda: (partitaDB.allenatore_seconda || allenatoreSecondaBase).toUpperCase(),
+        dirigente: (partitaDB.dirigente || dirigenteBase).toUpperCase(),
+        dirigenteUfficiali: (partitaDB.dirigente_ufficiali || dirigenteUfficialiBase).toUpperCase(),
+        assistenteArbitro: (partitaDB.assistente_arbitro || assistenteArbitroBase).toUpperCase(),
         medicoSociale: medicoSocialeBase,
         massaggiatore: massaggiatoreBase,
         preparatoreAtletico: preparatoreAtleticoBase,
         preparatorePortieri: preparatorePortieriBase,
-        dataPartita: stato.partita.data_gara || dataPartitaBase,
-        isNostraCasa: stato.partita.is_nostra_casa ?? isNostraCasaBase
+        dataPartita: partitaDB.data_gara || dataPartitaBase,
+        isNostraCasa: partitaDB.is_nostra_casa ?? isNostraCasaBase
       };
 
       setPartitaInfo(pInfo);
-      setGolCasa(stato.partita.gol_casa || 0);
-      setGolOspiti(stato.partita.gol_ospite || 0);
-      setTempoGara(stato.partita.tempo || 1);
+      setGolCasa(partitaDB.gol_casa || 0);
+      setGolOspiti(partitaDB.gol_ospite || 0);
+      setTempoGara(partitaDB.tempo || 1);
       
-      const inEsec = stato.partita.in_esecuzione || false;
-      const secGara = stato.partita.secondi_gara || 0;
-      const avvAlle = stato.partita.avviato_alle || null;
+      const inEsec = partitaDB.in_esecuzione || false;
+      const secGara = partitaDB.secondi_gara || 0;
+      const avvAlle = partitaDB.avviato_alle || null;
       
       setInEsecuzione(inEsec);
       setAvviatoAlle(avvAlle);
@@ -155,18 +166,18 @@ export default function App() {
         setSecondiGara(secGara);
       }
 
-      setRecupero(stato.partita.recupero || 0);
-      setMinutoCorrente(stato.partita.minuto_corrente || 1);
-      setSlotUsati(stato.partita.slot_usati || 0);
-      setCambiEffettuati(stato.partita.cambi_effettuati || 0);
+      setRecupero(partitaDB.recupero || 0);
+      setMinutoCorrente(partitaDB.minuto_corrente || 1);
+      setSlotUsati(partitaDB.slot_usati || 0);
+      setCambiEffettuati(partitaDB.cambi_effettuati || 0);
       setEventi(stato.eventi || []);
 
       setSalvataggioInCorso(false);
-      setFaseApp('partita'); // <-- FORZA DIRETTAMENTE IL LIVE
+      setFaseApp('partita'); // <-- ACCESSO DIRETTO AL LIVE (ANCHE IN INTERVALLO O PAUSA)
     } else {
       const pInfo = {
-        squadraCasa: (staffBase.squadraCasa || stato?.partita?.squadra_casa || socFresca.nome || '').toUpperCase(),
-        squadraOspite: (staffBase.squadraOspite || stato?.partita?.squadra_ospite || '').toUpperCase(),
+        squadraCasa: (staffBase.squadraCasa || partitaDB?.squadra_casa || socFresca.nome || '').toUpperCase(),
+        squadraOspite: (staffBase.squadraOspite || partitaDB?.squadra_ospite || '').toUpperCase(),
         allenatore: allenatoreBase,
         allenatoreSeconda: allenatoreSecondaBase,
         dirigente: dirigenteBase,
@@ -176,7 +187,7 @@ export default function App() {
         massaggiatore: massaggiatoreBase,
         preparatoreAtletico: preparatoreAtleticoBase,
         preparatorePortieri: preparatorePortieriBase,
-        dataPartita: staffBase.dataPartita || stato?.partita?.data_gara || dataPartitaBase,
+        dataPartita: staffBase.dataPartita || partitaDB?.data_gara || dataPartitaBase,
         isNostraCasa: isNostraCasaBase
       };
 
@@ -198,7 +209,6 @@ export default function App() {
       setFaseApp('distinta');
     }
   };
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
