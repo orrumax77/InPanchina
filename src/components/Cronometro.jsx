@@ -161,7 +161,7 @@ export default function Cronometro({
 
   const formatNumero = (num) => String(num).padStart(2, '0');
 
-  // Avanza il timer SENZA fermare l'esecuzione
+  // Avanza il timer SENZA fermare l'esecuzione (con calcolo esatto del delta in secondi)
   const avanzaSecondi = (secAggiuntivi) => {
     const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, secondi + secAggiuntivi);
     setSecondi(nuovo);
@@ -174,7 +174,6 @@ export default function Cronometro({
     const minAttuale = offsetMinutiPartita + Math.floor(nuovo / 60);
     if (onTickRef.current) onTickRef.current(minAttuale);
 
-    // Va in pausa SOLO se si è raggiunto il limite massimo dei 45' + recupero
     if (nuovo >= LIMITE_MASSIMO_CON_RECUPERO) {
       if (onPausaRef.current) onPausaRef.current(nuovo);
       if (!fischioGiaEseguito.current) {
