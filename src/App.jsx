@@ -450,6 +450,7 @@ export default function App() {
 
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E DEFINITIVO (GOL, CAMBI E CARTELLINI)
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E AZZERAMENTO CARTOLINE
+  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E SINCRONIZZAZIONE CLOUD IMMEDIATA
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
@@ -491,13 +492,17 @@ export default function App() {
         setSlotUsati(nuoviSlot);
       }
 
-      if (eventoDaEliminare.esceId && eventoDaEliminare.entraId) {
-        setRosa(prevRosa => prevRosa.map(g => {
+      let rosaAggiornataPerCambio = [];
+      setRosa(prevRosa => {
+        rosaAggiornataPerCambio = prevRosa.map(g => {
           if (g.id === eventoDaEliminare.esceId) return { ...g, isTitolare: true };
-          if (g.id === eventoDaEntry?.entraId || g.id === eventoDaEliminare.entraId) return { ...g, isTitolare: false };
+          if (g.id === eventoDaEliminare.entraId) return { ...g, isTitolare: false };
           return g;
-        }));
-      }
+        });
+        return rosaAggiornataPerCambio;
+      });
+
+      await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio);
 
       syncStatoPartitaSuDb(partitaId, {
         golCasa,
@@ -513,40 +518,42 @@ export default function App() {
       });
     }
 
-    // 3. ROLLBACK CARTELLINI (AGGIORNAMENTO NUMERICO ESATTO GIALLI E ROSSI)
+    // 3. ROLLBACK CARTELLINI (AGGIORNAMENTO NUMERICO ESATTO E RESET DB)
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       if (eventoDaEliminare.giocatoreId) {
-        // Escludiamo l'evento che stiamo eliminando dal conteggio
         const eventiRimasti = eventi.filter(e => e.id !== id);
+        let rosaAggiornataPerCartellini = [];
         
-        setRosa(prevRosa => prevRosa.map(g => {
-          if (g.id === eventoDaEliminare.giocatoreId) {
-            // Contiamo quanti gialli (ammonizioni) e rossi (espulsioni) sono rimasti effettivamente nel feed per questo giocatore
-            const ammonizioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'AMMONIZIONE').length;
-            const espulsioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'ESPULSIONE').length;
+        setRosa(prevRosa => {
+          rosaAggiornataPerCartellini = prevRosa.map(g => {
+            if (g.id === eventoDaEliminare.giocatoreId) {
+              const ammonizioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && (e.tipo === 'AMMONIZIONE' || (e.tipo === 'ESPULSIONE' && e.dettagli?.toLowerCase().includes('doppia')))).length;
+              const espulsioniDiretteRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'ESPULSIONE' && !e.dettagli?.toLowerCase().includes('doppia')).length;
 
-            const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniRimaste > 0;
+              const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniDiretteRimaste > 0;
 
-            return {
-              ...g,
-              ammonizioni: ammonizioniRimaste, // <-- Aggiorna e azzera correttamente il contatore numerico dei gialli
-              espulso: ancoraEspulso,
-              isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
-            };
-          }
-          return g;
-        }));
+              return {
+                ...g,
+                ammonizioni: ammonizioniRimaste, // Azzera o scala correttamente il contatore dei gialli
+                espulso: ancoraEspulso,
+                isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
+              };
+            }
+            return g;
+          });
+          return rosaAggiornataPerCartellini;
+        });
+
+        // Invio immediato e sincronizzato dei dati aggiornati al database
+        await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini);
       }
     }
 
     const eventiAggiornati = eventi.filter(e => e.id !== id);
     setEventi(eventiAggiornati);
-    
-    // Sincronizziamo subito la rosa aggiornata nel database Cloud
-    await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosa);
     await eliminaEventoCloud(id);
   };
-
+  
   const handleAggiornaRosa = async (nuovaRosa) => {
     setRosa(nuovaRosa);
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
