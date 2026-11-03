@@ -253,7 +253,7 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-// SALVATAGGIO BOZZA: SALVA SUBITO IN societa.staff_base PRIMA DI QUALSIASI ALTRA OPERAZIONE
+// SALVATAGGIO BOZZA: AGGIORNA PRIMA societa.staff_base, POI TENTA SU partite
 export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
   if (!societaId) return null;
   try {
@@ -282,7 +282,7 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       preparatorePortieri: partitaInfo.preparatorePortieri || ''
     };
 
-    // 1. SALVA SEMPRE E SUBITO NEL RECORD SOCIETÀ
+    // 1. Salva subito nel record societario
     const { error: errSoc } = await supabase
       .from('societa')
       .update({
@@ -300,7 +300,7 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       console.error('Errore salvataggio staff in societa:', errSoc);
     }
 
-    // 2. AGGIORNA LA PARTITA SE ESISTE (PROTETTO CONTRO CRASH DA COLONNE MANCANTI)
+    // 2. Aggiorna partita se esiste (protetto)
     if (partitaId) {
       try {
         await supabase.from('partite').upsert({
@@ -322,6 +322,55 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
   } catch (err) {
     console.error('Errore salvaBozzaPartitaSuDb:', err);
     return null;
+  }
+}
+
+// SALVATAGGIO KEEPALIVE ALLA CHIUSURA IMPROVVISA DELLA SCHEDA/FINESTRA
+export function salvaBozzaKeepalive(societaId, partitaInfo) {
+  if (!societaId || !partitaInfo) return;
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || supabase.supabaseUrl;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || supabase.supabaseKey;
+
+    if (!supabaseUrl || !supabaseKey) return;
+
+    const payload = {
+      staff_base: {
+        squadraCasa: partitaInfo.squadraCasa || '',
+        squadraOspite: partitaInfo.squadraOspite || '',
+        dataPartita: partitaInfo.dataPartita || '',
+        isNostraCasa: partitaInfo.isNostraCasa ?? true,
+        allenatore: partitaInfo.allenatore || '',
+        allenatoreSeconda: partitaInfo.allenatoreSeconda || '',
+        dirigente: partitaInfo.dirigente || '',
+        dirigenteUfficiali: partitaInfo.dirigenteUfficiali || '',
+        assistenteArbitro: partitaInfo.assistenteArbitro || '',
+        medicoSociale: partitaInfo.medicoSociale || '',
+        massaggiatore: partitaInfo.massaggiatore || '',
+        preparatoreAtletico: partitaInfo.preparatoreAtletico || '',
+        preparatorePortieri: partitaInfo.preparatorePortieri || ''
+      },
+      allenatore_predefinito: partitaInfo.allenatore || '',
+      allenatore_seconda_predefinito: partitaInfo.allenatoreSeconda || '',
+      dirigente_predefinito: partitaInfo.dirigente || '',
+      dirigente_ufficiali_predefinito: partitaInfo.dirigenteUfficiali || '',
+      assistente_arbitro_predefinito: partitaInfo.assistenteArbitro || '',
+      updated_at: new Date().toISOString()
+    };
+
+    fetch(`${supabaseUrl}/rest/v1/societa?id=eq.${societaId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(payload),
+      keepalive: true
+    }).catch(() => {});
+  } catch (err) {
+    console.warn('Keepalive flush non riuscito:', err);
   }
 }
 
