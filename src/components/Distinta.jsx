@@ -333,40 +333,40 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const giocatoriOrdinati = ordinaPerNumeroMaglia(giocatori);
 
   return (
-    <div className="max-w-4xl mx-auto p-4 space-y-6 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
+    <div className="max-w-4xl mx-auto p-3 sm:p-4 space-y-5 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
       {/* Banner Intestazione */}
-      <div className="flex items-center gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
+      <div className="flex items-center gap-3 sm:gap-4 bg-slate-950 p-3 sm:p-4 rounded-xl border border-slate-800">
         {societa?.logo_url ? (
           <img
             src={societa.logo_url}
             alt="Logo Società"
-            className="w-16 h-16 rounded-full object-cover border-2 border-emerald-500/50 shadow-md flex-shrink-0"
+            className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-emerald-500/50 shadow-md flex-shrink-0 bg-slate-900"
           />
         ) : (
-          <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 flex-shrink-0">
-            <Shield className="w-8 h-8" />
+          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 flex-shrink-0">
+            <Shield className="w-6 h-6 sm:w-8 sm:h-8" />
           </div>
         )}
-        <div className="flex-1">
-          <h1 className="text-xl font-black text-white uppercase">{societa?.nome || 'DISTINTA DI GARA'}</h1>
-          <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5 uppercase">
-            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+        <div className="flex-1 min-w-0">
+          <h1 className="text-base sm:text-xl font-black text-white uppercase truncate">{societa?.nome || 'DISTINTA DI GARA'}</h1>
+          <p className="text-[11px] sm:text-xs text-slate-400 flex items-center gap-1.5 mt-0.5 uppercase truncate">
+            <MapPin className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
             {societa?.indirizzo_campo || 'CAMPO SPORTIVO'}
           </p>
         </div>
 
         {salvataggioNotifica && (
-          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-500/40 px-3 py-1.5 rounded-lg animate-pulse">
-            <CheckCircle2 className="w-4 h-4" /> Salvato nel Cloud
+          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-1 rounded-lg animate-pulse flex-shrink-0">
+            <CheckCircle2 className="w-4 h-4" /> <span className="hidden sm:inline">Salvato nel Cloud</span>
           </span>
         )}
       </div>
 
       {/* Configurazione Partita di Oggi */}
-      <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md space-y-4">
+      <div className="bg-slate-800 p-4 sm:p-5 rounded-xl border border-slate-700 shadow-md space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold flex items-center gap-2 text-emerald-400 uppercase">
+            <h2 className="text-base sm:text-lg font-bold flex items-center gap-2 text-emerald-400 uppercase">
               <Shield className="w-5 h-5" /> Partita di Oggi
             </h2>
 
@@ -506,8 +506,8 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
       {/* Form Aggiunta Rapida Giocatore */}
       <form onSubmit={aggiungiGiocatore} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap gap-3 items-end">
-        <div className="w-24">
-          <label className="text-xs text-slate-400 uppercase font-semibold">N° Maglia</label>
+        <div className="w-20 sm:w-24">
+          <label className="text-[11px] sm:text-xs text-slate-400 uppercase font-semibold">N° Maglia</label>
           <input
             type="number"
             placeholder={numeroSuggeritoPlaceholder}
@@ -517,8 +517,8 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
             title="Lascia vuoto per assegnare automaticamente il primo numero disponibile"
           />
         </div>
-        <div className="flex-1 min-w-[220px]">
-          <label className="text-xs text-slate-400 uppercase font-semibold">Nome e Cognome Giocatore</label>
+        <div className="flex-1 min-w-[180px]">
+          <label className="text-[11px] sm:text-xs text-slate-400 uppercase font-semibold">Nome e Cognome Giocatore</label>
           <input
             type="text"
             placeholder="ES. ROSSI MARCO"
@@ -530,22 +530,22 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
         </div>
         <button
           type="submit"
-          className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-1.5 transition text-sm shadow-md uppercase"
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition text-sm shadow-md uppercase cursor-pointer"
         >
           <Plus className="w-4 h-4" /> Aggiungi
         </button>
       </form>
 
-      {/* Elenco Rosa Giocatori con Pulsanti di Destra Perfettamente Allineati */}
-      <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md">
+      {/* Elenco Rosa Giocatori - OTTIMIZZATO PER SMARTPHONE */}
+      <div className="bg-slate-800 p-3 sm:p-5 rounded-xl border border-slate-700 shadow-md">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h2 className="text-lg font-bold flex items-center gap-2 uppercase">
+            <h2 className="text-base sm:text-lg font-bold flex items-center gap-2 uppercase">
               <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatoriOrdinati.length})
             </h2>
             <p className="text-[11px] text-emerald-400 mt-0.5">● Elenco ordinato per N° di maglia</p>
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+          <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
             Titolari: {titolariCount} / 11
           </span>
         </div>
@@ -560,9 +560,12 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
               const inModifica = editingId === g.id;
 
               return (
-                <div key={g.id} className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-800/50 px-1 rounded-lg transition">
+                <div 
+                  key={g.id} 
+                  className="py-2.5 px-2 hover:bg-slate-800/60 rounded-xl transition flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                >
                   {inModifica ? (
-                    <div className="flex-1 flex items-center gap-2">
+                    <div className="flex-1 flex flex-wrap items-center gap-2">
                       <input
                         type="number"
                         value={editNumero}
@@ -575,58 +578,70 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                         type="text"
                         value={editNome}
                         onChange={(e) => setEditNome(e.target.value.toUpperCase())}
-                        className="flex-1 bg-slate-950 border border-emerald-500 rounded p-1.5 text-sm font-bold text-white uppercase"
+                        className="flex-1 min-w-[140px] bg-slate-950 border border-emerald-500 rounded p-1.5 text-sm font-bold text-white uppercase"
                         placeholder="NOME GIOCATORE"
                       />
-                      <button
-                        type="button"
-                        onClick={() => salvaModifica(g.id)}
-                        className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
-                        title="Salva nel database"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={annullaModifica}
-                        className="p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-                        title="Annulla"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => salvaModifica(g.id)}
+                          className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+                          title="Salva"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={annullaModifica}
+                          className="p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 cursor-pointer"
+                          title="Annulla"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <>
-                      {/* Sinistra: Numero e Nome Giocatore */}
-                      <div className="flex items-center gap-3 flex-1 min-w-0 pr-2">
-                        <span className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400 font-mono flex-shrink-0">
+                      {/* Sinistra: N° Maglia + Nome sempre visibile (non collassa su mobile) */}
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <span className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400 font-mono flex-shrink-0 shadow-sm">
                           {g.numero}
                         </span>
-                        <span className="font-semibold text-white text-sm uppercase truncate">
+                        <span className="font-bold text-white text-xs sm:text-sm uppercase truncate">
                           {g.nome}
                         </span>
+                        {g.isCapitano && (
+                          <span className="text-[10px] font-black bg-amber-500 text-black px-1.5 py-0.2 rounded flex-shrink-0">
+                            C
+                          </span>
+                        )}
+                        {g.isVice && (
+                          <span className="text-[10px] font-black bg-sky-500 text-black px-1.5 py-0.2 rounded flex-shrink-0">
+                            VC
+                          </span>
+                        )}
                       </div>
 
-                      {/* Destra: Blocco Pulsanti Fisso e Perfettamente Allineato */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {/* Destra: Blocco Pulsanti pulito e allineato */}
+                      <div className="flex items-center justify-end gap-1.5 flex-shrink-0 pt-1 sm:pt-0">
                         {/* Modifica */}
                         <button
                           type="button"
                           onClick={() => avviaModifica(g)}
-                          className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-amber-400 flex items-center justify-center transition flex-shrink-0"
+                          className="w-7 h-7 rounded-lg bg-slate-700/80 hover:bg-slate-600 text-amber-400 flex items-center justify-center transition flex-shrink-0 cursor-pointer"
                           title="Modifica Numero o Nome"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
 
-                        {/* Titolare / Panchina (Larghezza fissa per evitare salti visivi) */}
+                        {/* Titolare / Panchina */}
                         <button
                           type="button"
                           onClick={() => toggleTitolare(g.id)}
-                          className={`w-24 h-7 text-[11px] font-bold rounded-lg transition uppercase flex items-center justify-center flex-shrink-0 ${
+                          className={`w-20 sm:w-24 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition uppercase flex items-center justify-center flex-shrink-0 cursor-pointer ${
                             g.isTitolare 
                               ? 'bg-emerald-600 text-white shadow-sm' 
-                              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                              : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
                           }`}
                         >
                           {g.isTitolare ? 'TITOLARE' : 'PANCHINA'}
@@ -636,10 +651,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                         <button
                           type="button"
                           onClick={() => setCapitano(g.id)}
-                          className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center transition flex-shrink-0 ${
+                          className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center transition flex-shrink-0 cursor-pointer ${
                             g.isCapitano 
                               ? 'bg-amber-500 text-black shadow-sm' 
-                              : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                              : 'bg-slate-700/80 text-slate-400 hover:bg-slate-600'
                           }`}
                           title="Capitano"
                         >
@@ -650,10 +665,10 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                         <button
                           type="button"
                           onClick={() => setViceCapitano(g.id)}
-                          className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center transition flex-shrink-0 ${
+                          className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center transition flex-shrink-0 cursor-pointer ${
                             g.isVice 
                               ? 'bg-sky-500 text-black shadow-sm' 
-                              : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                              : 'bg-slate-700/80 text-slate-400 hover:bg-slate-600'
                           }`}
                           title="Vice Capitano"
                         >
@@ -664,7 +679,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                         <button
                           type="button"
                           onClick={() => rimuoviGiocatore(g.id)}
-                          className="w-7 h-7 rounded-lg bg-slate-700 text-rose-400 hover:bg-rose-950/60 hover:text-rose-300 transition flex items-center justify-center flex-shrink-0"
+                          className="w-7 h-7 rounded-lg bg-slate-700/80 text-rose-400 hover:bg-rose-950 hover:text-rose-300 transition flex items-center justify-center flex-shrink-0 cursor-pointer"
                           title="Rimuovi ed elimina dal database"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
