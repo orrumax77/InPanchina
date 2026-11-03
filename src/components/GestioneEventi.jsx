@@ -423,7 +423,7 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* Modal Cartellino */}
+      {/* Modal Cartellino (Mostra tutti i non espulsi, con indicazione ammonizioni per poter correggere) */}
       {modalAmmonizione && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
@@ -431,7 +431,9 @@ export default function GestioneEventi({
             <div className="max-h-60 overflow-y-auto space-y-1.5">
               {giocatori.filter(g => !g.espulso).map(g => (
                 <div key={g.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800">
-                  <span className="text-xs uppercase font-semibold text-slate-200">#{g.numero} {g.nome}</span>
+                  <span className="text-xs uppercase font-semibold text-slate-200">
+                    #{g.numero} {g.nome} {g.ammonizioni > 0 ? `(🟨 ${g.ammonizioni})` : ''}
+                  </span>
                   <div className="flex gap-1.5">
                     <button
                       type="button"
