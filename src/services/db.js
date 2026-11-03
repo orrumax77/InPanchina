@@ -36,7 +36,6 @@ export async function caricaStatoPartita(partitaId) {
 export async function caricaRosaSocieta(societaId) {
   if (!societaId) return [];
   try {
-    // 1. Legge prima dal JSONB rosa_base di societa (immediato e permanente)
     const { data: soc, error: errSoc } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -57,7 +56,6 @@ export async function caricaRosaSocieta(societaId) {
       }));
     }
 
-    // 2. Fallback: tabella relazionale giocatori
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
@@ -109,8 +107,7 @@ export async function dbAggiungiGiocatore(societaId, giocatore) {
       espulso: false
     };
 
-    const { error: errG } = await supabase.from('giocatori').upsert(riga);
-    if (errG) console.error('Errore inserimento riga giocatore:', errG);
+    await supabase.from('giocatori').upsert(riga);
 
     const { data: soc } = await supabase
       .from('societa')
@@ -256,11 +253,10 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-// SALVATAGGIO BOZZA: AGGIORNA PRIMA staff_base IN societa, POI TENTA LA TABELLA partite
+// SALVATAGGIO BOZZA: SALVA SUBITO IN societa.staff_base PRIMA DI QUALSIASI ALTRA OPERAZIONE
 export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
   if (!societaId) return null;
   try {
-    // 1. Aggiorna lo staff completo dentro societa.staff_base (JSONB, sempre valido al 100%)
     const { data: soc } = await supabase
       .from('societa')
       .select('staff_base')
@@ -286,40 +282,40 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       preparatorePortieri: partitaInfo.preparatorePortieri || ''
     };
 
-    const updatePayload = {
-      staff_base: staffAggiornato,
-      allenatore_predefinito: partitaInfo.allenatore || '',
-      allenatore_seconda_predefinito: partitaInfo.allenatoreSeconda || '',
-      dirigente_predefinito: partitaInfo.dirigente || '',
-      dirigente_ufficiali_predefinito: partitaInfo.dirigenteUfficiali || '',
-      assistente_arbitro_predefinito: partitaInfo.assistenteArbitro || '',
-      updated_at: new Date()
-    };
-
+    // 1. SALVA SEMPRE E SUBITO NEL RECORD SOCIETÀ
     const { error: errSoc } = await supabase
       .from('societa')
-      .update(updatePayload)
+      .update({
+        staff_base: staffAggiornato,
+        allenatore_predefinito: partitaInfo.allenatore || '',
+        allenatore_seconda_predefinito: partitaInfo.allenatoreSeconda || '',
+        dirigente_predefinito: partitaInfo.dirigente || '',
+        dirigente_ufficiali_predefinito: partitaInfo.dirigenteUfficiali || '',
+        assistente_arbitro_predefinito: partitaInfo.assistenteArbitro || '',
+        updated_at: new Date()
+      })
       .eq('id', societaId);
 
     if (errSoc) {
       console.error('Errore salvataggio staff in societa:', errSoc);
-    } else {
-      console.log('Staff salvato con successo in societa.staff_base:', staffAggiornato);
     }
 
-    // 2. Tenta l'aggiornamento della tabella partite (isolato per non bloccare lo staff se fallisce)
-    try {
-      await supabase.from('partite').upsert({
-        id: partitaId,
-        societa_id: societaId,
-        squadra_casa: partitaInfo.squadraCasa || '',
-        squadra_ospite: partitaInfo.squadraOspite || '',
-        data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
-        is_nostra_casa: partitaInfo.isNostraCasa ?? true,
-        updated_at: new Date()
-      }, { onConflict: 'id' });
-    } catch (errPartita) {
-      console.warn('Avviso aggiornamento tabella partite:', errPartita);
+    // 2. AGGIORNA LA PARTITA SE ESISTE (PROTETTO CONTRO CRASH DA COLONNE MANCANTI)
+    if (partitaId) {
+      try {
+        await supabase.from('partite').upsert({
+          id: partitaId,
+          societa_id: societaId,
+          squadra_casa: partitaInfo.squadraCasa || '',
+          squadra_ospite: partitaInfo.squadraOspite || '',
+          data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
+          is_nostra_casa: partitaInfo.isNostraCasa ?? true,
+          stato: 'bozza',
+          updated_at: new Date()
+        }, { onConflict: 'id' });
+      } catch (errP) {
+        console.warn('Avviso bozza partita:', errP);
+      }
     }
 
     return true;
@@ -395,12 +391,10 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
         .single();
 
       const staffPrecedente = socCorrente?.staff_base || {};
-      const staffCompleto = {
+      payload.staff_base = {
         ...staffPrecedente,
         ...staff
       };
-
-      payload.staff_base = staffCompleto;
 
       if (staff.allenatore !== undefined) payload.allenatore_predefinito = staff.allenatore;
       if (staff.allenatoreSeconda !== undefined) payload.allenatore_seconda_predefinito = staff.allenatoreSeconda;
