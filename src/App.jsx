@@ -162,7 +162,6 @@ export default function App() {
       setSalvataggioInCorso(false);
       setFaseApp('partita');
     } else {
-      // In modalità bozza/prima della gara: staffBase ha la priorità assoluta per evitare sovrascritture da campi vuoti di stato.partita
       const pInfo = {
         squadraCasa: (staffBase.squadraCasa || stato?.partita?.squadra_casa || socFresca.nome || '').toUpperCase(),
         squadraOspite: (staffBase.squadraOspite || stato?.partita?.squadra_ospite || '').toUpperCase(),
@@ -438,11 +437,12 @@ export default function App() {
 
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
+    if (!eventoDaEliminare) return;
 
-    if (eventoDaEliminare && eventoDaEliminare.tipo === 'GOL') {
+    // 1. ROLLBACK GOL: storno del punteggio se si elimina un gol
+    if (eventoDaEliminare.tipo === 'GOL') {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
-
       const stornareCasa = isGolNostro ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
 
       const nuovoCasa = stornareCasa ? Math.max(0, golCasa - 1) : golCasa;
@@ -463,6 +463,35 @@ export default function App() {
         slotUsati,
         cambiEffettuati
       });
+    }
+
+    // 2. ROLLBACK CAMBIO/SOSTITUZIONE: restituisce il cambio e lo slot
+    if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
+      setCambiEffettuati(prev => Math.max(0, prev - 1));
+      if (!eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo')) {
+        setSlotUsati(prev => Math.max(0, prev - 1));
+      }
+    }
+
+    // 3. ROLLBACK CARTELLINI: scala l'ammonizione o rimuove l'espulsione del giocatore
+    if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
+      if (eventoDaEliminare.giocatoreId) {
+        setRosa(prevRosa => prevRosa.map(g => {
+          if (g.id === eventoDaEliminare.giocatoreId) {
+            const ammonizioniRimanenti = eventoDaEliminare.tipo === 'AMMONIZIONE' 
+              ? Math.max(0, (g.ammonizioni || 0) - 1) 
+              : g.ammonizioni;
+            
+            return {
+              ...g,
+              ammonizioni: ammonizioniRimanenti,
+              espulso: eventoDaEliminare.tipo === 'ESPULSIONE' ? false : g.espulso,
+              isTitolare: eventoDaEliminare.tipo === 'ESPULSIONE' ? true : g.isTitolare
+            };
+          }
+          return g;
+        }));
+      }
     }
 
     setEventi(prev => prev.filter(e => e.id !== id));
@@ -552,7 +581,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN CON NUOVA ICONA APP */}
+      {/* 1. LOGIN CON LOGO DELL'APP */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
@@ -562,7 +591,6 @@ export default function App() {
                 alt="InPanchina Logo" 
                 className="w-20 h-20 rounded-2xl object-cover shadow-inner" 
                 onError={(e) => {
-                  // Fallback se l'immagine non è ancora stata copiata in /public
                   e.currentTarget.style.display = 'none';
                 }}
               />
