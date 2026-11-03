@@ -356,6 +356,10 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
       if (staff.dirigente !== undefined) payload.dirigente_predefinito = staff.dirigente;
       if (staff.dirigenteUfficiali !== undefined) payload.dirigente_ufficiali_predefinito = staff.dirigenteUfficiali;
       if (staff.assistenteArbitro !== undefined) payload.assistente_arbitro_predefinito = staff.assistenteArbitro;
+      if (staff.medicoSociale !== undefined) payload.medico_sociale_predefinito = staff.medicoSociale;
+      if (staff.massaggiatore !== undefined) payload.massaggiatore_predefinito = staff.massaggiatore;
+      if (staff.preparatoreAtletico !== undefined) payload.preparatore_atletico_predefinito = staff.preparatoreAtletico;
+      if (staff.preparatorePortieri !== undefined) payload.preparatore_portieri_predefinito = staff.preparatorePortieri;
     }
 
     const { data, error } = await supabase
@@ -372,7 +376,6 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
     return null;
   }
 }
-
 export async function getSocietaById(societaId) {
   const { data, error } = await supabase
     .from('societa')
