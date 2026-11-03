@@ -22,7 +22,6 @@ import {
 import { supabase } from './supabaseClient';
 import { 
   ArrowLeft, 
-  Shield, 
   LogIn, 
   FileText, 
   Radio, 
@@ -83,7 +82,7 @@ export default function App() {
   const avviaSessioneSocieta = async (soc) => {
     setSalvataggioInCorso(true);
     // FORZA SEMPRE LA LETTURA FRESCA DAL DB
-    const socFresca = await getSocietaById(soc.id) || soc;
+    const socFresca = (soc?.id ? await getSocietaById(soc.id) : null) || soc;
     setSocietaAttiva(socFresca);
 
     const idPartita = `${socFresca.id}_PARTITA_LIVE`;
@@ -163,20 +162,21 @@ export default function App() {
       setSalvataggioInCorso(false);
       setFaseApp('partita');
     } else {
+      // In modalità bozza/prima della gara: staffBase ha la priorità assoluta per evitare sovrascritture da campi vuoti di stato.partita
       const pInfo = {
-        squadraCasa: (stato?.partita?.squadra_casa || squadraCasaBase).toUpperCase(),
-        squadraOspite: (stato?.partita?.squadra_ospite || squadraOspiteBase).toUpperCase(),
-        allenatore: (stato?.partita?.allenatore || allenatoreBase).toUpperCase(),
-        allenatoreSeconda: (stato?.partita?.allenatore_seconda || allenatoreSecondaBase).toUpperCase(),
-        dirigente: (stato?.partita?.dirigente || dirigenteBase).toUpperCase(),
-        dirigenteUfficiali: (stato?.partita?.dirigente_ufficiali || dirigenteUfficialiBase).toUpperCase(),
-        assistenteArbitro: (stato?.partita?.assistente_arbitro || assistenteArbitroBase).toUpperCase(),
+        squadraCasa: (staffBase.squadraCasa || stato?.partita?.squadra_casa || socFresca.nome || '').toUpperCase(),
+        squadraOspite: (staffBase.squadraOspite || stato?.partita?.squadra_ospite || '').toUpperCase(),
+        allenatore: allenatoreBase,
+        allenatoreSeconda: allenatoreSecondaBase,
+        dirigente: dirigenteBase,
+        dirigenteUfficiali: dirigenteUfficialiBase,
+        assistenteArbitro: assistenteArbitroBase,
         medicoSociale: medicoSocialeBase,
         massaggiatore: massaggiatoreBase,
         preparatoreAtletico: preparatoreAtleticoBase,
         preparatorePortieri: preparatorePortieriBase,
-        dataPartita: stato?.partita?.data_gara || dataPartitaBase,
-        isNostraCasa: stato?.partita?.is_nostra_casa ?? isNostraCasaBase
+        dataPartita: staffBase.dataPartita || stato?.partita?.data_gara || dataPartitaBase,
+        isNostraCasa: isNostraCasaBase
       };
 
       setPartitaInfo(pInfo);
@@ -552,14 +552,22 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN */}
+      {/* 1. LOGIN CON NUOVA ICONA APP */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
-            <div className="inline-flex p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 text-emerald-400 mb-2">
-              <Shield className="w-8 h-8" />
+            <div className="inline-flex p-1.5 rounded-3xl border border-slate-800 bg-slate-900 shadow-xl shadow-slate-950/50 mb-2">
+              <img 
+                src="/app-icon.png" 
+                alt="InPanchina Logo" 
+                className="w-20 h-20 rounded-2xl object-cover shadow-inner" 
+                onError={(e) => {
+                  // Fallback se l'immagine non è ancora stata copiata in /public
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
             </div>
-            <h1 className="text-2xl font-black text-white">InPanchina</h1>
+            <h1 className="text-2xl font-black text-white tracking-tight">InPanchina</h1>
             <p className="text-xs text-slate-400">Accesso Gestione Panchina & Referto</p>
           </div>
 
