@@ -77,6 +77,7 @@ export default function GestioneEventi({
       tempo: tempoGara,
       tipo: 'GOL',
       squadra: 'NOSTRA',
+      giocatoreId: giocatoreId || null,
       dettagli: `Gol: ${nome}`
     });
 
@@ -132,6 +133,7 @@ export default function GestioneEventi({
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: espulso ? 'ESPULSIONE' : 'AMMONIZIONE',
+      giocatoreId: giocatoreId,
       dettagli: espulso 
         ? `Doppia Ammonizione / Espulsione: #${target.numero} ${target.nome}` 
         : `Ammonizione: #${target.numero} ${target.nome}`
@@ -158,6 +160,7 @@ export default function GestioneEventi({
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: 'ESPULSIONE',
+      giocatoreId: giocatoreId,
       dettagli: `Espulsione Diretta: #${target.numero} ${target.nome}`
     });
 
@@ -166,7 +169,6 @@ export default function GestioneEventi({
 
   // 4. Sostituzioni (regola 5 cambi in 3 slot + intervallo)
   const apriModalCambio = () => {
-    // Durante l'intervallo il cambio è consentito anche a cronometro fermo
     if (!isIntervalloEffettivo && !verificaTimerAvviato()) return;
     
     if (cambiEsauriti) {
@@ -207,7 +209,6 @@ export default function GestioneEventi({
   };
 
   const handleConfermaTuttiICambi = () => {
-    // Raccoglie la selezione singola o il gruppo di cambi
     let listaCambi = [...coppieInAttesa];
     if (giocatoreEsce && giocatoreEntra) {
       const esce = giocatori.find(g => g.id === giocatoreEsce);
@@ -247,6 +248,8 @@ export default function GestioneEventi({
         minuto: isIntervalloEffettivo ? 45 : minutoCorrente,
         tempo: isIntervalloEffettivo ? 1 : tempoGara,
         tipo: 'SOSTITUZIONE',
+        esceId: esce.id,
+        entraId: entra.id,
         dettagli: `Cambio: Esce #${esce.numero} ${esce.nome} ➔ Entra #${entra.numero} ${entra.nome} ${notaSlot}`
       });
     });
@@ -254,7 +257,6 @@ export default function GestioneEventi({
     setGiocatori(nuovaRosa);
     setCambiEffettuati(prev => prev + listaCambi.length);
 
-    // Se non è intervallo, consuma esattamente 1 slot per l'intera interruzione
     if (!isIntervalloEffettivo) {
       setSlotUsati(prev => Math.min(3, prev + 1));
     }
@@ -265,7 +267,6 @@ export default function GestioneEventi({
     setCoppieInAttesa([]);
   };
 
-  // Filtra escludendo chi è già stato selezionato nel pacchetto multiplo
   const titolariInCampo = giocatori
     .filter(g => g.isTitolare && !g.espulso && !coppieInAttesa.some(c => c.esce.id === g.id))
     .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
@@ -511,7 +512,6 @@ export default function GestioneEventi({
               </button>
             </div>
 
-            {/* Avvisi se limiti raggiunti */}
             {slotEsauriti && !isIntervalloEffettivo && (
               <div className="bg-amber-950/50 border border-amber-500/40 p-2.5 rounded-xl text-xs font-bold text-amber-300 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -633,7 +633,6 @@ export default function GestioneEventi({
                   </div>
                 </div>
 
-                {/* Opzione Cambio Multiplo (Doppio / Triplo nello stesso slot) */}
                 {cambiEffettuati + coppieInAttesa.length + 1 < 5 && (
                   <div className="flex justify-end">
                     <button
