@@ -102,6 +102,12 @@ export default function App() {
     const dirigenteBase = (socFresca.dirigente_predefinito || staffBase.dirigente || '').toUpperCase();
     const dirigenteUfficialiBase = (socFresca.dirigente_ufficiali_predefinito || staffBase.dirigenteUfficiali || '').toUpperCase();
     const assistenteArbitroBase = (socFresca.assistente_arbitro_predefinito || staffBase.assistenteArbitro || '').toUpperCase();
+    
+    // NUOVI RUOLI DELLO STAFF TECNICO & DIRIGENZIALE
+    const medicoSocialeBase = (socFresca.medico_sociale_predefinito || staffBase.medicoSociale || '').toUpperCase();
+    const massaggiatoreBase = (socFresca.massaggiatore_predefinito || staffBase.massaggiatore || '').toUpperCase();
+    const preparatoreAtleticoBase = (socFresca.preparatore_atletico_predefinito || staffBase.preparatoreAtletico || '').toUpperCase();
+    const preparatorePortieriBase = (socFresca.preparatore_portieri_predefinito || staffBase.preparatorePortieri || '').toUpperCase();
 
     const stato = await caricaStatoPartita(idPartita);
     setRosa(rosaSalvataNelDb || []);
@@ -115,6 +121,10 @@ export default function App() {
         dirigente: (stato.partita.dirigente || dirigenteBase).toUpperCase(),
         dirigenteUfficiali: (stato.partita.dirigente_ufficiali || dirigenteUfficialiBase).toUpperCase(),
         assistenteArbitro: (stato.partita.assistente_arbitro || assistenteArbitroBase).toUpperCase(),
+        medicoSociale: (stato.partita.medico_sociale || medicoSocialeBase).toUpperCase(),
+        massaggiatore: (stato.partita.massaggiatore || massaggiatoreBase).toUpperCase(),
+        preparatoreAtletico: (stato.partita.preparatore_atletico || preparatoreAtleticoBase).toUpperCase(),
+        preparatorePortieri: (stato.partita.preparatore_portieri || preparatorePortieriBase).toUpperCase(),
         dataPartita: stato.partita.data_gara || new Date().toISOString().split('T')[0],
         isNostraCasa: stato.partita.is_nostra_casa ?? true
       };
@@ -156,6 +166,10 @@ export default function App() {
         dirigente: (stato?.partita?.dirigente || dirigenteBase).toUpperCase(),
         dirigenteUfficiali: (stato?.partita?.dirigente_ufficiali || dirigenteUfficialiBase).toUpperCase(),
         assistenteArbitro: (stato?.partita?.assistente_arbitro || assistenteArbitroBase).toUpperCase(),
+        medicoSociale: (stato?.partita?.medico_sociale || medicoSocialeBase).toUpperCase(),
+        massaggiatore: (stato?.partita?.massaggiatore || massaggiatoreBase).toUpperCase(),
+        preparatoreAtletico: (stato?.partita?.preparatore_atletico || preparatoreAtleticoBase).toUpperCase(),
+        preparatorePortieri: (stato?.partita?.preparatore_portieri || preparatorePortieriBase).toUpperCase(),
         dataPartita: stato?.partita?.data_gara || new Date().toISOString().split('T')[0],
         isNostraCasa: stato?.partita?.is_nostra_casa ?? true
       };
@@ -373,7 +387,11 @@ export default function App() {
       allenatoreSeconda: pInfo.allenatoreSeconda,
       dirigente: pInfo.dirigente,
       dirigenteUfficiali: pInfo.dirigenteUfficiali,
-      assistenteArbitro: pInfo.assistenteArbitro
+      assistenteArbitro: pInfo.assistenteArbitro,
+      medicoSociale: pInfo.medicoSociale,
+      massaggiatore: pInfo.massaggiatore,
+      preparatoreAtletico: pInfo.preparatoreAtletico,
+      preparatorePortieri: pInfo.preparatorePortieri
     });
 
     setSalvataggioInCorso(false);
