@@ -25,6 +25,7 @@ export default function GestioneEventi({
   setSlotUsati,
   cambiEffettuati,
   setCambiEffettuati,
+  onAggiornaCambiSlot,
   onGolSegnato,
   inEsecuzione
 }) {
@@ -257,22 +258,15 @@ export default function GestioneEventi({
     setGiocatori(nuovaRosa);
     
     // Calcoliamo i nuovi valori aggiornati
-    const nuoviCambiEffettuati = cambiEffettuati + listaCambi.length;
-    const nuoviSlotUsati = isIntervalloEffettivo ? slotUsati : Math.min(3, slotUsati + 1);
+    const nuoviCambi = cambiEffettuati + listaCambi.length;
+    const nuoviSlot = isIntervalloEffettivo ? slotUsati : Math.min(3, slotUsati + 1);
 
-    setCambiEffettuati(nuoviCambiEffettuati);
-    if (!isIntervalloEffettivo) {
-      setSlotUsati(nuoviSlotUsati);
-    }
-
-    // SINCRONIZZAZIONE PERSISTENTE SUL DB CLOUD (Supabase)
-    try {
-      const { syncStatoPartitaSuDb } = await import('../services/db');
-      const partitaId = `${giocatori[0]?.societa_id || ''}_PARTITA_LIVE`; // O ricavato dal contesto
-      // Nota: se preferisci passare la funzione di sync direttamente come prop da App.jsx puoi farlo, 
-      // oppure usiamo l'importazione diretta dei servizi di database come fatto altrove.
-    } catch (e) {
-      // Gestito in automatico se integrato nel flusso principale
+    // Salvataggio immediato sul DB tramite la funzione passata da App.jsx
+    if (onAggiornaCambiSlot) {
+      await onAggiornaCambiSlot(nuoviCambi, nuoviSlot);
+    } else {
+      setCambiEffettuati(nuoviCambi);
+      setSlotUsati(nuoviSlot);
     }
 
     setModalSostituzione(false);
@@ -434,7 +428,7 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* Modal Cartellino */}
+      {/* Modal Cartellino (Solo titolari in campo possono essere ammoniti/espulsi) */}
       {modalAmmonizione && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
