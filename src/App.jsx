@@ -37,11 +37,11 @@ import {
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto' | 'archivio'
-  
+   
   const [utenteConnesso, setUtenteConnesso] = useState(null);
   const [societaAttiva, setSocietaAttiva] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  
+   
   // UNICO dato salvato in localStorage: il nome utente esatto senza maiuscole forzate
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
@@ -51,7 +51,7 @@ export default function App() {
   const [partitaInfo, setPartitaInfo] = useState(null);
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
-  
+   
   // Stati Cronometro Sincronizzato Multi-Dispositivo
   const [tempoGara, setTempoGara] = useState(1);
   const [secondiGara, setSecondiGara] = useState(0);
@@ -86,7 +86,7 @@ export default function App() {
     setSocietaAttiva(socFresca);
 
     const idPartita = `${socFresca.id}_PARTITA_LIVE`;
-    
+     
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id);
 
     if ((!rosaSalvataNelDb || rosaSalvataNelDb.length === 0) && socFresca.rosa_base && socFresca.rosa_base.length > 0) {
@@ -97,7 +97,7 @@ export default function App() {
     }
 
     const staffBase = socFresca.staff_base || {};
-    
+     
     const allenatoreBase = (staffBase.allenatore || socFresca.allenatore_predefinito || '').toUpperCase();
     const allenatoreSecondaBase = (staffBase.allenatoreSeconda || socFresca.allenatore_seconda_predefinito || '').toUpperCase();
     const dirigenteBase = (staffBase.dirigente || socFresca.dirigente_predefinito || '').toUpperCase();
@@ -150,15 +150,15 @@ export default function App() {
       setGolCasa(partitaDB.gol_casa || 0);
       setGolOspiti(partitaDB.gol_ospite || 0);
       setTempoGara(partitaDB.tempo || 1);
-      
+       
       const inEsec = partitaDB.in_esecuzione || false;
       const secGara = partitaDB.secondi_gara || 0;
       const avvAlle = partitaDB.avviato_alle || null;
-      
+       
       setInEsecuzione(inEsec);
       setAvviatoAlle(avvAlle);
       setSecondiBase(secGara);
-      
+       
       if (inEsec && avvAlle) {
         const trascorsi = Math.max(0, Math.floor((Date.now() - new Date(avvAlle).getTime()) / 1000));
         setSecondiGara(secGara + trascorsi);
@@ -359,7 +359,7 @@ export default function App() {
       });
     }
   };
-  
+   
   const cambiaFaseGara = (nuovoTempo) => {
     setModaleBloccoTempo(null);
 
@@ -386,7 +386,7 @@ export default function App() {
       });
 
       alert("Fine 1° Tempo! Il cronometro del 2° Tempo è azzerato a 00:00 e sincronizzato.");
-    } else {
+    } else if (nuovoTempo === 'fine') {
       mettiInPausaTimer();
       setFaseApp('referto');
     }
@@ -448,14 +448,6 @@ export default function App() {
     await registraEventoCloud(partitaId, evento);
   };
 
-  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E DEFINITIVO (GOL, CAMBI E CARTELLINI)
-  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E AZZERAMENTO CARTOLINE
-  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E SINCRONIZZAZIONE CLOUD IMMEDIATA
-  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO, CALCOLO LOCALE E INVIO SICURO AL CLOUD
-  // ELIMINAZIONE EVENTO CON AGGIORNAMENTO FORZATO SIA DELLA ROSA CHE DEL SINGOLO GIOCATORE SUL DB
-  // ELIMINAZIONE EVENTO CON RICALCOLO SINCRONO E PULIZIA CLOUD PERFETTA
-  // ELIMINAZIONE EVENTO CON RICALCOLO PULITO E AZZERAMENTO REALE SU SUPABASE
-  // ELIMINAZIONE EVENTO CON RICONOSCIMENTO INTELLIGENTE DEL GIOCATORE E AZZERAMENTO REALE SU DB
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E RICONOSCIMENTO INTELLIGENTE DI CAMBI E CARTELLINI
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
@@ -496,9 +488,9 @@ export default function App() {
       setCambiEffettuati(nuoviCambi);
 
       const isIntervallo = eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo');
-      const nuoviSlot = isIntervallo ? slotUsati : Math.max(0, slotUsati - 1);
+      const nuevosSlot = isIntervallo ? slotUsati : Math.max(0, slotUsati - 1);
       if (!isIntervallo) {
-        setSlotUsati(nuoviSlot);
+        setSlotUsati(nuevosSlot);
       }
 
       // Identifichiamo chi esce e chi entra (tramite proprietà dirette o estraendoli dai dettagli del cambio)
@@ -506,16 +498,11 @@ export default function App() {
       let idEntra = eventoDaEliminare.entraId;
 
       if ((!idEsce || !idEntra) && eventoDaEliminare.dettagli) {
-        // Estrazione di sicurezza dai dettagli (es. "Esce #7 NOME ... Entra #10 NOME")
-        const matchEsce = rosa.find(g => eventoDaEliminare.dettagli.includes(`#${g.numero} `) && eventoDaEliminare.dettagli.indexOf('Esce') < eventoDaEliminare.dettagli.indexOf(g.nome));
-        // Cerchiamo i due giocatori menzionati nel testo
         const giocatoriCoinvolti = rosa.filter(g => eventoDaEliminare.dettagli.includes(`#${g.numero}`) || eventoDaEliminare.dettagli.includes(g.nome));
         if (giocatoriCoinvolti.length >= 2) {
-          // Chi era titolare prima del cambio e ora è in panchina (o viceversa) oppure deducendo dall'ordine nel testo
           const idxEsce = eventoDaEliminare.dettagli.indexOf('Esce');
           const idxEntra = eventoDaEliminare.dettagli.indexOf('Entra');
           
-          // Troviamo il giocatore più vicino alla parola "Esce" e quello vicino a "Entra"
           let candidatoEsce = null;
           let candidatoEntra = null;
           let minDistanzaEsce = 999;
@@ -561,7 +548,7 @@ export default function App() {
         avviatoAlle,
         recupero,
         minutoCorrente,
-        slotUsati: nuoviSlot,
+        slotUsati: nuevosSlot,
         cambiEffettuati: nuoviCambi
       });
     }
@@ -614,7 +601,7 @@ export default function App() {
     await eliminaEventoCloud(id);
     setEventi(eventiRimasti);
   };
-  
+   
   const handleAggiornaRosa = async (nuovaRosa) => {
     setRosa(nuovaRosa);
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
@@ -670,14 +657,10 @@ export default function App() {
     }
   };
 
-  const isFinePartitaRaggiunta = tempoGara === 2 && secondiGara >= (2700 + recupero * 60);
+  // Disattivato il controllo automatico intrusivo: la partita si chiude SOLO se l'utente preme esplicitamente sul Referto.
+  const isFinePartitaRaggiunta = false;
 
   const disconnetti = () => {
-    if (isFinePartitaRaggiunta && faseApp === 'partita') {
-      const conferma = window.confirm("ATTENZIONE: La partita è terminata ma non hai ancora archiviato il referto finale. Se esci ora la sessione live rimarrà incompleta. Vuoi davvero disconnetterti?");
-      if (!conferma) return;
-    }
-
     setUtenteConnesso(null);
     setSocietaAttiva(null);
     setIsSuperAdmin(false);
@@ -880,13 +863,9 @@ export default function App() {
 
               <button
                 onClick={() => setFaseApp('referto')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 uppercase transition cursor-pointer ${
-                  isFinePartitaRaggiunta
-                    ? 'bg-rose-600 hover:bg-rose-500 text-white animate-bounce shadow-lg shadow-rose-950'
-                    : 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700'
-                }`}
+                className="px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 uppercase transition cursor-pointer bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700"
               >
-                <FileText className="w-3.5 h-3.5" /> Referto {isFinePartitaRaggiunta && '(!)'}
+                <FileText className="w-3.5 h-3.5" /> Referto
               </button>
             </div>
           </div>
@@ -923,7 +902,7 @@ export default function App() {
             recupero={recupero}
             setRecupero={setRecupero}
             onTick={(min) => setMinutoCorrente(min)}
-            onTriggerScadenzaTempo={(t) => setModaleBloccoTempo(t === 1 ? 'primo_tempo' : 'fine_gara')}
+            onTriggerScadenzaTempo={null}
           />
 
           {/* GESTIONE EVENTI CON REGOLE 5 CAMBI, 3 SLOT ED INTERVALLO */}
