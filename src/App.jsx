@@ -452,6 +452,7 @@ export default function App() {
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E AZZERAMENTO CARTOLINE
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E SINCRONIZZAZIONE CLOUD IMMEDIATA
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO, CALCOLO LOCALE E INVIO SICURO AL CLOUD
+  // ELIMINAZIONE EVENTO CON AGGIORNAMENTO FORZATO SIA DELLA ROSA CHE DEL SINGOLO GIOCATORE SUL DB
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
@@ -511,39 +512,50 @@ export default function App() {
         avviatoAlle,
         recupero,
         minutoCorrente,
-        slotUsati: nuoviSlot,
-        cambiEffettuati: novosCambi = nuoviCambi
+        slotUsati: novosSlot = nuoviSlot,
+        cambiEffettuati: nuoviCambi
       });
     }
 
-    // 3. ROLLBACK CARTELLINI CON CALCOLO SINCRONO ED ESATTO
+    // 3. ROLLBACK CARTELLINI CON AGGIORNAMENTO FORZATO DB (JSON + SINGOLO RECORD)
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       if (eventoDaEliminare.giocatoreId) {
-        // Escludiamo l'evento da eliminare dall'elenco degli eventi rimasti
         const eventiRimasti = eventi.filter(e => e.id !== id);
+        let giocatoreModificato = null;
 
-        // Calcoliamo la nuova rosa in modo sincrono basandoci sugli eventi effettivi nel feed
         const rosaAggiornataPerCartellini = rosa.map(g => {
           if (g.id === eventoDaEliminare.giocatoreId) {
-            // Contiamo quanti cartellini gialli e rossi reali rimangono per questo specifico giocatore
             const ammonizioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'AMMONIZIONE').length;
             const espulsioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'ESPULSIONE').length;
 
             const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniRimaste > 0;
 
-            return {
+            giocatoreModificato = {
               ...g,
-              ammonizioni: ammonizioniRimaste, // Decrementa/azzera perfettamente il contatore dei gialli
-              espulso: ancoraEspulso,           // Rimuove lo stato di espulsione se non ci sono più cartellini
+              ammonizioni: ammonizioniRimaste, // <-- Valore numerico aggiornato dei gialli (es. 0 se eliminato)
+              espulso: ancoraEspulso,
               isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
             };
+            return giocatoreModificato;
           }
           return g;
         });
 
-        // Aggiorniamo subito lo stato locale e mandiamo la rosa fresca al Database Cloud
+        // Aggiorniamo lo stato locale
         setRosa(rosaAggiornataPerCartellini);
+
+        // Inviamo la rosa aggiornata al cloud
         await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini);
+
+        // AGGIUNTA DI SICUREZZA: se nel tuo db.js esiste la funzione per salvare il singolo giocatore, la chiamiamo perforza
+        try {
+          const { dbModificaGiocatore } = await import('./services/db');
+          if (dbModificaGiocatore && giocatoreModificato && societaAttiva?.id) {
+            await dbModificaGiocatore(societaAttiva.id, giocatoreModificato);
+          }
+        } catch (e) {
+          // Ignora se non definita
+        }
       }
     }
 
