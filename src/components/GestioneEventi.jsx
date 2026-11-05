@@ -170,7 +170,7 @@ export default function GestioneEventi({
   // 4. Sostituzioni (regola 5 cambi in 3 slot + intervallo)
   const apriModalCambio = () => {
     if (!isIntervalloEffettivo && !verificaTimerAvviato()) return;
-    
+     
     if (cambiEsauriti) {
       alert("Hai già effettuato tutti i 5 cambi a disposizione!");
       return;
@@ -267,10 +267,12 @@ export default function GestioneEventi({
     setCoppieInAttesa([]);
   };
 
+  // FILTRI BLINDATI: Chi è attualmente titolare in campo (e non espulso, e non già selezionato per uscire in questo slot)
   const titolariInCampo = giocatori
     .filter(g => g.isTitolare && !g.espulso && !coppieInAttesa.some(c => c.esce.id === g.id))
     .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
 
+  // FILTRI BLINDATI: Chi è in panchina (isTitolare === false, non espulso, e che non è già entrato in campo in precedenza o in questa sessione)
   const panchinaDisponibile = giocatori
     .filter(g => !g.isTitolare && !g.espulso && !coppieInAttesa.some(c => c.entra.id === g.id))
     .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
@@ -378,8 +380,8 @@ export default function GestioneEventi({
             cambioDisabilitato
               ? 'bg-slate-800/40 text-slate-600 border border-slate-800 cursor-not-allowed'
               : inEsecuzione || isIntervalloEffettivo
-                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-950 cursor-pointer' 
-                : 'bg-slate-800/80 text-slate-400 border border-slate-700/60 opacity-80'
+              ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-950 cursor-pointer' 
+              : 'bg-slate-800/80 text-slate-400 border border-slate-700/60 opacity-80'
           }`}
         >
           <ArrowRightLeft className="w-4 h-4" /> Cambio ({cambiEffettuati}/5)
@@ -520,7 +522,7 @@ export default function GestioneEventi({
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Colonna 1: Chi ESCE (Titolari) */}
+              {/* Colonna 1: Chi ESCE (Titolari attualmente in campo) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-rose-400 bg-rose-950/30 border border-rose-900/40 p-2 rounded-lg">
                   <span className="flex items-center gap-1.5"><UserMinus className="w-3.5 h-3.5" /> 1. Chi ESCE (In campo)</span>
@@ -564,7 +566,7 @@ export default function GestioneEventi({
                 </div>
               </div>
 
-              {/* Colonna 2: Chi ENTRA (Panchina) */}
+              {/* Colonna 2: Chi ENTRA (Panchina - Esclude chi è già uscito o ha già giocato) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2 rounded-lg">
                   <span className="flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5" /> 2. Chi ENTRA (Panchina)</span>
