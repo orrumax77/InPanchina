@@ -448,6 +448,25 @@ export default function App() {
     await registraEventoCloud(partitaId, evento);
   };
 
+  // Funzione dedicata per aggiornare e salvare all'istante sul DB cambi e slot usati
+  const handleAggiornaCambiSlot = async (nuoviCambi, nuoviSlot) => {
+    setCambiEffettuati(nuoviCambi);
+    setSlotUsati(nuoviSlot);
+
+    await syncStatoPartitaSuDb(partitaId, {
+      golCasa,
+      golOspiti,
+      tempoGara,
+      secondiGara,
+      inEsecuzione,
+      avviatoAlle,
+      recupero,
+      minutoCorrente,
+      slotUsati: nuoviSlot,
+      cambiEffettuati: nuoviCambi
+    });
+  };
+
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E RICONOSCIMENTO INTELLIGENTE DI CAMBI E CARTELLINI
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
@@ -469,8 +488,8 @@ export default function App() {
       setGolOspiti(nuovoOspiti);
 
       syncStatoPartitaSuDb(partitaId, {
-        golCasa: nuovoCasa,
-        golOspiti: nuovoOspiti,
+        golCasa: nuevoCasa,
+        golOspiti: nuevoOspiti,
         tempoGara,
         secondiGara,
         inEsecuzione,
@@ -482,18 +501,14 @@ export default function App() {
       });
     }
 
-    // 2. ROLLBACK CAMBIO / SOSTITUZIONE (Riconoscimento sicuro tramite ID o Testo Dettagli)
+    // 2. ROLLBACK CAMBIO / SOSTITUZIONE (Aggiornamento istantaneo anche sul DB)
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       const nuoviCambi = Math.max(0, cambiEffettuati - 1);
-      setCambiEffettuati(nuoviCambi);
-
       const isIntervallo = eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo');
-      const nuevosSlot = isIntervallo ? slotUsati : Math.max(0, slotUsati - 1);
-      if (!isIntervallo) {
-        setSlotUsati(nuevosSlot);
-      }
+      const nuoviSlot = isIntervallo ? slotUsati : Math.max(0, slotUsati - 1);
 
-      // Identifichiamo chi esce e chi entra (tramite proprietà dirette o estraendoli dai dettagli del cambio)
+      await handleAggiornaCambiSlot(nuoviCambi, isIntervallo ? slotUsati : nuoviSlot);
+
       let idEsce = eventoDaEliminare.esceId;
       let idEntra = eventoDaEliminare.entraId;
 
@@ -538,19 +553,6 @@ export default function App() {
 
       setRosa(rosaAggiornataPerCambio);
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio);
-
-      syncStatoPartitaSuDb(partitaId, {
-        golCasa,
-        golOspiti,
-        tempoGara,
-        secondiGara,
-        inEsecuzione,
-        avviatoAlle,
-        recupero,
-        minutoCorrente,
-        slotUsati: nuevosSlot,
-        cambiEffettuati: nuoviCambi
-      });
     }
 
     // 3. ROLLBACK CARTELLINI CON MATCHING SICURO SUI DETTAGLI (NOME E NUMERO)
@@ -919,6 +921,7 @@ export default function App() {
             setSlotUsati={setSlotUsati}
             cambiEffettuati={cambiEffettuati}
             setCambiEffettuati={setCambiEffettuati}
+            onAggiornaCambiSlot={handleAggiornaCambiSlot}
             onGolSegnato={handleGolSegnato}
             inEsecuzione={inEsecuzione}
           />
