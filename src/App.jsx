@@ -451,6 +451,7 @@ export default function App() {
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E DEFINITIVO (GOL, CAMBI E CARTELLINI)
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E AZZERAMENTO CARTOLINE
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E SINCRONIZZAZIONE CLOUD IMMEDIATA
+  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO, CALCOLO LOCALE E INVIO SICURO AL CLOUD
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
@@ -492,16 +493,13 @@ export default function App() {
         setSlotUsati(nuoviSlot);
       }
 
-      let rosaAggiornataPerCambio = [];
-      setRosa(prevRosa => {
-        rosaAggiornataPerCambio = prevRosa.map(g => {
-          if (g.id === eventoDaEliminare.esceId) return { ...g, isTitolare: true };
-          if (g.id === eventoDaEliminare.entraId) return { ...g, isTitolare: false };
-          return g;
-        });
-        return rosaAggiornataPerCambio;
+      const rosaAggiornataPerCambio = rosa.map(g => {
+        if (g.id === eventoDaEliminare.esceId) return { ...g, isTitolare: true };
+        if (g.id === eventoDaEliminare.entraId) return { ...g, isTitolare: false };
+        return g;
       });
 
+      setRosa(rosaAggiornataPerCambio);
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio);
 
       syncStatoPartitaSuDb(partitaId, {
@@ -514,41 +512,42 @@ export default function App() {
         recupero,
         minutoCorrente,
         slotUsati: nuoviSlot,
-        cambiEffettuati: nuoviCambi
+        cambiEffettuati: novosCambi = nuoviCambi
       });
     }
 
-    // 3. ROLLBACK CARTELLINI (AGGIORNAMENTO NUMERICO ESATTO E RESET DB)
+    // 3. ROLLBACK CARTELLINI CON CALCOLO SINCRONO ED ESATTO
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       if (eventoDaEliminare.giocatoreId) {
+        // Escludiamo l'evento da eliminare dall'elenco degli eventi rimasti
         const eventiRimasti = eventi.filter(e => e.id !== id);
-        let rosaAggiornataPerCartellini = [];
-        
-        setRosa(prevRosa => {
-          rosaAggiornataPerCartellini = prevRosa.map(g => {
-            if (g.id === eventoDaEliminare.giocatoreId) {
-              const ammonizioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && (e.tipo === 'AMMONIZIONE' || (e.tipo === 'ESPULSIONE' && e.dettagli?.toLowerCase().includes('doppia')))).length;
-              const espulsioniDiretteRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'ESPULSIONE' && !e.dettagli?.toLowerCase().includes('doppia')).length;
 
-              const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniDiretteRimaste > 0;
+        // Calcoliamo la nuova rosa in modo sincrono basandoci sugli eventi effettivi nel feed
+        const rosaAggiornataPerCartellini = rosa.map(g => {
+          if (g.id === eventoDaEliminare.giocatoreId) {
+            // Contiamo quanti cartellini gialli e rossi reali rimangono per questo specifico giocatore
+            const ammonizioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'AMMONIZIONE').length;
+            const espulsioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'ESPULSIONE').length;
 
-              return {
-                ...g,
-                ammonizioni: ammonizioniRimaste, // Azzera o scala correttamente il contatore dei gialli
-                espulso: ancoraEspulso,
-                isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
-              };
-            }
-            return g;
-          });
-          return rosaAggiornataPerCartellini;
+            const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniRimaste > 0;
+
+            return {
+              ...g,
+              ammonizioni: ammonizioniRimaste, // Decrementa/azzera perfettamente il contatore dei gialli
+              espulso: ancoraEspulso,           // Rimuove lo stato di espulsione se non ci sono più cartellini
+              isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
+            };
+          }
+          return g;
         });
 
-        // Invio immediato e sincronizzato dei dati aggiornati al database
+        // Aggiorniamo subito lo stato locale e mandiamo la rosa fresca al Database Cloud
+        setRosa(rosaAggiornataPerCartellini);
         await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini);
       }
     }
 
+    // Rimozione definitiva dell'evento dalla cronologia e dal cloud
     const eventiAggiornati = eventi.filter(e => e.id !== id);
     setEventi(eventiAggiornati);
     await eliminaEventoCloud(id);
