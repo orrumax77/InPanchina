@@ -453,6 +453,7 @@ export default function App() {
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E SINCRONIZZAZIONE CLOUD IMMEDIATA
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO, CALCOLO LOCALE E INVIO SICURO AL CLOUD
   // ELIMINAZIONE EVENTO CON AGGIORNAMENTO FORZATO SIA DELLA ROSA CHE DEL SINGOLO GIOCATORE SUL DB
+  // ELIMINAZIONE EVENTO CON RICALCOLO SINCRONO E PULIZIA CLOUD PERFETTA
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
@@ -463,15 +464,15 @@ export default function App() {
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
       const stornareCasa = isGolNostro ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
 
-      const nuovoCasa = stornareCasa ? Math.max(0, golCasa - 1) : golCasa;
-      const nuovoOspiti = !stornareCasa ? Math.max(0, golOspiti - 1) : golOspiti;
+      const nuevoCasa = stornareCasa ? Math.max(0, golCasa - 1) : golCasa;
+      const nuevoOspiti = !stornareCasa ? Math.max(0, golOspiti - 1) : golOspiti;
 
-      setGolCasa(nuovoCasa);
-      setGolOspiti(nuovoOspiti);
+      setGolCasa(nuevoCasa);
+      setGolOspiti(nuevoOspiti);
 
       syncStatoPartitaSuDb(partitaId, {
-        golCasa: nuovoCasa,
-        golOspiti: nuovoOspiti,
+        golCasa: nuevoCasa,
+        golOspiti: nuevoOspiti,
         tempoGara,
         secondiGara,
         inEsecuzione,
@@ -512,54 +513,45 @@ export default function App() {
         avviatoAlle,
         recupero,
         minutoCorrente,
-        slotUsati: novosSlot = nuoviSlot,
+        slotUsati: nuoviSlot,
         cambiEffettuati: nuoviCambi
       });
     }
 
-    // 3. ROLLBACK CARTELLINI CON AGGIORNAMENTO FORZATO DB (JSON + SINGOLO RECORD)
+    // 3. ROLLBACK CARTELLINI CON CALCOLO ESATTO E AZZERAMENTO DATABASE CLOUD
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       if (eventoDaEliminare.giocatoreId) {
+        // Escludiamo l'evento che stiamo eliminando dall'elenco degli eventi futuri
         const eventiRimasti = eventi.filter(e => e.id !== id);
-        let giocatoreModificato = null;
 
+        // Mappatura sincrona per contare quanti cartellini rimangono davvero nel feed per quel giocatore
         const rosaAggiornataPerCartellini = rosa.map(g => {
           if (g.id === eventoDaEliminare.giocatoreId) {
+            // Contiamo esattamente gli eventi di tipo AMMONIZIONE o ESPULSIONE rimasti per questo ID
             const ammonizioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'AMMONIZIONE').length;
             const espulsioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'ESPULSIONE').length;
 
             const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniRimaste > 0;
 
-            giocatoreModificato = {
+            return {
               ...g,
-              ammonizioni: ammonizioniRimaste, // <-- Valore numerico aggiornato dei gialli (es. 0 se eliminato)
+              ammonizioni: ammonizioniRimaste, // <-- Si decrementa o si azzera a 0 perfettamente
               espulso: ancoraEspulso,
               isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
             };
-            return giocatoreModificato;
           }
           return g;
         });
 
-        // Aggiorniamo lo stato locale
+        // Aggiorniamo immediatamente lo stato locale
         setRosa(rosaAggiornataPerCartellini);
 
-        // Inviamo la rosa aggiornata al cloud
+        // Inviamo subito la nuova rosa pulita a Supabase tramite upsert
         await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini);
-
-        // AGGIUNTA DI SICUREZZA: se nel tuo db.js esiste la funzione per salvare il singolo giocatore, la chiamiamo perforza
-        try {
-          const { dbModificaGiocatore } = await import('./services/db');
-          if (dbModificaGiocatore && giocatoreModificato && societaAttiva?.id) {
-            await dbModificaGiocatore(societaAttiva.id, giocatoreModificato);
-          }
-        } catch (e) {
-          // Ignora se non definita
-        }
       }
     }
 
-    // Rimozione definitiva dell'evento dalla cronologia e dal cloud
+    // Rimuoviamo definitivamente l'evento dalla cronologia e lo eliminiamo dalla tabella eventi del cloud
     const eventiAggiornati = eventi.filter(e => e.id !== id);
     setEventi(eventiAggiornati);
     await eliminaEventoCloud(id);
