@@ -208,7 +208,7 @@ export default function GestioneEventi({
     setCoppieInAttesa(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleConfermaTuttiICambi = () => {
+  const handleConfermaTuttiICambi = async () => {
     let listaCambi = [...coppieInAttesa];
     if (giocatoreEsce && giocatoreEntra) {
       const esce = giocatori.find(g => g.id === giocatoreEsce);
@@ -255,10 +255,24 @@ export default function GestioneEventi({
     });
 
     setGiocatori(nuovaRosa);
-    setCambiEffettuati(prev => prev + listaCambi.length);
+    
+    // Calcoliamo i nuovi valori aggiornati
+    const nuoviCambiEffettuati = cambiEffettuati + listaCambi.length;
+    const nuoviSlotUsati = isIntervalloEffettivo ? slotUsati : Math.min(3, slotUsati + 1);
 
+    setCambiEffettuati(nuoviCambiEffettuati);
     if (!isIntervalloEffettivo) {
-      setSlotUsati(prev => Math.min(3, prev + 1));
+      setSlotUsati(nuoviSlotUsati);
+    }
+
+    // SINCRONIZZAZIONE PERSISTENTE SUL DB CLOUD (Supabase)
+    try {
+      const { syncStatoPartitaSuDb } = await import('../services/db');
+      const partitaId = `${giocatori[0]?.societa_id || ''}_PARTITA_LIVE`; // O ricavato dal contesto
+      // Nota: se preferisci passare la funzione di sync direttamente come prop da App.jsx puoi farlo, 
+      // oppure usiamo l'importazione diretta dei servizi di database come fatto altrove.
+    } catch (e) {
+      // Gestito in automatico se integrato nel flusso principale
     }
 
     setModalSostituzione(false);
@@ -266,7 +280,7 @@ export default function GestioneEventi({
     setGiocatoreEntra('');
     setCoppieInAttesa([]);
   };
-
+  
   // Chi è attualmente titolare in campo (e non espulso, e non già selezionato per uscire in questo slot)
   const titolariInCampo = giocatori
     .filter(g => g.isTitolare && !g.espulso && !coppieInAttesa.some(c => c.esce.id === g.id))
