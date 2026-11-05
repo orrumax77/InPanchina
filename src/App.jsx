@@ -456,6 +456,7 @@ export default function App() {
   // ELIMINAZIONE EVENTO CON RICALCOLO SINCRONO E PULIZIA CLOUD PERFETTA
   // ELIMINAZIONE EVENTO CON RICALCOLO PULITO E AZZERAMENTO REALE SU SUPABASE
   // ELIMINAZIONE EVENTO CON RICONOSCIMENTO INTELLIGENTE DEL GIOCATORE E AZZERAMENTO REALE SU DB
+  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E RICONOSCIMENTO INTELLIGENTE DI CAMBI E CARTELLINI
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
@@ -489,7 +490,7 @@ export default function App() {
       });
     }
 
-    // 2. ROLLBACK CAMBIO / SOSTITUZIONE
+    // 2. ROLLBACK CAMBIO / SOSTITUZIONE (Riconoscimento sicuro tramite ID o Testo Dettagli)
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       const nuoviCambi = Math.max(0, cambiEffettuati - 1);
       setCambiEffettuati(nuoviCambi);
@@ -500,9 +501,51 @@ export default function App() {
         setSlotUsati(nuoviSlot);
       }
 
+      // Identifichiamo chi esce e chi entra (tramite proprietà dirette o estraendoli dai dettagli del cambio)
+      let idEsce = eventoDaEliminare.esceId;
+      let idEntra = eventoDaEliminare.entraId;
+
+      if ((!idEsce || !idEntra) && eventoDaEliminare.dettagli) {
+        // Estrazione di sicurezza dai dettagli (es. "Esce #7 NOME ... Entra #10 NOME")
+        const matchEsce = rosa.find(g => eventoDaEliminare.dettagli.includes(`#${g.numero} `) && eventoDaEliminare.dettagli.indexOf('Esce') < eventoDaEliminare.dettagli.indexOf(g.nome));
+        // Cerchiamo i due giocatori menzionati nel testo
+        const giocatoriCoinvolti = rosa.filter(g => eventoDaEliminare.dettagli.includes(`#${g.numero}`) || eventoDaEliminare.dettagli.includes(g.nome));
+        if (giocatoriCoinvolti.length >= 2) {
+          // Chi era titolare prima del cambio e ora è in panchina (o viceversa) oppure deducendo dall'ordine nel testo
+          const idxEsce = eventoDaEliminare.dettagli.indexOf('Esce');
+          const idxEntra = eventoDaEliminare.dettagli.indexOf('Entra');
+          
+          // Troviamo il giocatore più vicino alla parola "Esce" e quello vicino a "Entra"
+          let candidatoEsce = null;
+          let candidatoEntra = null;
+          let minDistanzaEsce = 999;
+          let minDistanzaEntra = 999;
+
+          rosa.forEach(g => {
+            const posNome = eventoDaEliminare.dettagli.indexOf(g.nome);
+            if (posNome !== -1) {
+              const distEsce = Math.abs(posNome - idxEsce);
+              const distEntra = Math.abs(posNome - idxEntra);
+              if (distEsce < minDistanzaEsce) {
+                minDistanzaEsce = distEsce;
+                candidatoEsce = g;
+              }
+              if (distEntra < minDistanzaEntra) {
+                minDistanzaEntra = distEntra;
+                candidatoEntra = g;
+              }
+            }
+          });
+
+          if (candidatoEsce) idEsce = candidatoEsce.id;
+          if (candidatoEntra) idEntra = candidatoEntra.id;
+        }
+      }
+
+      // Ripristiniamo la titolarità: chi era uscito torna titolare (isTitolare: true), chi era entrato torna in panchina (isTitolare: false)
       const rosaAggiornataPerCambio = rosa.map(g => {
-        if (g.id === eventoDaEliminare.esceId) return { ...g, isTitolare: true };
-        if (g.id === eventoDaEliminare.entraId) return { ...g, isTitolare: false };
+        if (g.id === idEsce) return { ...g, isTitolare: true };
+        if (g.id === idEntra) return { ...g, isTitolare: false };
         return g;
       });
 
@@ -525,7 +568,6 @@ export default function App() {
 
     // 3. ROLLBACK CARTELLINI CON MATCHING SICURO SUI DETTAGLI (NOME E NUMERO)
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
-      // Troviamo il giocatore abbinato cercando il suo ID oppure il suo nome/numero all'interno dei dettagli dell'evento
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
         (eventoDaEliminare.dettagli && (
@@ -537,7 +579,6 @@ export default function App() {
       if (giocatoreCoinvolto) {
         const rosaAggiornataPerCartellini = rosa.map(g => {
           if (g.id === giocatoreCoinvolto.id) {
-            // Contiamo quanti eventi di ammonizione o espulsione rimangono effettivamente nel feed per questo giocatore
             const ammonizioniRimaste = eventiRimasti.filter(e => 
               (e.tipo === 'AMMONIZIONE') && (
                 e.giocatoreId === g.id || 
@@ -556,7 +597,7 @@ export default function App() {
 
             return {
               ...g,
-              ammonizioni: ammonizioniRimaste, // <-- Ora si azzera perfettamente a 0 sul DB
+              ammonizioni: ammonizioniRimaste,
               espulso: ancoraEspulso,
               isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
             };
@@ -564,7 +605,6 @@ export default function App() {
           return g;
         });
 
-        // Aggiorniamo subito lo stato locale e forziamo l'aggiornamento su Supabase
         setRosa(rosaAggiornataPerCartellini);
         await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini);
       }
