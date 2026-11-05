@@ -36,6 +36,28 @@ export async function caricaStatoPartita(partitaId) {
 export async function caricaRosaSocieta(societaId) {
   if (!societaId) return [];
   try {
+    // 1. Diamo la precedenza assoluta alla tabella 'giocatori' live se esistono record per questa società
+    const { data: gList, error: errG } = await supabase
+      .from('giocatori')
+      .select('*')
+      .eq('societa_id', societaId)
+      .order('numero', { ascending: true });
+
+    if (!errG && gList && gList.length > 0) {
+      return gList.map(g => ({
+        id: String(g.id).replace(`${societaId}_`, ''),
+        numero: String(g.numero),
+        nome: (g.nome || '').toUpperCase(),
+        ruolo: g.ruolo || '',
+        isTitolare: g.is_titolare ?? false,
+        isCapitano: g.is_capitano ?? false,
+        isVice: g.is_vice ?? false,
+        ammonizioni: g.ammonizioni || 0,
+        espulso: g.espulso || false
+      }));
+    }
+
+    // 2. Fallback sulla rosa base della società solo se la tabella giocatori è vuota
     const { data: soc, error: errSoc } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -56,33 +78,12 @@ export async function caricaRosaSocieta(societaId) {
       }));
     }
 
-    const { data: gList, error: errG } = await supabase
-      .from('giocatori')
-      .select('*')
-      .eq('societa_id', societaId)
-      .order('numero', { ascending: true });
-
-    if (!errG && gList && gList.length > 0) {
-      return gList.map(g => ({
-        id: g.id.replace(`${societaId}_`, ''),
-        numero: String(g.numero),
-        nome: (g.nome || '').toUpperCase(),
-        ruolo: g.ruolo || '',
-        isTitolare: g.is_titolare,
-        isCapitano: g.isCapitano ?? g.is_capitano,
-        isVice: g.isVice ?? g.is_vice,
-        ammonizioni: g.ammonizioni || 0,
-        espulso: g.espulso || false
-      }));
-    }
-
     return [];
   } catch (err) {
     console.error('Errore caricaRosaSocieta:', err);
     return [];
   }
 }
-
 export async function dbAggiungiGiocatore(societaId, giocatore) {
   if (!societaId || !giocatore) return;
   try {
