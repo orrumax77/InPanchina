@@ -242,7 +242,7 @@ export default function App() {
     await avviaSessioneSocieta(soc);
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (Isolato per non alterare il timer locale)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -253,17 +253,7 @@ export default function App() {
         setGolCasa(p.gol_casa);
         setGolOspiti(p.gol_ospite);
         setTempoGara(p.tempo);
-        setInEsecuzione(p.in_esecuzione);
-        setAvviatoAlle(p.avviato_alle);
-        setSecondiBase(p.secondi_gara);
-
-        if (p.in_esecuzione && p.avviato_alle) {
-          const trascorsi = Math.max(0, Math.floor((Date.now() - new Date(p.avviato_alle).getTime()) / 1000));
-          setSecondiGara(p.secondi_gara + trascorsi);
-        } else {
-          setSecondiGara(p.secondi_gara);
-        }
-
+        
         setRecupero(p.recupero);
         setMinutoCorrente(p.minuto_corrente);
         setSlotUsati(p.slot_usati);
@@ -476,7 +466,7 @@ export default function App() {
     // Creiamo subito l'elenco degli eventi rimasti escludendo quello da eliminare
     const eventiRimasti = eventi.filter(e => e.id !== id);
 
-    // 1. ROLLBACK GOL (Aggiornato per preservare slot e cambi)
+    // 1. ROLLBACK GOL (Preserva slot e cambi)
     if (eventoDaEliminare.tipo === 'GOL') {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
