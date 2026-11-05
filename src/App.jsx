@@ -454,25 +454,30 @@ export default function App() {
   // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO, CALCOLO LOCALE E INVIO SICURO AL CLOUD
   // ELIMINAZIONE EVENTO CON AGGIORNAMENTO FORZATO SIA DELLA ROSA CHE DEL SINGOLO GIOCATORE SUL DB
   // ELIMINAZIONE EVENTO CON RICALCOLO SINCRONO E PULIZIA CLOUD PERFETTA
+  // ELIMINAZIONE EVENTO CON RICALCOLO PULITO E AZZERAMENTO REALE SU SUPABASE
   const eliminaEvento = async (id) => {
+    // 1. Individuiamo l'evento da eliminare
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
 
-    // 1. ROLLBACK GOL
+    // 2. Creiamo subito l'array degli eventi FUTURI (escludendo l'id che stiamo eliminando)
+    const eventiRimasti = eventi.filter(e => e.id !== id);
+
+    // 3. ROLLBACK GOL
     if (eventoDaEliminare.tipo === 'GOL') {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
       const stornareCasa = isGolNostro ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
 
-      const nuevoCasa = stornareCasa ? Math.max(0, golCasa - 1) : golCasa;
-      const nuevoOspiti = !stornareCasa ? Math.max(0, golOspiti - 1) : golOspiti;
+      const nuovoCasa = stornareCasa ? Math.max(0, golCasa - 1) : golCasa;
+      const nuovoOspiti = !stornareCasa ? Math.max(0, golOspiti - 1) : golOspiti;
 
-      setGolCasa(nuevoCasa);
-      setGolOspiti(nuevoOspiti);
+      setGolCasa(nuovoCasa);
+      setGolOspiti(nuovoOspiti);
 
       syncStatoPartitaSuDb(partitaId, {
-        golCasa: nuevoCasa,
-        golOspiti: nuevoOspiti,
+        golCasa: nuovoCasa,
+        golOspiti: nuovoOspiti,
         tempoGara,
         secondiGara,
         inEsecuzione,
@@ -484,7 +489,7 @@ export default function App() {
       });
     }
 
-    // 2. ROLLBACK CAMBIO / SOSTITUZIONE
+    // 4. ROLLBACK CAMBIO / SOSTITUZIONE
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       const nuoviCambi = Math.max(0, cambiEffettuati - 1);
       setCambiEffettuati(nuoviCambi);
@@ -518,16 +523,12 @@ export default function App() {
       });
     }
 
-    // 3. ROLLBACK CARTELLINI CON CALCOLO ESATTO E AZZERAMENTO DATABASE CLOUD
+    // 5. ROLLBACK CARTELLINI CON CALCOLO BASATO SUGLI EVENTI RIMASTI REALI
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       if (eventoDaEliminare.giocatoreId) {
-        // Escludiamo l'evento che stiamo eliminando dall'elenco degli eventi futuri
-        const eventiRimasti = eventi.filter(e => e.id !== id);
-
-        // Mappatura sincrona per contare quanti cartellini rimangono davvero nel feed per quel giocatore
         const rosaAggiornataPerCartellini = rosa.map(g => {
           if (g.id === eventoDaEliminare.giocatoreId) {
-            // Contiamo esattamente gli eventi di tipo AMMONIZIONE o ESPULSIONE rimasti per questo ID
+            // Contiamo quanti eventi di ammonizione o espulsione sono RIMASTI nell'array pulito eventiRimasti
             const ammonizioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'AMMONIZIONE').length;
             const espulsioniRimaste = eventiRimasti.filter(e => e.giocatoreId === g.id && e.tipo === 'ESPULSIONE').length;
 
@@ -535,7 +536,7 @@ export default function App() {
 
             return {
               ...g,
-              ammonizioni: ammonizioniRimaste, // <-- Si decrementa o si azzera a 0 perfettamente
+              ammonizioni: ammonizioniRimaste, // <-- Se elimini l'unico giallo, questo diventa 0 pulito
               espulso: ancoraEspulso,
               isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
             };
@@ -543,18 +544,17 @@ export default function App() {
           return g;
         });
 
-        // Aggiorniamo immediatamente lo stato locale
+        // Aggiorniamo subito lo stato locale
         setRosa(rosaAggiornataPerCartellini);
 
-        // Inviamo subito la nuova rosa pulita a Supabase tramite upsert
+        // Inviamo FORZATAMENTE la rosa pulita con il valore aggiornato (0) alla tabella 'giocatori' su Supabase
         await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini);
       }
     }
 
-    // Rimuoviamo definitivamente l'evento dalla cronologia e lo eliminiamo dalla tabella eventi del cloud
-    const eventiAggiornati = eventi.filter(e => e.id !== id);
-    setEventi(eventiAggiornati);
+    // 6. Eliminiamo l'evento dal database Supabase e aggiorniamo la UI locale
     await eliminaEventoCloud(id);
+    setEventi(eventiRimasti);
   };
   
   const handleAggiornaRosa = async (nuovaRosa) => {
