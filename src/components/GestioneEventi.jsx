@@ -426,7 +426,7 @@ export default function GestioneEventi({
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
             <h4 className="text-sm font-bold text-white uppercase">Seleziona Giocatore Sanzionato</h4>
             <div className="max-h-60 overflow-y-auto space-y-1.5">
-              {giocatori.filter(g => !g.espulso).map(g => (
+              {giocatori.filter(g => g.isTitolare && !g.espulso).map(g => (
                 <div key={g.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800">
                   <span className="text-xs uppercase font-semibold text-slate-200">
                     #{g.numero} {g.nome} {g.ammonizioni > 0 ? `(🟨 ${g.ammonizioni})` : ''}
