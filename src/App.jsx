@@ -429,7 +429,8 @@ export default function App() {
     setGolCasa(nuovoCasa);
     setGolOspiti(nuovoOspiti);
 
-    syncStatoPartitaSuDb(partitaId, {
+    // Manteniamo integri slotUsati e cambiEffettuati anche quando si segna un gol
+    await syncStatoPartitaSuDb(partitaId, {
       golCasa: nuovoCasa,
       golOspiti: nuovoOspiti,
       tempoGara,
@@ -475,7 +476,7 @@ export default function App() {
     // Creiamo subito l'elenco degli eventi rimasti escludendo quello da eliminare
     const eventiRimasti = eventi.filter(e => e.id !== id);
 
-    // 1. ROLLBACK GOL
+    // 1. ROLLBACK GOL (Aggiornato per preservare slot e cambi)
     if (eventoDaEliminare.tipo === 'GOL') {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
@@ -487,9 +488,9 @@ export default function App() {
       setGolCasa(nuovoCasa);
       setGolOspiti(nuovoOspiti);
 
-      syncStatoPartitaSuDb(partitaId, {
-        golCasa: nuevoCasa,
-        golOspiti: nuevoOspiti,
+      await syncStatoPartitaSuDb(partitaId, {
+        golCasa: nuovoCasa,
+        golOspiti: nuovoOspiti,
         tempoGara,
         secondiGara,
         inEsecuzione,
