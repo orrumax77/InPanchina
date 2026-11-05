@@ -267,14 +267,9 @@ export default function GestioneEventi({
     setCoppieInAttesa([]);
   };
 
-  // FILTRI BLINDATI: Chi è attualmente titolare in campo (e non espulso, e non già selezionato per uscire in questo slot)
+  // Chi è attualmente titolare in campo (e non espulso, e non già selezionato per uscire in questo slot)
   const titolariInCampo = giocatori
     .filter(g => g.isTitolare && !g.espulso && !coppieInAttesa.some(c => c.esce.id === g.id))
-    .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
-
-  // FILTRI BLINDATI: Chi è in panchina (isTitolare === false, non espulso, e che non è già entrato in campo in precedenza o in questa sessione)
-  const panchinaDisponibile = giocatori
-    .filter(g => !g.isTitolare && !g.espulso && !coppieInAttesa.some(c => c.entra.id === g.id))
     .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
 
   const targetEsce = giocatori.find(g => g.id === giocatoreEsce);
@@ -566,47 +561,67 @@ export default function GestioneEventi({
                 </div>
               </div>
 
-              {/* Colonna 2: Chi ENTRA (Panchina - Esclude chi è già uscito o ha già giocato) */}
+              {/* Colonna 2: Chi ENTRA (Panchina - Mostra tutti ma disabilita chi è già uscito) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2 rounded-lg">
                   <span className="flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5" /> 2. Chi ENTRA (Panchina)</span>
-                  <span className="text-[10px] font-mono text-slate-400">({panchinaDisponibile.length})</span>
                 </div>
 
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
-                  {panchinaDisponibile.length === 0 ? (
-                    <p className="text-[11px] text-slate-500 uppercase text-center py-6">Nessuna riserva disponibile</p>
-                  ) : (
-                    panchinaDisponibile.map(g => {
-                      const isSel = giocatoreEntra === g.id;
+                  {giocatori.filter(g => !g.isTitolare && !g.espulso).map(g => {
+                    // Controlliamo se il giocatore è già uscito in precedenza controllando la cronologia degli eventi di sostituzione
+                    const giaUscito = eventi.some(e => 
+                      e.tipo === 'SOSTITUZIONE' && (
+                        e.esceId === g.id || 
+                        (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                      )
+                    );
+
+                    const isSel = giocatoreEntra === g.id;
+
+                    if (giaUscito) {
                       return (
-                        <button
-                          key={g.id}
-                          type="button"
-                          onClick={() => setGiocatoreEntra(isSel ? '' : g.id)}
-                          className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer ${
-                            isSel
-                              ? 'bg-emerald-950/70 border-emerald-500 text-white shadow-md shadow-emerald-950/50'
-                              : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800 text-slate-300'
-                          }`}
-                        >
+                        <div key={g.id} className="w-full text-left p-2.5 rounded-xl border bg-slate-950/40 border-slate-900 text-slate-600 flex items-center justify-between opacity-50 select-none">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 ${
-                              isSel ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-emerald-400 border border-emerald-900/40'
-                            }`}>
+                            <span className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 bg-slate-900 text-slate-600 border border-slate-800">
                               {g.numero}
                             </span>
-                            <span className="text-xs font-semibold uppercase truncate">{g.nome}</span>
+                            <span className="text-xs font-semibold uppercase truncate line-through">{g.nome}</span>
                           </div>
-                          {isSel && (
-                            <span className="text-[10px] font-bold text-emerald-300 bg-emerald-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
-                              ENTRA
-                            </span>
-                          )}
-                        </button>
+                          <span className="text-[9px] font-bold text-rose-500 uppercase flex-shrink-0">
+                            Già uscito (Non rientrabile)
+                          </span>
+                        </div>
                       );
-                    })
-                  )}
+                    }
+
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setGiocatoreEntra(isSel ? '' : g.id)}
+                        className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer ${
+                          isSel
+                            ? 'bg-emerald-950/70 border-emerald-500 text-white shadow-md shadow-emerald-950/50'
+                            : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 ${
+                            isSel ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-emerald-400 border border-emerald-900/40'
+                          }`}>
+                            {g.numero}
+                          </span>
+                          <span className="text-xs font-semibold uppercase truncate">{g.nome}</span>
+                        </div>
+                        {isSel && (
+                          <span className="text-[10px] font-bold text-emerald-300 bg-emerald-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
+                            ENTRA
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
