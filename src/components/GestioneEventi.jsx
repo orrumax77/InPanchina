@@ -262,16 +262,18 @@ export default function GestioneEventi({
     const nuoviCambi = cambiEffettuati + listaCambi.length;
     const nuoviSlot = isIntervalloEffettivo ? slotUsati : Math.min(3, slotUsati + 1);
 
+    console.log("2. Prima di onAggiornaCambiSlot");
+
     // Salvataggio immediato sul DB tramite la funzione passata da App.jsx
     console.log("2. Prima di onAggiornaCambiSlot");
     if (onAggiornaCambiSlot) {
       await onAggiornaCambiSlot(nuoviCambi, novosSlot = nuoviSlot);
-      console.log("3. Dopo onAggiornaCambiSlot (se vedi questo, il db ha risposto)");
     } else {
       setCambiEffettuati(nuoviCambi);
       setSlotUsati(nuoviSlot);
     }
-
+    console.log("3. Dopo onAggiornaCambiSlot");
+    
     setModalSostituzione(false);
     console.log("4. Modale chiuso");
     setGiocatoreEsce('');
