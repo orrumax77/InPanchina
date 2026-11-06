@@ -546,7 +546,7 @@ export default function App() {
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio);
     }
 
-    // 3. ROLLBACK CARTELLINI CON MATCHING SICURO SUI DETTAGLI (NOME E NUMERO)
+    // 3. ROLLBACK CARTELLINI E ROSSI CON RIPRISTINO PERFETTO DELLO STATO E DELLA TITOLARITÀ
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
@@ -559,6 +559,7 @@ export default function App() {
       if (giocatoreCoinvolto) {
         const rosaAggiornataPerCartellini = rosa.map(g => {
           if (g.id === giocatoreCoinvolto.id) {
+            // Contiamo quanti gialli e rossi DIRETTI rimangono effettivamente nel feed
             const ammonizioniRimaste = eventiRimasti.filter(e => 
               (e.tipo === 'AMMONIZIONE') && (
                 e.giocatoreId === g.id || 
@@ -566,20 +567,22 @@ export default function App() {
               )
             ).length;
 
-            const espulsioniRimaste = eventiRimasti.filter(e => 
-              (e.tipo === 'ESPULSIONE') && (
+            const espulsioniDiretteRimaste = eventiRimasti.filter(e => 
+              (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DIRETTA')) && (
                 e.giocatoreId === g.id || 
                 (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
               )
             ).length;
 
-            const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniRimaste > 0;
+            // Il giocatore è espulso se ha 2 o più ammonizioni (doppia ammonizione) oppure se ha un'espulsione diretta rimasta
+            const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniDiretteRimaste > 0;
 
             return {
               ...g,
               ammonizioni: ammonizioniRimaste,
               espulso: ancoraEspulso,
-              isTitolare: !ancoraEspulso ? (g.isTitolare !== undefined ? g.isTitolare : true) : g.isTitolare
+              // Se non è più espulso per via della cancellazione, torna ad essere un titolare disponibile in campo
+              isTitolare: !ancoraEspulso ? true : g.isTitolare
             };
           }
           return g;
