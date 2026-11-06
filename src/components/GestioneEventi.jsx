@@ -231,10 +231,10 @@ export default function GestioneEventi({
       return;
     }
 
-    let nuovaRosa = [...giocatori];
+    let nuevaRosa = [...giocatori];
 
     listaCambi.forEach(({ esce, entra }) => {
-      nuovaRosa = nuovaRosa.map(g => {
+      nuevaRosa = nuevaRosa.map(g => {
         if (g.id === esce.id) return { ...g, isTitolare: false };
         if (g.id === entra.id) return { ...g, isTitolare: true };
         return g;
@@ -255,7 +255,7 @@ export default function GestioneEventi({
       });
     });
 
-    setGiocatori(nuovaRosa);
+    setGiocatori(nuevaRosa);
     
     // Calcoliamo i nuovi valori aggiornati
     const nuoviCambi = cambiEffettuati + listaCambi.length;
