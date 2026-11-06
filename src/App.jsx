@@ -546,7 +546,7 @@ export default function App() {
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio);
     }
 
-    // 3. ROLLBACK CARTELLINI E ROSSI CON RIPRISTINO PERFETTO DELLO STATO E DELLA TITOLARITÀ
+    // 3. ROLLBACK CARTELLINI CON GESTIONE INTELLIGENTE DI GIALLI E DOPPIA AMMONIZIONE
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
@@ -559,14 +559,23 @@ export default function App() {
       if (giocatoreCoinvolto) {
         const rosaAggiornataPerCartellini = rosa.map(g => {
           if (g.id === giocatoreCoinvolto.id) {
-            // Contiamo quanti gialli e rossi DIRETTI rimangono effettivamente nel feed
-            const ammonizioniRimaste = eventiRimasti.filter(e => 
+            // 1. Contiamo quanti singoli cartellini gialli (AMMONIZIONE) sono rimasti
+            const ammonizioniNormaliRimaste = eventiRimasti.filter(e => 
               (e.tipo === 'AMMONIZIONE') && (
                 e.giocatoreId === g.id || 
                 (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
               )
             ).length;
 
+            // 2. Contiamo se ci sono eventi registrati come doppia ammonizione rimasti nel feed
+            const doppieAmmonizioniRimaste = eventiRimasti.filter(e => 
+              (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE')) && (
+                e.giocatoreId === g.id || 
+                (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+              )
+            ).length;
+
+            // 3. Contiamo se ci sono espulsioni dirette (rosse pure) rimaste
             const espulsioniDiretteRimaste = eventiRimasti.filter(e => 
               (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DIRETTA')) && (
                 e.giocatoreId === g.id || 
@@ -574,14 +583,16 @@ export default function App() {
               )
             ).length;
 
-            // Il giocatore è espulso se ha 2 o più ammonizioni (doppia ammonizione) oppure se ha un'espulsione diretta rimasta
-            const ancoraEspulso = ammonizioniRimaste >= 2 || espulsioniDiretteRimaste > 0;
+            // Il totale dei gialli reali accumulati è la somma delle ammonizioni normali + 2 per ogni doppia ammonizione rimasta
+            const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
+
+            // Il giocatore è espulso se ha accumulato 2 o più gialli oppure se ha un rosso diretto
+            const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
 
             return {
               ...g,
-              ammonizioni: ammonizioniRimaste,
+              ammonizioni: totaleGialliEffettivi, // <-- Se togli un giallo, scende correttamente a 1 e non a 0!
               espulso: ancoraEspulso,
-              // Se non è più espulso per via della cancellazione, torna ad essere un titolare disponibile in campo
               isTitolare: !ancoraEspulso ? true : g.isTitolare
             };
           }
@@ -592,7 +603,7 @@ export default function App() {
         await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini);
       }
     }
-
+    
     // 4. Rimozione definitiva dell'evento dalla cronologia e dal cloud
     await eliminaEventoCloud(id);
     setEventi(eventiRimasti);
