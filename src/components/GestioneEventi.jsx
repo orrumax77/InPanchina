@@ -210,6 +210,7 @@ export default function GestioneEventi({
   };
 
   const handleConfermaTuttiICambi = async () => {
+    console.log("1. Inizio conferma cambi");
     let listaCambi = [...coppieInAttesa];
     if (giocatoreEsce && giocatoreEntra) {
       const esce = giocatori.find(g => g.id === giocatoreEsce);
@@ -262,14 +263,17 @@ export default function GestioneEventi({
     const nuoviSlot = isIntervalloEffettivo ? slotUsati : Math.min(3, slotUsati + 1);
 
     // Salvataggio immediato sul DB tramite la funzione passata da App.jsx
+    console.log("2. Prima di onAggiornaCambiSlot");
     if (onAggiornaCambiSlot) {
       await onAggiornaCambiSlot(nuoviCambi, novosSlot = nuoviSlot);
+      console.log("3. Dopo onAggiornaCambiSlot (se vedi questo, il db ha risposto)");
     } else {
       setCambiEffettuati(nuoviCambi);
       setSlotUsati(nuoviSlot);
     }
 
     setModalSostituzione(false);
+    console.log("4. Modale chiuso");
     setGiocatoreEsce('');
     setGiocatoreEntra('');
     setCoppieInAttesa([]);
