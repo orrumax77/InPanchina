@@ -431,13 +431,13 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* Modal Cartellino (Mostra tutti i titolari, disabilitando chi è già espulso) */}
+      {/* Modal Cartellino (Mostra tutti i titolari e chi è stato espulso, disabilitando questi ultimi) */}
       {modalAmmonizione && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
             <h4 className="text-sm font-bold text-white uppercase">Seleziona Giocatore Sanzionato</h4>
             <div className="max-h-60 overflow-y-auto space-y-1.5">
-              {giocatori.filter(g => g.isTitolare).map(g => {
+              {giocatori.filter(g => g.isTitolare || g.espulso).map(g => {
                 if (g.espulso) {
                   return (
                     <div key={g.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/40 border border-slate-900 opacity-50 select-none">
