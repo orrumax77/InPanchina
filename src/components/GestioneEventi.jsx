@@ -263,7 +263,7 @@ export default function GestioneEventi({
 
     // Salvataggio immediato sul DB tramite la funzione passata da App.jsx
     if (onAggiornaCambiSlot) {
-      await onAggiornaCambiSlot(nuoviCambi, nuoviSlot);
+      await onAggiornaCambiSlot(nuoviCambi, novosSlot = nuoviSlot);
     } else {
       setCambiEffettuati(nuoviCambi);
       setSlotUsati(nuoviSlot);
@@ -275,9 +275,9 @@ export default function GestioneEventi({
     setCoppieInAttesa([]);
   };
   
-  // Chi è attualmente titolare in campo (e non espulso, e non già selezionato per uscire in questo slot)
+  // Chi è attualmente titolare in campo (e non espulso)
   const titolariInCampo = giocatori
-    .filter(g => g.isTitolare && !g.espulso && !coppieInAttesa.some(c => c.esce.id === g.id))
+    .filter(g => g.isTitolare && !g.espulso)
     .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
 
   const targetEsce = giocatori.find(g => g.id === giocatoreEsce);
@@ -525,7 +525,7 @@ export default function GestioneEventi({
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Colonna 1: Chi ESCE (Titolari attualmente in campo) */}
+              {/* Colonna 1: Chi ESCE (Titolari in campo - Esclude chi è già in attesa in questo slot) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-rose-400 bg-rose-950/30 border border-rose-900/40 p-2 rounded-lg">
                   <span className="flex items-center gap-1.5"><UserMinus className="w-3.5 h-3.5" /> 1. Chi ESCE (In campo)</span>
@@ -537,7 +537,25 @@ export default function GestioneEventi({
                     <p className="text-[11px] text-slate-500 uppercase text-center py-6">Nessun titolare disponibile</p>
                   ) : (
                     titolariInCampo.map(g => {
+                      const giaInseritoInAttesa = coppieInAttesa.some(c => c.esce.id === g.id);
                       const isSel = giocatoreEsce === g.id;
+
+                      if (giaInseritoInAttesa) {
+                        return (
+                          <div key={g.id} className="w-full text-left p-2.5 rounded-xl border bg-slate-950/40 border-slate-900 text-slate-600 flex items-center justify-between opacity-50 select-none">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 bg-slate-900 text-slate-600 border border-slate-800">
+                                {g.numero}
+                              </span>
+                              <span className="text-xs font-semibold uppercase truncate line-through">{g.nome}</span>
+                            </div>
+                            <span className="text-[9px] font-bold text-amber-500 uppercase flex-shrink-0">
+                              Selezionato per questo slot
+                            </span>
+                          </div>
+                        );
+                      }
+
                       return (
                         <button
                           key={g.id}
@@ -569,7 +587,7 @@ export default function GestioneEventi({
                 </div>
               </div>
 
-              {/* Colonna 2: Chi ENTRA (Panchina - Mostra tutti ma disabilita chi è già uscito) */}
+              {/* Colonna 2: Chi ENTRA (Panchina - Disabilita chi è già uscito o già in attesa in questo slot) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2 rounded-lg">
                   <span className="flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5" /> 2. Chi ENTRA (Panchina)</span>
@@ -577,7 +595,6 @@ export default function GestioneEventi({
 
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                   {giocatori.filter(g => !g.isTitolare && !g.espulso).map(g => {
-                    // Controlliamo se il giocatore è già uscito in precedenza controllando la cronologia degli eventi di sostituzione
                     const giaUscito = eventi.some(e => 
                       e.tipo === 'SOSTITUZIONE' && (
                         e.esceId === g.id || 
@@ -585,6 +602,7 @@ export default function GestioneEventi({
                       )
                     );
 
+                    const giaInseritoInAttesa = coppieInAttesa.some(c => c.entra.id === g.id);
                     const isSel = giocatoreEntra === g.id;
 
                     if (giaUscito) {
@@ -598,6 +616,22 @@ export default function GestioneEventi({
                           </div>
                           <span className="text-[9px] font-bold text-rose-500 uppercase flex-shrink-0">
                             Già uscito (Non rientrabile)
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (giaInseritoInAttesa) {
+                      return (
+                        <div key={g.id} className="w-full text-left p-2.5 rounded-xl border bg-slate-950/40 border-slate-900 text-slate-600 flex items-center justify-between opacity-50 select-none">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 bg-slate-900 text-slate-600 border border-slate-800">
+                              {g.numero}
+                            </span>
+                            <span className="text-xs font-semibold uppercase truncate line-through">{g.nome}</span>
+                          </div>
+                          <span className="text-[9px] font-bold text-amber-500 uppercase flex-shrink-0">
+                            Selezionato per questo slot
                           </span>
                         </div>
                       );
