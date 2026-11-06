@@ -253,7 +253,6 @@ export default function App() {
         setGolCasa(p.gol_casa);
         setGolOspiti(p.gol_ospite);
         setTempoGara(p.tempo);
-         
         setRecupero(p.recupero);
         setMinutoCorrente(p.minuto_corrente);
         setSlotUsati(p.slot_usati);
@@ -267,23 +266,23 @@ export default function App() {
 
           // RICALCOLO AUTOMATICO DEI CARTELLINI E DELLA ROSA IN TEMPO REALE SUL SECONDO DISPOSITIVO
           setRosa(prevRosa => {
-            return prevRosa.map(g => {
+            const rosaAggiornata = prevRosa.map(g => {
               const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
-                (e.tipo === 'AMMONIZIONE') && (
+                e.tipo === 'AMMONIZIONE' && (
                   e.giocatoreId === g.id || 
                   (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
                 )
               ).length;
 
               const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
-                (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE')) && (
+                e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
                   e.giocatoreId === g.id || 
                   (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
                 )
               ).length;
 
               const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
-                (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DIRETTA')) && (
+                e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
                   e.giocatoreId === g.id || 
                   (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
                 )
@@ -296,9 +295,16 @@ export default function App() {
                 ...g,
                 ammonizioni: totaleGialliEffettivi,
                 espulso: ancoraEspulso,
-                isTitolare: !ancoraEspulso ? (g.isTitolare ?? true) : false
+                isTitolare: ancoraEspulso ? false : (g.isTitolare ?? true)
               };
             });
+
+            // Salviamo lo stato aggiornato anche nel cloud per mantenere coerenti i dispositivi
+            if (societaAttiva?.id) {
+              aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornata);
+            }
+
+            return rosaAggiornata;
           });
         }
       })
@@ -307,7 +313,7 @@ export default function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [partitaId]);
+  }, [partitaId, societaAttiva?.id]);
 
   const avviaTimer = () => {
     const adessoISO = new Date().toISOString();
@@ -616,7 +622,7 @@ export default function App() {
 
             // 3. Contiamo se ci sono espulsioni dirette (rosse pure) rimaste
             const espulsioniDiretteRimaste = eventiRimasti.filter(e => 
-              (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DIRETTA')) && (
+              (e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE')) && (
                 e.giocatoreId === g.id || 
                 (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
               )
