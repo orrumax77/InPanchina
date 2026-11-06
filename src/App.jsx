@@ -242,7 +242,7 @@ export default function App() {
     await avviaSessioneSocieta(soc);
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (Isolato per non alterare il timer locale)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (Eventi, Partita e ricalcolo automatico cartellini della rosa)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -253,7 +253,7 @@ export default function App() {
         setGolCasa(p.gol_casa);
         setGolOspiti(p.gol_ospite);
         setTempoGara(p.tempo);
-        
+         
         setRecupero(p.recupero);
         setMinutoCorrente(p.minuto_corrente);
         setSlotUsati(p.slot_usati);
@@ -261,7 +261,46 @@ export default function App() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'eventi', filter: `partita_id=eq.${partitaId}` }, async () => {
         const stato = await caricaStatoPartita(partitaId);
-        if (stato && stato.eventi) setEventi(stato.eventi);
+        if (stato && stato.eventi) {
+          const eventiAggiornati = stato.eventi;
+          setEventi(eventiAggiornati);
+
+          // RICALCOLO AUTOMATICO DEI CARTELLINI E DELLA ROSA IN TEMPO REALE SUL SECONDO DISPOSITIVO
+          setRosa(prevRosa => {
+            return prevRosa.map(g => {
+              const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
+                (e.tipo === 'AMMONIZIONE') && (
+                  e.giocatoreId === g.id || 
+                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                )
+              ).length;
+
+              const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
+                (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE')) && (
+                  e.giocatoreId === g.id || 
+                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                )
+              ).length;
+
+              const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
+                (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DIRETTA')) && (
+                  e.giocatoreId === g.id || 
+                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                )
+              ).length;
+
+              const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
+              const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
+
+              return {
+                ...g,
+                ammonizioni: totaleGialliEffettivi,
+                espulso: ancoraEspulso,
+                isTitolare: !ancoraEspulso ? (g.isTitolare ?? true) : false
+              };
+            });
+          });
+        }
       })
       .subscribe();
 
@@ -496,9 +535,9 @@ export default function App() {
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       const nuoviCambi = Math.max(0, cambiEffettuati - 1);
       const isIntervallo = eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo');
-      const nuoviSlot = isIntervallo ? slotUsati : Math.max(0, slotUsati - 1);
+      const novosSlot = isIntervallo ? slotUsati : Math.max(0, slotUsati - 1);
 
-      await handleAggiornaCambiSlot(nuoviCambi, isIntervallo ? slotUsati : nuoviSlot);
+      await handleAggiornaCambiSlot(nuoviCambi, isIntervallo ? slotUsati : novosSlot);
 
       let idEsce = eventoDaEliminare.esceId;
       let idEntra = eventoDaEliminare.entraId;
@@ -508,7 +547,7 @@ export default function App() {
         if (giocatoriCoinvolti.length >= 2) {
           const idxEsce = eventoDaEliminare.dettagli.indexOf('Esce');
           const idxEntra = eventoDaEliminare.dettagli.indexOf('Entra');
-          
+           
           let candidatoEsce = null;
           let candidatoEntra = null;
           let minDistanzaEsce = 999;
@@ -603,7 +642,7 @@ export default function App() {
         await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini);
       }
     }
-    
+     
     // 4. Rimozione definitiva dell'evento dalla cronologia e dal cloud
     await eliminaEventoCloud(id);
     setEventi(eventiRimasti);
@@ -853,7 +892,7 @@ export default function App() {
             >
               <ArrowLeft className="w-4 h-4" /> Distinta
             </button>
-            
+             
             <div className="flex items-center gap-2">
               <button
                 type="button"
