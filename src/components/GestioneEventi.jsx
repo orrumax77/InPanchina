@@ -267,7 +267,7 @@ export default function GestioneEventi({
     // Salvataggio immediato sul DB tramite la funzione passata da App.jsx
     console.log("2. Prima di onAggiornaCambiSlot");
     if (onAggiornaCambiSlot) {
-      await onAggiornaCambiSlot(nuoviCambi, novosSlot = nuoviSlot);
+      await onAggiornaCambiSlot(nuoviCambi, nuoviSlot = nuoviSlot);
     } else {
       setCambiEffettuati(nuoviCambi);
       setSlotUsati(nuoviSlot);
