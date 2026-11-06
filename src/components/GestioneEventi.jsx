@@ -431,35 +431,50 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* Modal Cartellino (Solo titolari in campo possono essere ammoniti/espulsi) */}
+      {/* Modal Cartellino (Mostra tutti i titolari, disabilitando chi è già espulso) */}
       {modalAmmonizione && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
             <h4 className="text-sm font-bold text-white uppercase">Seleziona Giocatore Sanzionato</h4>
             <div className="max-h-60 overflow-y-auto space-y-1.5">
-              {giocatori.filter(g => g.isTitolare && !g.espulso).map(g => (
-                <div key={g.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800">
-                  <span className="text-xs uppercase font-semibold text-slate-200">
-                    #{g.numero} {g.nome} {g.ammonizioni > 0 ? `(🟨 ${g.ammonizioni})` : ''}
-                  </span>
-                  <div className="flex gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleAmmonizione(g.id)}
-                      className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/30 text-[10px] font-bold uppercase cursor-pointer"
-                    >
-                      Giallo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleEspulsione(g.id)}
-                      className="px-2 py-1 rounded bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 border border-rose-500/30 text-[10px] font-bold uppercase cursor-pointer"
-                    >
-                      Rosso
-                    </button>
+              {giocatori.filter(g => g.isTitolare).map(g => {
+                if (g.espulso) {
+                  return (
+                    <div key={g.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/40 border border-slate-900 opacity-50 select-none">
+                      <span className="text-xs uppercase font-semibold text-slate-600 line-through">
+                        #{g.numero} {g.nome} (ESPULSO)
+                      </span>
+                      <span className="text-[9px] font-bold text-rose-500 uppercase">
+                        Non sanzionabile
+                      </span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={g.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800">
+                    <span className="text-xs uppercase font-semibold text-slate-200">
+                      #{g.numero} {g.nome} {g.ammonizioni > 0 ? `(🟨 ${g.ammonizioni})` : ''}
+                    </span>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleAmmonizione(g.id)}
+                        className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/30 text-[10px] font-bold uppercase cursor-pointer"
+                      >
+                        Giallo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleEspulsione(g.id)}
+                        className="px-2 py-1 rounded bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 border border-rose-500/30 text-[10px] font-bold uppercase cursor-pointer"
+                      >
+                        Rosso
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <button
               type="button"
@@ -471,7 +486,7 @@ export default function GestioneEventi({
           </div>
         </div>
       )}
-
+      
       {/* MODAL SOSTITUZIONE */}
       {modalSostituzione && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-in fade-in duration-150">
