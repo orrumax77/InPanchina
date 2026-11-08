@@ -13,12 +13,14 @@ export async function getSocieta() {
 }
 
 export async function caricaStatoPartita(partitaId) {
+  if (!partitaId) return { partita: null, eventi: [] };
   try {
+    // Usiamo maybeSingle() invece di single() per evitare l'errore 406 se la partita live non esiste ancora
     const { data: partita } = await supabase
       .from('partite')
       .select('*')
       .eq('id', partitaId)
-      .single();
+      .maybeSingle();
 
     const { data: eventi } = await supabase
       .from('eventi')
@@ -26,7 +28,7 @@ export async function caricaStatoPartita(partitaId) {
       .eq('partita_id', partitaId)
       .order('created_at', { ascending: false });
 
-    return { partita, eventi: eventi || [] };
+    return { partita: partita || null, eventi: eventi || [] };
   } catch (error) {
     console.error('Errore caricamento partita:', error);
     return null;
