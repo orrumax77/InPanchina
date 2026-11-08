@@ -400,17 +400,18 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
   await supabase.from('partite').update(updateData).eq('id', partitaId);
 }
 
-export async function registraEventoCloud(partitaId, evento) {
+export async function registraEventoCloud(partitaId, evento, campionato = '2026/2027', annata = '2010') {
   await supabase.from('eventi').insert([{
     id: evento.id,
     partita_id: partitaId,
+    campionato: campionato,
+    annata: annata,
     minuto: evento.minuto,
     tempo: evento.tempo,
     tipo: evento.tipo,
     dettagli: evento.dettagli
   }]);
 }
-
 export async function eliminaEventoCloud(eventoId) {
   await supabase.from('eventi').delete().eq('id', eventoId);
 }
