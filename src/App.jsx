@@ -89,17 +89,20 @@ export default function App() {
     const socFresca = (soc?.id ? await getSocietaById(soc.id) : null) || soc;
     setSocietaAttiva(socFresca);
 
-    const idPartita = partitaId;
-
+    // CALCOLO SICURO DELL'ID PARTITA (senza dipendere dallo stato asincrono di React)
+    const campionatoPulito = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const idPartita = socFresca ? `${socFresca.id}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE` : null;
+     
     console.log("-> STAGIONE SELEZIONATA:", stagioneSelezionata);
     console.log("-> ANNATA SELEZIONATA:", annataSelezionata);
-    console.log("-> PARTITA ID GENERATO:", idPartita);
-     
+    console.log("-> PARTITA ID GENERATO CORRETTAMENTE:", idPartita);
+
     // Carichiamo la rosa filtrata rigorosamente per società, campionato e annata specifici
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
 
     const staffBase = socFresca.staff_base || {};
-     
+    
     const allenatoreBase = (staffBase.allenatore || socFresca.allenatore_predefinito || '').toUpperCase();
     const allenatoreSecondaBase = (staffBase.allenatoreSeconda || socFresca.allenatore_seconda_predefinito || '').toUpperCase();
     const dirigenteBase = (staffBase.dirigente || socFresca.dirigente_predefinito || '').toUpperCase();
@@ -116,7 +119,7 @@ export default function App() {
 
     const stato = await caricaStatoPartita(idPartita);
     setRosa(rosaSalvataNelDb || []);
-
+    
     const partitaDB = stato?.partita;
 
     // CONTROLLO LIVE ESTESO (Funziona anche in pausa, durante l'intervallo e con eventi registrati)
