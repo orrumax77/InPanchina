@@ -45,7 +45,10 @@ export default function App() {
   // UNICO dato salvato in localStorage: il nome utente esatto senza maiuscole forzate
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
+  
+  // STATI PER CAMPIONATO E ANNATA
   const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
+  const [annataSelezionata, setAnnataSelezionata] = useState('2010'); // <-- NUOVO: Annata della squadra
   const [loginError, setLoginError] = useState('');
 
   const [partitaInfo, setPartitaInfo] = useState(null);
@@ -69,7 +72,10 @@ export default function App() {
 
   const [modaleBloccoTempo, setModaleBloccoTempo] = useState(null);
 
-  const partitaId = societaAttiva ? `${societaAttiva.id}_PARTITA_LIVE` : null;
+  // CHIAVE COMPOSTA TRIPLICE: Società + Campionato + Annata
+  const campionatoPulito = (stagioneSelezionata || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
+  const annataPulita = (annataSelezionata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+  const partitaId = societaAttiva ? `${societaAttiva.id}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE` : null;
 
   useEffect(() => {
     Object.keys(localStorage).forEach(key => {
@@ -85,9 +91,10 @@ export default function App() {
     const socFresca = (soc?.id ? await getSocietaById(soc.id) : null) || soc;
     setSocietaAttiva(socFresca);
 
-    const idPartita = `${socFresca.id}_PARTITA_LIVE`;
+    const idPartita = partitaId;
      
-    let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id);
+    // Carichiamo la rosa filtrata per società, campionato e annata
+    let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
 
     if ((!rosaSalvataNelDb || rosaSalvataNelDb.length === 0) && socFresca.rosa_base && socFresca.rosa_base.length > 0) {
       rosaSalvataNelDb = socFresca.rosa_base.map(g => ({
@@ -301,7 +308,7 @@ export default function App() {
 
             // Salviamo lo stato aggiornato anche nel cloud per mantenere coerenti i dispositivi
             if (societaAttiva?.id) {
-              aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornata);
+              aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornata, stagioneSelezionata, annataSelezionata);
             }
 
             return rosaAggiornata;
@@ -313,7 +320,7 @@ export default function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [partitaId, societaAttiva?.id]);
+  }, [partitaId, societaAttiva?.id, stagioneSelezionata, annataSelezionata]);
 
   const avviaTimer = () => {
     const adessoISO = new Date().toISOString();
@@ -394,7 +401,7 @@ export default function App() {
       });
     }
   };
-   
+  
   const cambiaFaseGara = (nuovoTempo) => {
     setModaleBloccoTempo(null);
 
@@ -432,7 +439,7 @@ export default function App() {
     setPartitaInfo(pInfo);
     setRosa(giocatori);
 
-    await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatori);
+    await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatori, stagioneSelezionata, annataSelezionata);
 
     await salvaRosaBaseSocieta(societaAttiva.id, giocatori, {
       squadraCasa: pInfo.squadraCasa,
@@ -588,10 +595,10 @@ export default function App() {
       });
 
       setRosa(rosaAggiornataPerCambio);
-      await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio);
+      await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio, stagioneSelezionata, annataSelezionata);
     }
 
-    // 3. ROLLBACK CARTELLINI CON GESTIONE INTELLIGENTE DI GIALLI E DOPPIA AMMONIZIONE
+    // 3. ROLLBACK CARTELLINI CON GESTIONE INTELLIGENTE DI GIALLI E RIPRISTINO TITOLARITÀ
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
@@ -631,12 +638,12 @@ export default function App() {
             // Il totale dei gialli reali accumulati è la somma delle ammonizioni normali + 2 per ogni doppia ammonizione rimasta
             const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
 
-            // Il giocatore è espulso se ha accumulato 2 o più gialli oppure se ha un rosso diretto
+            // Il giocatore è ancora espulso solo se ha accumulato 2 o più gialli oppure se ha un rosso diretto
             const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
 
             return {
               ...g,
-              ammonizioni: totaleGialliEffettivi, // <-- Se togli un giallo, scende correttamente a 1 e non a 0!
+              ammonizioni: totaleGialliEffettivi,
               espulso: ancoraEspulso,
               isTitolare: !ancoraEspulso ? true : g.isTitolare
             };
@@ -645,7 +652,7 @@ export default function App() {
         });
 
         setRosa(rosaAggiornataPerCartellini);
-        await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini);
+        await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini, stagioneSelezionata, annataSelezionata);
       }
     }
      
@@ -656,7 +663,7 @@ export default function App() {
    
   const handleAggiornaRosa = async (nuovaRosa) => {
     setRosa(nuovaRosa);
-    await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa);
+    await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa, stagioneSelezionata, annataSelezionata);
   };
 
   const handleTerminaLiveEResetta = async (giocatoriConMinuti) => {
@@ -672,7 +679,9 @@ export default function App() {
       partitaInfo,
       { golCasa, golOspiti },
       eventi,
-      giocatoriDaArchiviare
+      giocatoriDaArchiviare,
+      stagioneSelezionata,
+      annataSelezionata
     );
 
     setSalvataggioInCorso(false);
@@ -733,7 +742,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN CON LOGO DELL'APP */}
+      {/* 1. LOGIN CON SELEZIONE CAMPIONATO E ANNATA */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
@@ -763,11 +772,24 @@ export default function App() {
               <select
                 value={stagioneSelezionata}
                 onChange={(e) => setStagioneSelezionata(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none uppercase"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none uppercase font-bold"
               >
                 <option value="2026/2027">Stagione 2026 / 2027</option>
                 <option value="2027/2028">Stagione 2027 / 2028</option>
               </select>
+            </div>
+
+            {/* NUOVO CAMPO: ANNATA */}
+            <div>
+              <label className="text-xs font-semibold text-slate-400 uppercase">Annata Squadra (es. 2010, 2011, Under 15)</label>
+              <input
+                type="text"
+                placeholder="Es. 2010"
+                value={annataSelezionata}
+                onChange={(e) => setAnnataSelezionata(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 uppercase font-bold"
+                required
+              />
             </div>
 
             <div>
@@ -833,9 +855,9 @@ export default function App() {
                 <img src={societaAttiva.logo_url} alt="Logo" className="w-9 h-9 rounded-full object-cover border border-slate-700 bg-slate-900" />
               )}
               <div>
-                <span className="text-sm font-bold text-white block uppercase">{societaAttiva?.nome}</span>
+                <span className="text-sm font-bold text-white block uppercase">{societaAttiva?.nome} (Annata {annataSelezionata})</span>
                 <span className="text-[11px] text-slate-400 flex items-center gap-1 uppercase">
-                  <MapPin className="w-3 h-3 text-emerald-400" /> {societaAttiva?.indirizzo_campo || 'Campo non specificato'}
+                  <MapPin className="w-3 h-3 text-emerald-400" /> {societaAttiva?.indirizzo_campo || 'Campo non specificato'} - {stagioneSelezionata}
                 </span>
               </div>
             </div>
@@ -900,6 +922,10 @@ export default function App() {
             </button>
              
             <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
+                Annata {annataSelezionata} ({stagioneSelezionata})
+              </span>
+
               <button
                 type="button"
                 onClick={() => setFaseApp('archivio')}
@@ -1010,6 +1036,8 @@ export default function App() {
       {faseApp === 'archivio' && (
         <ArchivioReferti
           societa={societaAttiva}
+          campionato={stagioneSelezionata}
+          annata={annataSelezionata}
           onTornaIndietro={() => setFaseApp(partitaInfo ? 'distinta' : 'distinta')}
         />
       )}
