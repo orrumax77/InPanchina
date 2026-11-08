@@ -37,16 +37,16 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
   if (!societaId) return [];
   try {
     const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
-    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '2010').trim();
     const prefissoId = `${societaId}_${campionatoPulito}_${annataPulita}_`;
 
-    // 1. Cerchiamo ESCLUSIVAMENTE i giocatori associati a questa precisa combinazione di Società + Campionato + Annata
+    // 1. Cerchiamo i giocatori NEL DATABASE filtrando RIGOROSAMENTE per la specifica annata
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
       .eq('societa_id', societaId)
       .eq('campionato', campionato)
-      .eq('annata', annata)
+      .eq('annata', annataPulita)
       .order('numero', { ascending: true });
 
     if (!errG && gList && gList.length > 0) {
@@ -63,9 +63,8 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
       }));
     }
 
-    // 2. SOLO se l'utente si trova sull'annata '2010' (storica) e non ci sono record nella tabella giocatori, 
-    // allora carichiamo la rosa_base della società come punto di partenza.
-    if (annata.trim() === '2010') {
+    // 2. IL FALLBACK SULLA ROSA BASE DEVE AVVENIRE SOLO ED ESCLUSIVAMENTE PER IL 2010
+    if (annataPulita === '2010') {
       const { data: soc, error: errSoc } = await supabase
         .from('societa')
         .select('rosa_base')
@@ -87,8 +86,7 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
       }
     }
 
-    // 3. Per QUALSIASI altra annata (es. 2009, 2011, ecc.), se non ha giocatori salvati specificamente, 
-    // restituiamo un array vuoto (la rosa sarà pulita e pronta per essere compilata da zero).
+    // 3. Per qualsiasi altra annata (es. 2009), se non ci sono record specifici, la rosa deve essere VUOTA
     return [];
   } catch (err) {
     console.error('Errore caricaRosaSocieta:', err);
