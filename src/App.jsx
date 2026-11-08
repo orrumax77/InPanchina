@@ -486,7 +486,7 @@ export default function App() {
 
   const handleNuovoEvento = async (evento) => {
     setEventi(prev => [evento, ...prev]);
-    await registraEventoCloud(partitaId, evento);
+    await registraEventoCloud(partitaId, evento, stagionesSelezionata || '2026/2027', annataSelezionata);
   };
 
   // Funzione dedicata per aggiornare e salvare all'istante sul DB cambi e slot usati
