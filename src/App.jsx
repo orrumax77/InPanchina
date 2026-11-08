@@ -105,9 +105,14 @@ export default function App() {
     const annataPulitaStaff = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const chiaveStaff = `${campionatoPulitoStaff}_${annataPulitaStaff}`;
 
-    const staffBase = (socFresca.staff_base && typeof socFresca.staff_base === 'object') 
-      ? (socFresca.staff_base[chiaveStaff] || socFresca.staff_base['2026/2027_2010'] || {}) 
-      : {};
+    const staffRaw = socFresca.staff_base || {};
+    
+    // Controlliamo se è un vecchio oggetto "piatto" (formato legacy) o una mappa basata su chiavi
+    const isLegacyFlat = staffRaw.allenatore || staffRaw.dirigente || staffRaw.squadraCasa || staffRaw.dataPartita;
+    
+    const staffBase = isLegacyFlat 
+      ? staffRaw 
+      : (staffRaw[chiaveStaff] || {});
     
     const allenatoreBase = (staffBase.allenatore || socFresca.allenatore_predefinito || '').toUpperCase();
     const allenatoreSecondaBase = (staffBase.allenatoreSeconda || socFresca.allenatore_seconda_predefinito || '').toUpperCase();
