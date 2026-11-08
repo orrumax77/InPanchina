@@ -45,10 +45,8 @@ export default function App() {
   // UNICO dato salvato in localStorage: il nome utente esatto senza maiuscole forzate
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
-  
-  // STATI PER CAMPIONATO E ANNATA
   const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
-  const [annataSelezionata, setAnnataSelezionata] = useState('2010'); // <-- NUOVO: Annata della squadra
+  const [annataSelezionata, setAnnataSelezionata] = useState('2010'); // <-- STATO ANNATA
   const [loginError, setLoginError] = useState('');
 
   const [partitaInfo, setPartitaInfo] = useState(null);
@@ -96,7 +94,7 @@ export default function App() {
     // Carichiamo la rosa filtrata per società, campionato e annata
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
 
-    if ((!rosaSalvataNelDb || rosaSalvataNelDb.length === 0) && socFresca.rosa_base && socFresca.rosa_base.length > 0) {
+    if ((!rosaSalvataNelDb || rosaSalvataNelDb.length === 0) && socFresca.rosa_base && socFresca.rosa_base.length > 0 && annataSelezionata.trim() === '2010') {
       rosaSalvataNelDb = socFresca.rosa_base.map(g => ({
         ...g,
         nome: (g.nome || '').toUpperCase()
@@ -779,7 +777,7 @@ export default function App() {
               </select>
             </div>
 
-            {/* NUOVO CAMPO: ANNATA */}
+            {/* SELEZIONE ANNATA */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Annata Squadra (es. 2010, 2011, Under 15)</label>
               <input
@@ -846,18 +844,23 @@ export default function App() {
         />
       )}
 
-      {/* 3. DISTINTA */}
+      {/* 3. DISTINTA (CON BADGE ANNATA EVIDENTE) */}
       {faseApp === 'distinta' && (
         <div className="space-y-4">
-          <div className="max-w-4xl mx-auto flex flex-wrap justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl gap-3">
+          <div className="max-w-4xl mx-auto flex flex-wrap justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl gap-3 shadow-lg">
             <div className="flex items-center gap-3">
               {societaAttiva?.logo_url && (
-                <img src={societaAttiva.logo_url} alt="Logo" className="w-9 h-9 rounded-full object-cover border border-slate-700 bg-slate-900" />
+                <img src={societaAttiva.logo_url} alt="Logo" className="w-10 h-10 rounded-full object-cover border-2 border-emerald-500 bg-slate-900" />
               )}
               <div>
-                <span className="text-sm font-bold text-white block uppercase">{societaAttiva?.nome} (Annata {annataSelezionata})</span>
-                <span className="text-[11px] text-slate-400 flex items-center gap-1 uppercase">
-                  <MapPin className="w-3 h-3 text-emerald-400" /> {societaAttiva?.indirizzo_campo || 'Campo non specificato'} - {stagioneSelezionata}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-white uppercase">{societaAttiva?.nome}</span>
+                  <span className="bg-emerald-500 text-slate-950 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow">
+                    Annata {annataSelezionata}
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-400 flex items-center gap-1 uppercase mt-0.5">
+                  <MapPin className="w-3 h-3 text-emerald-400" /> {societaAttiva?.indirizzo_campo || 'Campo non specificato'} • {stagioneSelezionata}
                 </span>
               </div>
             </div>
@@ -910,7 +913,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 4. LIVE MATCH */}
+      {/* 4. LIVE MATCH (CON BADGE ANNATA EVIDENTE) */}
       {faseApp === 'partita' && (
         <div className="max-w-2xl mx-auto space-y-5">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -922,7 +925,7 @@ export default function App() {
             </button>
              
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
+              <span className="bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider shadow">
                 Annata {annataSelezionata} ({stagioneSelezionata})
               </span>
 
