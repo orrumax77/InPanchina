@@ -70,9 +70,9 @@ export default function App() {
 
   const [modaleBloccoTempo, setModaleBloccoTempo] = useState(null);
 
-  // CHIAVE COMPOSTA TRIPLICE: Società + Campionato + Annata
-  const campionatoPulito = (stagioneSelezionata || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
-  const annataPulita = (annataSelezionata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+  // CHIAVE COMPOSTA TRIPLICE GENERICA: Società + Campionato + Annata
+  const campionatoPulito = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
+  const annataPulita = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
   const partitaId = societaAttiva ? `${societaAttiva.id}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE` : null;
 
   useEffect(() => {
@@ -91,15 +91,8 @@ export default function App() {
 
     const idPartita = partitaId;
      
-    // Carichiamo la rosa filtrata per società, campionato e annata
+    // Carichiamo la rosa filtrata rigorosamente per società, campionato e annata specifici
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
-
-    if ((!rosaSalvataNelDb || rosaSalvataNelDb.length === 0) && socFresca.rosa_base && socFresca.rosa_base.length > 0 && annataSelezionata.trim() === '2010') {
-      rosaSalvataNelDb = socFresca.rosa_base.map(g => ({
-        ...g,
-        nome: (g.nome || '').toUpperCase()
-      }));
-    }
 
     const staffBase = socFresca.staff_base || {};
      
@@ -486,7 +479,7 @@ export default function App() {
 
   const handleNuovoEvento = async (evento) => {
     setEventi(prev => [evento, ...prev]);
-    await registraEventoCloud(partitaId, evento, stagionesSelezionata || '2026/2027', annataSelezionata);
+    await registraEventoCloud(partitaId, evento, stagioneSelezionata, annataSelezionata);
   };
 
   // Funzione dedicata per aggiornare e salvare all'istante sul DB cambi e slot usati
@@ -767,14 +760,14 @@ export default function App() {
 
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Campionato / Stagione</label>
-              <select
+              <input
+                type="text"
+                placeholder="Es. 2026/2027"
                 value={stagioneSelezionata}
                 onChange={(e) => setStagioneSelezionata(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none uppercase font-bold"
-              >
-                <option value="2026/2027">Stagione 2026 / 2027</option>
-                <option value="2027/2028">Stagione 2027 / 2028</option>
-              </select>
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 uppercase font-bold"
+                required
+              />
             </div>
 
             {/* SELEZIONE ANNATA */}
