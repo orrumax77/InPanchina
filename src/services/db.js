@@ -40,7 +40,7 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
     const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
     const prefissoId = `${societaId}_${campionatoPulito}_${annataPulita}_`;
 
-    // 1. Cerchiamo i giocatori specifici per questa combinazione esatta di Società + Campionato + Annata
+    // 1. Cerchiamo ESCLUSIVAMENTE i giocatori associati a questa precisa combinazione di Società + Campionato + Annata
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
@@ -63,7 +63,8 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
       }));
     }
 
-    // 2. Se l'annata è 2010 (la storica) e non ha record nella tabella giocatori, carichiamo la rosa base come punto di partenza.
+    // 2. SOLO se l'utente si trova sull'annata '2010' (storica) e non ci sono record nella tabella giocatori, 
+    // allora carichiamo la rosa_base della società come punto di partenza.
     if (annata.trim() === '2010') {
       const { data: soc, error: errSoc } = await supabase
         .from('societa')
@@ -86,7 +87,8 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
       }
     }
 
-    // 3. Per le nuove annate (es. 2009), restituiamo un array vuoto se non ci sono giocatori registrati per quell'annata specifica
+    // 3. Per QUALSIASI altra annata (es. 2009, 2011, ecc.), se non ha giocatori salvati specificamente, 
+    // restituiamo un array vuoto (la rosa sarà pulita e pronta per essere compilata da zero).
     return [];
   } catch (err) {
     console.error('Errore caricaRosaSocieta:', err);
