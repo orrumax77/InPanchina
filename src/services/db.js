@@ -33,14 +33,14 @@ export async function caricaStatoPartita(partitaId) {
   }
 }
 
-export async function caricaRosaSocieta(societaId, campionato = '2026/2027', annata = '2010') {
+export async function caricaRosaSocieta(societaId, campionato, annata) {
   if (!societaId) return [];
   try {
-    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
-    const annataPulita = (annata || '2010').trim();
+    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '').trim();
     const prefissoId = `${societaId}_${campionatoPulito}_${annataPulita}_`;
 
-    // 1. Cerchiamo i giocatori NEL DATABASE filtrando RIGOROSAMENTE per la specifica annata
+    // 1. Cerchiamo i giocatori NEL DATABASE filtrando RIGOROSAMENTE per la specifica combinazione di campionato e annata
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
@@ -63,30 +63,7 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
       }));
     }
 
-    // 2. IL FALLBACK SULLA ROSA BASE DEVE AVVENIRE SOLO ED ESCLUSIVAMENTE PER IL 2010
-    if (annataPulita === '2010') {
-      const { data: soc, error: errSoc } = await supabase
-        .from('societa')
-        .select('rosa_base')
-        .eq('id', societaId)
-        .maybeSingle();
-
-      if (!errSoc && soc?.rosa_base && Array.isArray(soc.rosa_base) && soc.rosa_base.length > 0) {
-        return soc.rosa_base.map(g => ({
-          id: String(g.id),
-          numero: String(g.numero),
-          nome: (g.nome || '').toUpperCase(),
-          ruolo: g.ruolo || '',
-          isTitolare: g.isTitolare ?? g.is_titolare ?? false,
-          isCapitano: g.isCapitano ?? g.is_capitano ?? false,
-          isVice: g.isVice ?? g.is_vice ?? false,
-          ammonizioni: g.ammonizioni || 0,
-          espulso: g.espulso || false
-        }));
-      }
-    }
-
-    // 3. Per qualsiasi altra annata (es. 2009), se non ci sono record specifici, la rosa deve essere VUOTA
+    // 2. Comportamento generico puro: se non ci sono record specifici, la rosa è vuota e indipendente
     return [];
   } catch (err) {
     console.error('Errore caricaRosaSocieta:', err);
@@ -94,11 +71,11 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
   }
 }
 
-export async function dbAggiungiGiocatore(societaId, giocatore, campionato = '2026/2027', annata = '2010', partitaIdLive) {
+export async function dbAggiungiGiocatore(societaId, giocatore, campionato, annata, partitaIdLive) {
   if (!societaId || !giocatore) return;
   try {
-    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
-    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const pId = partitaIdLive || `${societaId}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE`;
 
     await supabase.from('partite').upsert({
@@ -159,11 +136,11 @@ export async function dbAggiungiGiocatore(societaId, giocatore, campionato = '20
   }
 }
 
-export async function dbModificaGiocatore(societaId, giocatore, campionato = '2026/2027', annata = '2010') {
+export async function dbModificaGiocatore(societaId, giocatore, campionato, annata) {
   if (!societaId || !giocatore) return;
   try {
-    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
-    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
 
     const payload = {
       numero: giocatore.numero,
@@ -209,11 +186,11 @@ export async function dbModificaGiocatore(societaId, giocatore, campionato = '20
   }
 }
 
-export async function dbEliminaGiocatore(societaId, giocatoreId, campionato = '2026/2027', annata = '2010') {
+export async function dbEliminaGiocatore(societaId, giocatoreId, campionato, annata) {
   if (!societaId || !giocatoreId) return;
   try {
-    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
-    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
 
     await supabase
       .from('giocatori')
@@ -238,10 +215,10 @@ export async function dbEliminaGiocatore(societaId, giocatoreId, campionato = '2
   }
 }
 
-export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, giocatori, campionato = '2026/2027', annata = '2010') {
+export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, giocatori, campionato, annata) {
   try {
-    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
-    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
 
     await supabase.from('partite').upsert({
       id: partitaId,
@@ -279,7 +256,7 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, campionato = '2026/2027', annata = '2010') {
+export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, campionato, annata) {
   if (!societaId) return null;
   try {
     const { data: soc } = await supabase
@@ -400,7 +377,7 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
   await supabase.from('partite').update(updateData).eq('id', partitaId);
 }
 
-export async function registraEventoCloud(partitaId, evento, campionato = '2026/2027', annata = '2010') {
+export async function registraEventoCloud(partitaId, evento, campionato, annata) {
   await supabase.from('eventi').insert([{
     id: evento.id,
     partita_id: partitaId,
@@ -416,9 +393,9 @@ export async function eliminaEventoCloud(eventoId) {
   await supabase.from('eventi').delete().eq('id', eventoId);
 }
 
-export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, campionato = '2026/2027', annata = '2010') {
-  const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
-  const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, campionato, annata) {
+  const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+  const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
 
   const righe = giocatori.map(g => ({
     id: `${societaId}_${campionatoPulito}_${annataPulita}_${g.id}`,
@@ -485,7 +462,7 @@ export async function getSocietaById(societaId) {
   return data;
 }
 
-export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato = '2026/2027', annata = '2010') {
+export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato, annata) {
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
@@ -667,7 +644,7 @@ export async function adminCreaUtente({ societaId, username, password, ruolo, st
     username: username.trim(),
     password_chiaro: password.trim(),
     ruolo: ruolo || 'dirigente',
-    stagione: stagione || '2026/2027'
+    stagione: stagione || ''
   }]).select().single();
 
   if (error) throw error;
