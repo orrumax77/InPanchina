@@ -33,19 +33,25 @@ export async function caricaStatoPartita(partitaId) {
   }
 }
 
-export async function caricaRosaSocieta(societaId) {
+export async function caricaRosaSocieta(societaId, campionato = '2026/2027', annata = '2010') {
   if (!societaId) return [];
   try {
-    // 1. Diamo la precedenza assoluta alla tabella 'giocatori' live se esistono record per questa società
+    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+    const prefissoId = `${societaId}_${campionatoPulito}_${annataPulita}_`;
+
+    // 1. Diamo la precedenza assoluta alla tabella 'giocatori' filtrata per società, campionato e annata
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
       .eq('societa_id', societaId)
+      .eq('campionato', campionato)
+      .eq('annata', annata)
       .order('numero', { ascending: true });
 
     if (!errG && gList && gList.length > 0) {
       return gList.map(g => ({
-        id: String(g.id).replace(`${societaId}_`, ''),
+        id: String(g.id).replace(prefissoId, '').replace(`${societaId}_`, ''),
         numero: String(g.numero),
         nome: (g.nome || '').toUpperCase(),
         ruolo: g.ruolo || '',
@@ -57,7 +63,7 @@ export async function caricaRosaSocieta(societaId) {
       }));
     }
 
-    // 2. Fallback sulla rosa base della società solo se la tabella giocatori è vuota
+    // 2. Fallback sulla rosa base della società solo se la tabella giocatori è vuota per questa combinazione
     const { data: soc, error: errSoc } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -84,20 +90,29 @@ export async function caricaRosaSocieta(societaId) {
     return [];
   }
 }
-export async function dbAggiungiGiocatore(societaId, giocatore) {
+
+export async function dbAggiungiGiocatore(societaId, giocatore, campionato = '2026/2027', annata = '2010', partitaIdLive) {
   if (!societaId || !giocatore) return;
   try {
+    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+    const pId = partitaIdLive || `${societaId}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE`;
+
     await supabase.from('partite').upsert({
-      id: `${societaId}_PARTITA_LIVE`,
+      id: pId,
       societa_id: societaId,
       squadra_casa: societaId,
+      campionato: campionato,
+      annata: annata,
       stato: 'bozza'
     }, { onConflict: 'id' });
 
     const riga = {
-      id: `${societaId}_${giocatore.id}`,
+      id: `${societaId}_${campionatoPulito}_${annataPulita}_${giocatore.id}`,
       societa_id: societaId,
-      partita_id: `${societaId}_PARTITA_LIVE`,
+      partita_id: pId,
+      campionato: campionato,
+      annata: annata,
       numero: giocatore.numero,
       nome: giocatore.nome.trim().toUpperCase(),
       ruolo: '',
@@ -141,9 +156,12 @@ export async function dbAggiungiGiocatore(societaId, giocatore) {
   }
 }
 
-export async function dbModificaGiocatore(societaId, giocatore) {
+export async function dbModificaGiocatore(societaId, giocatore, campionato = '2026/2027', annata = '2010') {
   if (!societaId || !giocatore) return;
   try {
+    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+
     const payload = {
       numero: giocatore.numero,
       nome: giocatore.nome.trim().toUpperCase(),
@@ -155,7 +173,7 @@ export async function dbModificaGiocatore(societaId, giocatore) {
     await supabase
       .from('giocatori')
       .update(payload)
-      .eq('id', `${societaId}_${giocatore.id}`);
+      .eq('id', `${societaId}_${campionatoPulito}_${annataPulita}_${giocatore.id}`);
 
     const { data: soc } = await supabase
       .from('societa')
@@ -188,13 +206,16 @@ export async function dbModificaGiocatore(societaId, giocatore) {
   }
 }
 
-export async function dbEliminaGiocatore(societaId, giocatoreId) {
+export async function dbEliminaGiocatore(societaId, giocatoreId, campionato = '2026/2027', annata = '2010') {
   if (!societaId || !giocatoreId) return;
   try {
+    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+
     await supabase
       .from('giocatori')
       .delete()
-      .eq('id', `${societaId}_${giocatoreId}`);
+      .eq('id', `${societaId}_${campionatoPulito}_${annataPulita}_${giocatoreId}`);
 
     const { data: soc } = await supabase
       .from('societa')
@@ -214,8 +235,11 @@ export async function dbEliminaGiocatore(societaId, giocatoreId) {
   }
 }
 
-export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, giocatori) {
+export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, giocatori, campionato = '2026/2027', annata = '2010') {
   try {
+    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+
     await supabase.from('partite').upsert({
       id: partitaId,
       societa_id: societaId,
@@ -223,13 +247,17 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
       squadra_ospite: partitaInfo.squadraOspite,
       data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
       is_nostra_casa: partitaInfo.isNostraCasa ?? true,
+      campionato: campionato,
+      annata: annata,
       stato: 'in-corso'
     });
 
     const righeGiocatori = giocatori.map((g) => ({
-      id: `${societaId}_${g.id}`,
+      id: `${societaId}_${campionatoPulito}_${annataPulita}_${g.id}`,
       partita_id: partitaId,
       societa_id: societaId,
+      campionato: campionato,
+      annata: annata,
       numero: g.numero,
       nome: g.nome,
       ruolo: '',
@@ -248,8 +276,7 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-// SALVA LO STAFF IN SOCIETA' INVIANDO SOLO staff_base (GARANTITO AL 100%)
-export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
+export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, campionato = '2026/2027', annata = '2010') {
   if (!societaId) return null;
   try {
     const { data: soc } = await supabase
@@ -277,7 +304,6 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
       preparatorePortieri: partitaInfo.preparatorePortieri || ''
     };
 
-    // Aggiorna unicamente staff_base per evitare errori PGRST204
     const { error: errSoc } = await supabase
       .from('societa')
       .update({ staff_base: staffAggiornato })
@@ -285,8 +311,6 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
 
     if (errSoc) {
       console.error('Errore salvataggio staff in societa:', errSoc);
-    } else {
-      console.log('Staff salvato con successo in societa.staff_base');
     }
 
     if (partitaId) {
@@ -298,6 +322,8 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo) {
           squadra_ospite: partitaInfo.squadraOspite || '',
           data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
           is_nostra_casa: partitaInfo.isNostraCasa ?? true,
+          campionato: campionato,
+          annata: annata,
           stato: 'bozza'
         }, { onConflict: 'id' });
       } catch (errP) {
@@ -386,11 +412,16 @@ export async function eliminaEventoCloud(eventoId) {
   await supabase.from('eventi').delete().eq('id', eventoId);
 }
 
-export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori) {
+export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, campionato = '2026/2027', annata = '2010') {
+  const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
+  const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
+
   const righe = giocatori.map(g => ({
-    id: `${societaId}_${g.id}`,
+    id: `${societaId}_${campionatoPulito}_${annataPulita}_${g.id}`,
     partita_id: partitaId,
     societa_id: societaId,
+    campionato: campionato,
+    annata: annata,
     numero: g.numero,
     nome: g.nome,
     ruolo: '',
@@ -450,7 +481,7 @@ export async function getSocietaById(societaId) {
   return data;
 }
 
-export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori) {
+export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato = '2026/2027', annata = '2010') {
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
@@ -462,6 +493,8 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       gol_casa: datiGara.golCasa,
       gol_ospite: datiGara.golOspiti,
       data_gara: partitaInfo.dataPartita || new Date().toISOString().split('T')[0],
+      campionato: campionato,
+      annata: annata,
       stato: 'completata',
       referto_eventi: eventi,
       referto_giocatori: giocatori,
@@ -494,7 +527,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       ammonizioni: 0,
       espulso: false
     }));
-    await aggiornaGiocatoriCloud(livePartitaId, societaId, resetGiocatori);
+    await aggiornaGiocatoriCloud(livePartitaId, societaId, resetGiocatori, campionato, annata);
 
     return { success: true, storicoId };
   } catch (err) {
@@ -503,14 +536,18 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   }
 }
 
-export async function caricaStoricoReferti(societaId) {
+export async function caricaStoricoReferti(societaId, campionato, annata) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('partite')
       .select('*')
       .eq('societa_id', societaId)
-      .eq('stato', 'completata')
-      .order('terminata_il', { ascending: false });
+      .eq('stato', 'completata');
+
+    if (campionato) query = query.eq('campionato', campionato);
+    if (annata) query = query.eq('annata', annata);
+
+    const { data, error } = await query.order('terminata_il', { ascending: false });
 
     if (error) {
       console.error('Errore caricaStoricoReferti:', error);
