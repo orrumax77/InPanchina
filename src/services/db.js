@@ -47,6 +47,7 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       .eq('societa_id', societaId)
       .eq('campionato', campionato)
       .eq('annata', annataPulita)
+      .not('annata', 'is', null)
       .order('numero', { ascending: true });
 
     if (!errG && gList && gList.length > 0) {
