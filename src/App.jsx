@@ -90,6 +90,10 @@ export default function App() {
     setSocietaAttiva(socFresca);
 
     const idPartita = partitaId;
+
+    console.log("-> STAGIONE SELEZIONATA:", stagioneSelezionata);
+    console.log("-> ANNATA SELEZIONATA:", annataSelezionata);
+    console.log("-> PARTITA ID GENERATO:", idPartita);
      
     // Carichiamo la rosa filtrata rigorosamente per società, campionato e annata specifici
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
