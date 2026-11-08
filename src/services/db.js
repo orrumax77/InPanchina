@@ -40,7 +40,7 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
     const annataPulita = (annata || 'Generica').replace(/[^a-zA-Z0-9]/g, '_');
     const prefissoId = `${societaId}_${campionatoPulito}_${annataPulita}_`;
 
-    // 1. Diamo la precedenza assoluta alla tabella 'giocatori' filtrata per società, campionato e annata
+    // 1. Cerchiamo i giocatori specifici per questa combinazione esatta di Società + Campionato + Annata
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
@@ -63,27 +63,30 @@ export async function caricaRosaSocieta(societaId, campionato = '2026/2027', ann
       }));
     }
 
-    // 2. Fallback sulla rosa base della società solo se la tabella giocatori è vuota per questa combinazione
-    const { data: soc, error: errSoc } = await supabase
-      .from('societa')
-      .select('rosa_base')
-      .eq('id', societaId)
-      .maybeSingle();
+    // 2. Se l'annata è 2010 (la storica) e non ha record nella tabella giocatori, carichiamo la rosa base come punto di partenza.
+    if (annata.trim() === '2010') {
+      const { data: soc, error: errSoc } = await supabase
+        .from('societa')
+        .select('rosa_base')
+        .eq('id', societaId)
+        .maybeSingle();
 
-    if (!errSoc && soc?.rosa_base && Array.isArray(soc.rosa_base) && soc.rosa_base.length > 0) {
-      return soc.rosa_base.map(g => ({
-        id: String(g.id),
-        numero: String(g.numero),
-        nome: (g.nome || '').toUpperCase(),
-        ruolo: g.ruolo || '',
-        isTitolare: g.isTitolare ?? g.is_titolare ?? false,
-        isCapitano: g.isCapitano ?? g.is_capitano ?? false,
-        isVice: g.isVice ?? g.is_vice ?? false,
-        ammonizioni: g.ammonizioni || 0,
-        espulso: g.espulso || false
-      }));
+      if (!errSoc && soc?.rosa_base && Array.isArray(soc.rosa_base) && soc.rosa_base.length > 0) {
+        return soc.rosa_base.map(g => ({
+          id: String(g.id),
+          numero: String(g.numero),
+          nome: (g.nome || '').toUpperCase(),
+          ruolo: g.ruolo || '',
+          isTitolare: g.isTitolare ?? g.is_titolare ?? false,
+          isCapitano: g.isCapitano ?? g.is_capitano ?? false,
+          isVice: g.isVice ?? g.is_vice ?? false,
+          ammonizioni: g.ammonizioni || 0,
+          espulso: g.espulso || false
+        }));
+      }
     }
 
+    // 3. Per le nuove annate (es. 2009), restituiamo un array vuoto se non ci sono giocatori registrati per quell'annata specifica
     return [];
   } catch (err) {
     console.error('Errore caricaRosaSocieta:', err);
