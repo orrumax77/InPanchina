@@ -101,7 +101,13 @@ export default function App() {
     // Carichiamo la rosa filtrata rigorosamente per società, campionato e annata specifici
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
 
-    const staffBase = socFresca.staff_base || {};
+    const campionatoPulitoStaff = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulitaStaff = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const chiaveStaff = `${campionatoPulitoStaff}_${annataPulitaStaff}`;
+
+    const staffBase = (socFresca.staff_base && typeof socFresca.staff_base === 'object') 
+      ? (socFresca.staff_base[chiaveStaff] || socFresca.staff_base['2026/2027_2010'] || {}) 
+      : {};
     
     const allenatoreBase = (staffBase.allenatore || socFresca.allenatore_predefinito || '').toUpperCase();
     const allenatoreSecondaBase = (staffBase.allenatoreSeconda || socFresca.allenatore_seconda_predefinito || '').toUpperCase();
@@ -453,7 +459,7 @@ export default function App() {
       massaggiatore: pInfo.massaggiatore,
       preparatoreAtletico: pInfo.preparatoreAtletico,
       preparatorePortieri: pInfo.preparatorePortieri
-    });
+    }, stagioneSelezionata, annataSelezionata);
 
     setSalvataggioInCorso(false);
     setFaseApp('partita');
