@@ -36,13 +36,13 @@ export async function caricaStatoPartita(partitaId) {
 }
 
 export async function caricaRosaSocieta(societaId, campionato, annata) {
-  if (!societaId) return [];
+  if (!societaId || !campionato || !annata) return [];
   try {
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').trim();
     const prefissoId = `${societaId}_${campionatoPulito}_${annataPulita}_`;
 
-    // 1. Cerchiamo i giocatori NEL DATABASE filtrando RIGOROSAMENTE per la specifica combinazione di campionato e annata
+    // 1. Cerchiamo i giocatori NEL DATABASE filtrando per la specifica combinazione
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
@@ -66,7 +66,32 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       }));
     }
 
-    // 2. Comportamento generico puro: se non ci sono record specifici, la rosa è vuota e indipendente
+    // 2. FALLBACK SULLA MAPPA DELLA ROSA BASE NELLA TABELLA SOCIETA (filtrato per chiave)
+    const { data: soc, error: errSoc } = await supabase
+      .from('societa')
+      .select('rosa_base')
+      .eq('id', societaId)
+      .maybeSingle();
+
+    if (!errSoc && soc?.rosa_base) {
+      const chiave = `${campionatoPulito}_${annataPulita.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const rosaBaseAnnata = soc.rosa_base[chiave] || (Array.isArray(soc.rosa_base) ? soc.rosa_base : []);
+
+      if (Array.isArray(rosaBaseAnnata) && rosaBaseAnnata.length > 0) {
+        return rosaBaseAnnata.map(g => ({
+          id: String(g.id),
+          numero: String(g.numero),
+          nome: (g.nome || '').toUpperCase(),
+          ruolo: g.ruolo || '',
+          isTitolare: g.isTitolare ?? g.is_titolare ?? false,
+          isCapitano: g.is_capitano ?? g.is_capitano ?? false,
+          isVice: g.is_vice ?? g.is_vice ?? false,
+          ammonizioni: g.ammonizioni || 0,
+          espulso: g.espulso || false
+        }));
+      }
+    }
+
     return [];
   } catch (err) {
     console.error('Errore caricaRosaSocieta:', err);
@@ -418,26 +443,39 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, ca
   await supabase.from('giocatori').upsert(righe);
 }
 
-export async function salvaRosaBaseSocieta(societaId, giocatori, staff) {
+export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campionato = '2026/2027', annata = '2010') {
   try {
+    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const chiave = `${campionatoPulito}_${annataPulita}`;
+
+    const { data: socCorrente } = await supabase
+      .from('societa')
+      .select('rosa_base, staff_base')
+      .eq('id', societaId)
+      .single();
+
+    const rosaMap = (socCorrente?.rosa_base && typeof socCorrente.rosa_base === 'object' && !Array.isArray(socCorrente.rosa_base))
+      ? socCorrente.rosa_base
+      : {};
+
+    const staffMap = (socCorrente?.staff_base && typeof socCorrente.staff_base === 'object')
+      ? socCorrente.staff_base
+      : {};
+
     const payload = {};
 
     if (giocatori !== undefined) {
-      payload.rosa_base = giocatori;
+      rosaMap[chiave] = giocatori;
+      payload.rosa_base = rosaMap;
     }
 
     if (staff !== undefined) {
-      const { data: socCorrente } = await supabase
-        .from('societa')
-        .select('staff_base')
-        .eq('id', societaId)
-        .single();
-
-      const staffPrecedente = socCorrente?.staff_base || {};
-      payload.staff_base = {
-        ...staffPrecedente,
+      staffMap[chiave] = {
+        ...(staffMap[chiave] || {}),
         ...staff
       };
+      payload.staff_base = staffMap;
     }
 
     const { data, error } = await supabase
