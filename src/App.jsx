@@ -848,11 +848,14 @@ export default function App() {
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 uppercase font-bold cursor-pointer"
                 required
               >
-                {getListaStagioniDisponibili().map((stagione) => (
-                  <option key={stagione} value={stagione} className="bg-slate-900 text-white">
-                    Stagione {stagione} {stagione === getStagioneDinamicaCorrente() ? '(Attuale)' : ''}
-                  </option>
-                ))}
+                {getListaStagioniDisponibili().map((stagione) => {
+                  const isAttuale = stagione === getStagioneDinamicaCorrente();
+                  return (
+                    <option key={stagione} value={stagione} className="bg-slate-900 text-white">
+                      Stagione {stagione} {isAttuale ? '(Attuale)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
