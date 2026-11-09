@@ -254,10 +254,12 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setGiocatori(nuovaLista);
     aggiornaRosaGlobale(nuovaLista);
 
+    // AGGIUNTO: Salvataggio immediato sul DB per il singolo giocatore e per l'intera rosa base
+    await dbModificaGiocatore(societa.id, aggiornato, campionato, annata);
     await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
-
+  
   const toggleTitolare = async (id) => {
     const target = giocatori.find(g => g.id === id);
     if (!target) return;
