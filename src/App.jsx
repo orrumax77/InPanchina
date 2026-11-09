@@ -1111,8 +1111,8 @@ export default function App() {
           giocatori={rosa}
           minutoCorrente={minutoCorrente}
           tempoGara={tempoGara}
-          campionato={campionato}
-          annata={annata}
+          campionato={stagioneSelezionata}
+          annata={annataSelezionata}
           onChiudi={() => setFaseApp('partita')}
           onTerminaEResetta={handleTerminaLiveEResetta}
         />
