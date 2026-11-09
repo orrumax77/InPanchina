@@ -450,7 +450,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Salvataggio della partita nello storico con i convocati di questa gara
+    // 1. Salvataggio della partita nello storico
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -489,20 +489,19 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       data_gara: new Date().toISOString().split('T')[0]
     }).eq('id', livePartitaId);
 
-    // 3. RECUPERO DELLA ROSA COMPLETA DELLA SOCIETÀ PER EVITARE PERDITE DI ELEMENTI IN TRIBUNA
+    // 3. RECUPERO DELLA ROSA COMPLETA DELLA SOCIETÀ (INCLUSI I GIOCATORI IN TRIBUNA)
     const rosaCompletaAttuale = await caricaRosaSocieta(societaId, campionato, annata);
     
-    // Se abbiamo la rosa completa, puliamo ammonizioni/espulsioni di tutti e la rissalviamo intatta
+    // CORRETTO: Usiamo la variabile con la "e" finale (giocatoriDaRipristinare)
     const giocatoriDaRipristinare = (rosaCompletaAttuale.length > 0 ? rosaCompletaAttuale : giocatori).map(g => ({
       ...g,
       ammonizioni: 0,
       espulso: false,
-      isConvocato: true // Riportiamo tutti convocati di default per la prossima gara
+      isConvocato: true 
     }));
 
-    // Aggiorniamo la tabella giocatori cloud e la rosa base salvata in formato JSON nella tabella societa
     await aggiornaGiocatoriCloud(livePartitaId, societaId, giocatoriDaRipristinare, campionato, annata);
-    await salvaRosaBaseSocieta(societaId, giocatoriDaRipristinari, undefined, campionato, annata);
+    await salvaRosaBaseSocieta(societaId, giocatoriDaRipristinare, undefined, campionato, annata);
 
     return { success: true, storicoId };
   } catch (err) {
