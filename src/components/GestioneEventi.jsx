@@ -46,8 +46,8 @@ export default function GestioneEventi({
 
   const [avvisoTimerFermo, setAvvisoTimerFermo] = useState(false);
 
-  // Calcoli limiti regolamentari (5 cambi in 3 slot)
-  const cambiRimanenti = Math.max(0, 5 - cambiEffettuati);
+  // Calcoli limiti regolamentari (7 cambi in 3 slot)
+  const cambiRimanenti = Math.max(0, 7 - cambiEffettuati);
   const slotRimanenti = Math.max(0, 3 - slotUsati);
   const cambiEsauriti = cambiRimanenti <= 0;
   const slotEsauriti = slotRimanenti <= 0 && !isIntervalloEffettivo;
@@ -168,12 +168,12 @@ export default function GestioneEventi({
     setModalAmmonizione(false);
   };
 
-  // 4. Sostituzioni (regola 5 cambi in 3 slot + intervallo)
+  // 4. Sostituzioni (regola 7 cambi in 3 slot + intervallo)
   const apriModalCambio = () => {
     if (!isIntervalloEffettivo && !verificaTimerAvviato()) return;
      
     if (cambiEsauriti) {
-      alert("Hai già effettuato tutti i 5 cambi a disposizione!");
+      alert("Hai già effettuato tutti i 7 cambi a disposizione!");
       return;
     }
 
@@ -195,8 +195,8 @@ export default function GestioneEventi({
     const entra = giocatori.find(g => g.id === giocatoreEntra);
     if (!esce || !entra) return;
 
-    if (cambiEffettuati + coppieInAttesa.length + 1 > 5) {
-      alert("Non puoi superare il limite massimo di 5 cambi complessivi!");
+    if (cambiEffettuati + coppieInAttesa.length + 1 > 7) {
+      alert("Non puoi superare il limite massimo di 7 cambi complessivi!");
       return;
     }
 
@@ -221,7 +221,7 @@ export default function GestioneEventi({
 
     if (listaCambi.length === 0) return;
 
-    if (cambiEffettuati + listaCambi.length > 5) {
+    if (cambiEffettuati + listaCambi.length > 7) {
       alert(`Puoi effettuare al massimo altri ${cambiRimanenti} cambi!`);
       return;
     }
@@ -311,9 +311,9 @@ export default function GestioneEventi({
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold text-slate-400 uppercase">Cambi:</span>
           <span className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] ${
-            cambiEffettuati >= 5 ? 'bg-rose-950 text-rose-400 border border-rose-800' : 'bg-slate-900 text-emerald-400 border border-slate-800'
+            cambiEffettuati >= 7 ? 'bg-rose-950 text-rose-400 border border-rose-800' : 'bg-slate-900 text-emerald-400 border border-slate-800'
           }`}>
-            {cambiEffettuati} / 5
+            {cambiEffettuati} / 7
           </span>
         </div>
 
@@ -390,7 +390,7 @@ export default function GestioneEventi({
               : 'bg-slate-800/80 text-slate-400 border border-slate-700/60 opacity-80'
           }`}
         >
-          <ArrowRightLeft className="w-4 h-4" /> Cambio ({cambiEffettuati}/5)
+          <ArrowRightLeft className="w-4 h-4" /> Cambio ({cambiEffettuati}/7)
         </button>
       </div>
 
@@ -431,7 +431,7 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* Modal Cartellino (Mostra tutti i titolari e chi è stato espulso, disabilitando questi ultimi) */}
+      {/* Modal Cartellino */}
       {modalAmmonizione && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
@@ -496,12 +496,12 @@ export default function GestioneEventi({
                 <h4 className="text-sm font-black text-white uppercase flex items-center gap-2">
                   <ArrowRightLeft className="w-4 h-4 text-blue-400" /> Sostituzioni di Gara (Minuto {isIntervalloEffettivo ? "45' (Int.)" : `${minutoCorrente}'`})
                 </h4>
-                <p className="text-[11px] text-slate-400">Regola ufficiale: Max 5 cambi in 3 interruzioni di gioco (slot).</p>
+                <p className="text-[11px] text-slate-400">Regola ufficiale: Max 7 cambi in 3 interruzioni di gioco (slot).</p>
               </div>
 
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold text-slate-300 uppercase bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">
-                  Cambi: <strong className="text-emerald-400">{cambiEffettuati + coppieInAttesa.length}/5</strong>
+                  Cambi: <strong className="text-emerald-400">{cambiEffettuati + coppieInAttesa.length}/7</strong>
                 </span>
                 <span className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border ${
                   isIntervalloEffettivo
@@ -543,7 +543,7 @@ export default function GestioneEventi({
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Colonna 1: Chi ESCE (Titolari in campo - Esclude chi è già in attesa in questo slot) */}
+              {/* Colonna 1: Chi ESCE */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-rose-400 bg-rose-950/30 border border-rose-900/40 p-2 rounded-lg">
                   <span className="flex items-center gap-1.5"><UserMinus className="w-3.5 h-3.5" /> 1. Chi ESCE (In campo)</span>
@@ -592,12 +592,12 @@ export default function GestioneEventi({
                               {g.numero}
                             </span>
                             <span className="text-xs font-semibold uppercase truncate">{g.nome}</span>
-                          </div>
-                          {isSel && (
-                            <span className="text-[10px] font-bold text-rose-300 bg-rose-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
-                              ESCE
-                            </span>
-                          )}
+                        </div>
+                        {isSel && (
+                          <span className="text-[10px] font-bold text-rose-300 bg-rose-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
+                            ESCE
+                          </span>
+                        )}
                         </button>
                       );
                     })
@@ -605,7 +605,7 @@ export default function GestioneEventi({
                 </div>
               </div>
 
-              {/* Colonna 2: Chi ENTRA (Panchina - Disabilita chi è già uscito o già in attesa in questo slot) */}
+              {/* Colonna 2: Chi ENTRA */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2 rounded-lg">
                   <span className="flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5" /> 2. Chi ENTRA (Panchina)</span>
@@ -708,7 +708,7 @@ export default function GestioneEventi({
                   </div>
                 </div>
 
-                {cambiEffettuati + coppieInAttesa.length + 1 < 5 && (
+                {cambiEffettuati + coppieInAttesa.length + 1 < 7 && (
                   <div className="flex justify-end">
                     <button
                       type="button"
