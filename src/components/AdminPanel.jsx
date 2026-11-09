@@ -816,8 +816,13 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagione
                         className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                       >
                         <div className="space-y-1 min-w-0">
-                          <div className="font-bold text-white normal-case font-mono truncate text-sm">
-                            {u.username}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-white normal-case font-mono text-sm">
+                              {u.username}
+                            </span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
+                              Campionato: {u.campionato || u.stagione || 'N/D'}
+                            </span>
                           </div>
                            
                           {inModifica ? (
