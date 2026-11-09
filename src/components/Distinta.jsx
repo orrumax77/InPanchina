@@ -125,7 +125,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       const formattati = rosaDaCaricare.map((g, index) => ({
         ...g,
         nome: (g.nome || '').toUpperCase(),
-        // Gestiamo lo stato di convocazione in memoria: i primi 20 sono convocati di default
+        // Legge lo stato precedentemente salvato, altrimenti i primi 20 sono convocati di default
         isConvocato: g.isConvocato ?? (index < 20)
       }));
       setGiocatori(ordinaPerNumeroMaglia(formattati));
@@ -233,7 +233,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   const convocatiCount = giocatori.filter(g => g.isConvocato).length;
   const titolariCount = giocatori.filter(g => g.isTitolare && g.isConvocato).length;
 
-  // Toggle Convocato / Tribuna (Max 20)
+  // Toggle Convocato / Tribuna (Con salvataggio persistente immediato)
   const toggleConvocato = async (id) => {
     const target = giocatori.find(g => g.id === id);
     if (!target) return;
@@ -244,22 +244,28 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     }
 
     const nuovoStatoConvocato = !target.isConvocato;
-    const aggiornato = { 
-      ...target, 
-      isConvocato: nuovoStatoConvocato,
-      isTitolare: nuovoStatoConvocato ? target.isTitolare : false 
-    };
+    
+    const nuovaLista = giocatori.map(g => {
+      if (g.id === id) {
+        return { 
+          ...g, 
+          isConvocato: nuovoStatoConvocato,
+          isTitolare: nuovoStatoConvocato ? g.isTitolare : false 
+        };
+      }
+      return g;
+    });
 
-    const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
-    setGiocatori(nuovaLista);
-    aggiornaRosaGlobale(nuovaLista);
+    const listaOrdinata = ordinaPerNumeroMaglia(nuovaLista);
+    
+    setGiocatori(listaOrdinata);
+    aggiornaRosaGlobale(listaOrdinata);
 
-    // AGGIUNTO: Salvataggio immediato sul DB per il singolo giocatore e per l'intera rosa base
-    await dbModificaGiocatore(societa.id, aggiornato, campionato, annata);
-    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
+    // Salvataggio immediato sul Cloud nella rosa base
+    await salvaRosaBaseSocieta(societa.id, listaOrdinata, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
-  
+
   const toggleTitolare = async (id) => {
     const target = giocatori.find(g => g.id === id);
     if (!target) return;
@@ -303,15 +309,15 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const target = giocatori.find(g => g.id === id);
     if (!target || !target.isConvocato) return;
 
-    const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => ({
+    const nuevaLista = ordinaPerNumeroMaglia(giocatori.map(g => ({
       ...g,
       isVice: g.id === id ? !g.isVice : false,
       isCapitano: g.id === id ? false : g.isCapitano
     })));
-    setGiocatori(nuovaLista);
+    setGiocatori(nuevaLista);
     aggiornaRosaGlobale(nuovaLista);
 
-    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
+    await salvaRosaBaseSocieta(societa.id, nuevaLista, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -444,7 +450,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       const procedi = window.confirm(`Attenzione: hai selezionato ${convocatiCount} giocatori convocati anziché 20. Vuoi procedere comunque?`);
       if (!procedi) return;
     }
-    // Passiamo ad App.jsx solo i giocatori convocati e ordinati
     onConfermaDistinta({ 
       partitaInfo, 
       giocatori: ordinaPerNumeroMaglia(giocatori.filter(g => g.isConvocato)) 
@@ -907,7 +912,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         >
           <UserCheck className="w-5 h-5" />
           {titolariCount === 11 && convocatiCount === 20 
-            ? 'Conferma e Scegli Modulo' 
+            ? 'Conferma e Avvia Live' 
             : `Necessari: 20 Convocati (ora: ${convocatiCount}) e 11 Titolari (ora: ${titolariCount})`}
         </button>
       </div>
