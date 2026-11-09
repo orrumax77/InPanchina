@@ -465,7 +465,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       referto_eventi: eventi,
       referto_giocatori: giocatori,
       terminata_il: new Date().toISOString(),
-      // AGGIUNTI TUTTI I CAMPI DELLO STAFF NELLO STORICO:
+      // CAMPI DELLO STAFF TECNICO & DIRIGENZIALE
       allenatore: partitaInfo.allenatore || '',
       allenatore_seconda: partitaInfo.allenatoreSeconda || '',
       dirigente: partitaInfo.dirigente || '',
