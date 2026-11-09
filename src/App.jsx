@@ -138,20 +138,13 @@ export default function App() {
 
   const avviaSessioneSocieta = async (soc) => {
     setSalvataggioInCorso(true);
-    // FORZA SEMPRE LA LETTURA FRESCA DAL DB
     const socFresca = (soc?.id ? await getSocietaById(soc.id) : null) || soc;
     setSocietaAttiva(socFresca);
 
-    // CALCOLO SICURO DELL'ID PARTITA (senza dipendere dallo stato asincrono di React)
     const campionatoPulito = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const idPartita = socFresca ? `${socFresca.id}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE` : null;
      
-    console.log("-> STAGIONE SELEZIONATA:", stagioneSelezionata);
-    console.log("-> ANNATA SELEZIONATA:", annataSelezionata);
-    console.log("-> PARTITA ID GENERATO CORRETTAMENTE:", idPartita);
-
-    // Carichiamo la rosa filtrata rigorosamente per società, campionato e annata specifici
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
 
     const campionatoPulitoStaff = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -160,7 +153,6 @@ export default function App() {
 
     const staffRaw = socFresca.staff_base || {};
     
-    // GESTIONE RIGOROSA E ISOLATA DELLO STAFF PER ANTIMESCOLO TRA ANNATE:
     let staffBase = {};
     if (staffRaw[chiaveStaff] && typeof staffRaw[chiaveStaff] === 'object') {
       staffBase = staffRaw[chiaveStaff];
@@ -192,7 +184,6 @@ export default function App() {
     
     const partitaDB = stato?.partita;
 
-    // CONTROLLO LIVE ESTESO
     const isLiveInCorso = partitaDB && (
       partitaDB.in_esecuzione === true || 
       (partitaDB.secondi_gara !== undefined && partitaDB.secondi_gara > 0) || 
@@ -318,6 +309,30 @@ export default function App() {
     await avviaSessioneSocieta(soc);
   };
 
+  // Funzione di supporto per sincronizzare lo stato live senza sbalzi o salti del timer
+  const syncStatoLive = async (datiExtra = {}) => {
+    const adessoISO = inEsecuzione ? new Date().toISOString() : avviatoAlle;
+    
+    if (inEsecuzione) {
+      setAvviatoAlle(adessoISO);
+      setSecondiBase(secondiGara);
+    }
+
+    await syncStatoPartitaSuDb(partitaId, {
+      golCasa,
+      golOspiti,
+      tempoGara,
+      secondiGara,
+      inEsecuzione,
+      avviatoAlle: adessoISO,
+      recupero,
+      minutoCorrente,
+      slotUsati,
+      cambiEffettuati,
+      ...datiExtra
+    });
+  };
+
   // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO
   useEffect(() => {
     if (!partitaId) return;
@@ -334,7 +349,6 @@ export default function App() {
         setSlotUsati(p.slot_usati);
         setCambiEffettuati(p.cambi_effettuati);
 
-        // AGGIORNAMENTO ISTANTANEO DEL TIMER TRA DISPOSITIVI
         setInEsecuzione(p.in_esecuzione);
         setAvviatoAlle(p.avviato_alle);
         setSecondiBase(p.secondi_gara || 0);
@@ -563,17 +577,9 @@ export default function App() {
     setGolCasa(nuovoCasa);
     setGolOspiti(nuovoOspiti);
 
-    await syncStatoPartitaSuDb(partitaId, {
+    await syncStatoLive({
       golCasa: nuovoCasa,
-      golOspiti: nuovoOspiti,
-      tempoGara,
-      secondiGara,
-      inEsecuzione,
-      avviatoAlle,
-      recupero,
-      minutoCorrente,
-      slotUsati,
-      cambiEffettuati
+      golOspiti: nuovoOspiti
     });
   };
 
@@ -586,15 +592,7 @@ export default function App() {
     setCambiEffettuati(nuoviCambi);
     setSlotUsati(nuoviSlot);
 
-    await syncStatoPartitaSuDb(partitaId, {
-      golCasa,
-      golOspiti,
-      tempoGara,
-      secondiGara,
-      inEsecuzione,
-      avviatoAlle,
-      recupero,
-      minutoCorrente,
+    await syncStatoLive({
       slotUsati: nuoviSlot,
       cambiEffettuati: nuoviCambi
     });
@@ -606,7 +604,7 @@ export default function App() {
 
     const eventiRimasti = eventi.filter(e => e.id !== id);
 
-    // 1. GESTIONE STORNO GOL (Modifica solo il punteggio, non il timer)
+    // 1. GESTIONE STORNO GOL (Modifica solo il punteggio usando syncStatoLive)
     if (eventoDaEliminare.tipo === 'GOL') {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
@@ -618,22 +616,13 @@ export default function App() {
       setGolCasa(nuovoCasa);
       setGolOspiti(nuovoOspiti);
 
-      // Sintonizziamo sul DB mantenendo esplicitamente il tempo corrente intatto
-      await syncStatoPartitaSuDb(partitaId, {
+      await syncStatoLive({
         golCasa: nuovoCasa,
-        golOspiti: nuovoOspiti,
-        tempoGara,
-        secondiGara, // Mantiene i secondi attuali esatti senza ricalcoli
-        inEsecuzione,
-        avviatoAlle,
-        recupero,
-        minutoCorrente,
-        slotUsati,
-        cambiEffettuati
+        golOspiti: nuovoOspiti
       });
     }
 
-    // 2. GESTIONE STORNO SOSTITUZIONE (Ripristina i ruoli in rosa ma NON tocca il timer)
+    // 2. GESTIONE STORNO SOSTITUZIONE (Ripristina i ruoli in rosa)
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       const nuoviCambi = Math.max(0, cambiEffettuati - 1);
       const isIntervallo = eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo');
@@ -686,7 +675,7 @@ export default function App() {
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio, stagioneSelezionata, annataSelezionata);
     }
 
-    // 3. GESTIONE CARTELLINI (Aggiorna ammonizioni senza toccare il timer)
+    // 3. GESTIONE CARTELLINI (Aggiorna ammonizioni)
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
@@ -738,7 +727,6 @@ export default function App() {
       }
     }
       
-    // Infine eliminiamo l'evento dal cloud
     await eliminaEventoCloud(id);
     setEventi(eventiRimasti);
   };
@@ -855,7 +843,6 @@ export default function App() {
                 required
               >
                 {getListaStagioniDisponibili().map((stagione) => {
-                  const isAttuale = stagione === getStagioneDinamicaCorrente();
                   return (
                     <option key={stagione} value={stagione} className="bg-slate-900 text-white">
                       {stagione}
@@ -879,14 +866,13 @@ export default function App() {
               >
                 {(() => {
                   const annoBase = parseInt(stagioneSelezionata.split('/')[0], 10);
-                  // Scalano automaticamente se cambi stagione (es. se passi a 2027/2028, il 2010 diventerà Under 18 e il 2011 Under 17)
                   const annateComuni = [
-                    annoBase - 18, // Under 19
-                    annoBase - 17, // Under 18
-                    annoBase - 16, // Under 17 (es. 2010 per la stagione 2026/2027)
-                    annoBase - 15, // Under 16 (es. 2011 per la stagione 2026/2027)
-                    annoBase - 14, // Under 15
-                    annoBase - 13, // Under 14
+                    annoBase - 18,
+                    annoBase - 17,
+                    annoBase - 16,
+                    annoBase - 15,
+                    annoBase - 14,
+                    annoBase - 13,
                     annoBase - 12,
                     annoBase - 11,
                     annoBase - 10
