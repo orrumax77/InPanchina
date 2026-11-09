@@ -15,6 +15,7 @@ import {
   eliminaEventoCloud, 
   aggiornaGiocatoriCloud,
   salvaRosaBaseSocieta,
+  salvaBozzaPartitaSuDb,
   getSocietaById,
   caricaRosaSocieta,
   archiviaPartitaEResettaLive
@@ -543,25 +544,12 @@ export default function App() {
   const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
-    setRosa(giocatori);
 
+    // 1. Salviamo la distinta ufficiale della partita (solo i convocati che scendono in campo)
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatori, stagioneSelezionata, annataSelezionata);
 
-    await salvaRosaBaseSocieta(societaAttiva.id, giocatori, {
-      squadraCasa: pInfo.squadraCasa,
-      squadraOspite: pInfo.squadraOspite,
-      dataPartita: pInfo.dataPartita,
-      isNostraCasa: pInfo.isNostraCasa,
-      allenatore: pInfo.allenatore,
-      allenatoreSeconda: pInfo.allenatoreSeconda,
-      dirigente: pInfo.dirigente,
-      dirigenteUfficiali: pInfo.dirigenteUfficiali,
-      assistenteArbitro: pInfo.assistenteArbitro,
-      medicoSociale: pInfo.medicoSociale,
-      massaggiatore: pInfo.massaggiatore,
-      preparatoreAtletico: pInfo.preparatoreAtletico,
-      preparatorePortieri: pInfo.preparatorePortieri
-    }, stagioneSelezionata, annataSelezionata);
+    // 2. SALVIAMO SOLO LO STAFF (lasciando intatta la rosa globale dei 22 nel DB, così i giocatori in tribuna non vengono cancellati)
+    await salvaBozzaPartitaSuDb(societaAttiva.id, partitaId, pInfo, stagioneSelezionata, annataSelezionata);
 
     setSalvataggioInCorso(false);
     setFaseApp('partita');
