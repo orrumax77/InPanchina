@@ -445,12 +445,12 @@ export async function getSocietaById(societaId) {
   return data;
 }
 
-export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato, annata) {
+export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatoriConvocati, campionato, annata) {
   if (!campionato || !annata) return { success: false, error: 'Mancano campionato o annata' };
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Salvataggio della partita nello storico
+    // 1. Salvataggio della partita nello storico con i convocati di questa gara
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -463,7 +463,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       annata: annata,
       stato: 'completata',
       referto_eventi: eventi,
-      referto_giocatori: giocatori,
+      referto_giocatori: giocatoriConvocati,
       terminata_il: new Date().toISOString()
     }]);
 
@@ -489,19 +489,33 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       data_gara: new Date().toISOString().split('T')[0]
     }).eq('id', livePartitaId);
 
-    // 3. RECUPERO DELLA ROSA COMPLETA DELLA SOCIETÀ (INCLUSI I GIOCATORI IN TRIBUNA)
-    const rosaCompletaAttuale = await caricaRosaSocieta(societaId, campionato, annata);
-    
-    // CORRETTO: Usiamo la variabile con la "e" finale (giocatoriDaRipristinare)
-    const giocatoriDaRipristinare = (rosaCompletaAttuale.length > 0 ? rosaCompletaAttuale : giocatori).map(g => ({
+    // 3. RECUPERO DELLA ROSA GIA' PRESENTE NEL DB (O DAL JSON SOCIETA) 
+    // Invece di prendere solo i convocati, leggiamo la colonna rosa_base direttamente dalla tabella societa
+    const { data: socData } = await supabase
+      .from('societa')
+      .select('rosa_base')
+      .eq('id', societaId)
+      .maybeSingle();
+
+    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const chiave = `${campionatoPulito}_${annataPulita}`;
+
+    let rosaCompleta = [];
+    if (socData?.rosa_base && socData.rosa_base[chiave]) {
+      rosaCompleta = socData.rosa_base[chiave];
+    }
+
+    // Se per qualche motivo rosa_base fosse vuota, usiamo i giocatori passati come fallback, altrimenti usiamo la rosa completa trovata
+    const listaDaSalvare = (rosaCompleta.length > 0 ? rosaCompleta : giocatoriConvocati).map(g => ({
       ...g,
       ammonizioni: 0,
       espulso: false,
-      isConvocato: true 
+      isConvocato: true // Riportiamo tutti convocati di default per la prossima partita
     }));
 
-    await aggiornaGiocatoriCloud(livePartitaId, societaId, giocatoriDaRipristinare, campionato, annata);
-    await salvaRosaBaseSocieta(societaId, giocatoriDaRipristinare, undefined, campionato, annata);
+    await aggiornaGiocatoriCloud(livePartitaId, societaId, listaDaSalvare, campionato, annata);
+    await salvaRosaBaseSocieta(societaId, listaDaSalvare, undefined, campionato, annata);
 
     return { success: true, storicoId };
   } catch (err) {
