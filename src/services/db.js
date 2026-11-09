@@ -537,6 +537,7 @@ export async function eliminaRefertoStorico(refertoId) {
 export async function loginSistema(username, password, campionatoSelezionato) {
   const u = username.trim();
   const p = password.trim();
+  const campionatoScelto = (campionatoSelezionato || '').trim();
 
   if (u === 'admin' && p === 'admin2026') {
     return {
@@ -546,21 +547,25 @@ export async function loginSistema(username, password, campionatoSelezionato) {
     };
   }
 
-  // Aggiungiamo il controllo .eq('stagione', campionatoSelezionato)
+  // Eseguiamo la query filtrando direttamente per username, password e il campo 'campionato'
   let query = supabase
     .from('utenti_panchina')
     .select('*, societa(*)')
     .eq('username', u)
     .eq('password_chiaro', p);
 
-  if (campionatoSelezionato) {
-    query = query.eq('stagione', campionatoSelezionato);
+  // Se è stato passato un campionato, lo filtriamo
+  if (campionatoScelto) {
+    query = query.eq('campionato', campionatoScelto);
   }
 
   const { data: utente, error } = await query.maybeSingle();
 
   if (error || !utente) {
-    return { success: false, messaggio: 'Credenziali non valide o non abilitate per il campionato selezionato.' };
+    return { 
+      success: false, 
+      messaggio: 'Credenziali non valide o non abilitate per il campionato selezionato.' 
+    };
   }
 
   if (!utente.societa) {
