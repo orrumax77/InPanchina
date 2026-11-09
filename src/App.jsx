@@ -935,6 +935,8 @@ export default function App() {
             societa={societaAttiva}
             partitaIniziale={partitaInfo}
             rosaIniziale={rosa}
+            campionato={stagioneSelezionata}  
+            annata={annataSelezionata}        
           />
         </div>
       )}
