@@ -39,33 +39,9 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
   try {
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').trim();
-    const prefissoId = `${societaId}_${campionatoPulito}_${annataPulita}_`;
+    const chiave = `${campionatoPulito}_${annataPulita.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
-    // 1. Cerchiamo i giocatori nel DB filtrando rigorosamente per campionato e annata
-    const { data: gList, error: errG } = await supabase
-      .from('giocatori')
-      .select('*')
-      .eq('societa_id', societaId)
-      .eq('campionato', campionato)
-      .eq('annata', annataPulita)
-      .not('annata', 'is', null)
-      .order('numero', { ascending: true });
-
-    if (!errG && gList && gList.length > 0) {
-      return gList.map(g => ({
-        id: String(g.id).replace(prefissoId, '').replace(`${societaId}_`, ''),
-        numero: String(g.numero),
-        nome: (g.nome || '').toUpperCase(),
-        ruolo: g.ruolo || '',
-        isTitolare: g.is_titolare ?? false,
-        isCapitano: g.is_capitano ?? false,
-        isVice: g.is_vice ?? false,
-        ammonizioni: g.ammonizioni || 0,
-        espulso: g.espulso || false
-      }));
-    }
-
-    // 2. Fallback sulla mappa rosa_base della tabella societa
+    // 1. LA FONTE PRINCIPALE E COMPLETA È LA MAPPA ROSA_BASE NELLA TABELLA SOCIETA
     const { data: soc, error: errSoc } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -73,7 +49,6 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       .maybeSingle();
 
     if (!errSoc && soc?.rosa_base) {
-      const chiave = `${campionatoPulito}_${annataPulita.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const rosaBaseAnnata = soc.rosa_base[chiave] || [];
 
       if (Array.isArray(rosaBaseAnnata) && rosaBaseAnnata.length > 0) {
@@ -83,12 +58,35 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
           nome: (g.nome || '').toUpperCase(),
           ruolo: g.ruolo || '',
           isTitolare: g.isTitolare ?? g.is_titolare ?? false,
-          isCapitano: g.is_capitano ?? g.is_capitano ?? false,
-          isVice: g.is_vice ?? g.is_vice ?? false,
+          isCapitano: g.isCapitano ?? g.is_capitano ?? false,
+          isVice: g.isVice ?? g.is_vice ?? false,
           ammonizioni: g.ammonizioni || 0,
           espulso: g.espulso || false
         }));
       }
+    }
+
+    // 2. FALLBACK SULLA TABELLA GIOCATORI SOLO SE ROSA_BASE È VUOTA
+    const { data: gList, error: errG } = await supabase
+      .from('giocatori')
+      .select('*')
+      .eq('societa_id', societaId)
+      .eq('campionato', campionato)
+      .eq('annata', annataPulita)
+      .order('numero', { ascending: true });
+
+    if (!errG && gList && gList.length > 0) {
+      return gList.map(g => ({
+        id: String(g.id).replace(`${societaId}_${campionatoPulito}_${annataPulita}_`, '').replace(`${societaId}_`, ''),
+        numero: String(g.numero),
+        nome: (g.nome || '').toUpperCase(),
+        ruolo: g.ruolo || '',
+        isTitolare: g.is_titolare ?? false,
+        isCapitano: g.is_capitano ?? false,
+        isVice: g.is_vice ?? false,
+        ammonizioni: g.ammonizioni || 0,
+        espulso: g.espulso || false
+      }));
     }
 
     return [];
