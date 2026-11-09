@@ -107,12 +107,22 @@ export default function App() {
 
     const staffRaw = socFresca.staff_base || {};
     
-    // Controlliamo se è un vecchio oggetto "piatto" (formato legacy) o una mappa basata su chiavi
-    const isLegacyFlat = staffRaw.allenatore || staffRaw.dirigente || staffRaw.squadraCasa || staffRaw.dataPartita;
-    
-    const staffBase = isLegacyFlat 
-      ? staffRaw 
-      : (staffRaw[chiaveStaff] || {});
+    // GESTIONE RIGOROSA E ISOLATA DELLO STAFF PER ANTIMESCOLO TRA ANNATE:
+    let staffBase = {};
+    if (staffRaw[chiaveStaff] && typeof staffRaw[chiaveStaff] === 'object') {
+      // Se esiste la chiave esatta per questa specifica annata e campionato (es. "2026_2027_2009"), usiamo quella
+      staffBase = staffRaw[chiaveStaff];
+    } else {
+      // Se la chiave non esiste ancora per questa annata:
+      // Verifichiamo se siamo sul 2010 (per retrocompatibilità con i vecchi dati piatti)
+      const isLegacyFlat = staffRaw.allenatore || staffRaw.dirigente || staffRaw.squadraCasa || staffRaw.dataPartita;
+      if (isLegacyFlat && annataPulitaStaff === '2010') {
+        staffBase = staffRaw;
+      } else {
+        // Per qualsiasi altra annata (es. 2009), lo staff deve partire rigorosamente PULITO E VUOTO!
+        staffBase = {};
+      }
+    }
     
     const allenatoreBase = (staffBase.allenatore || socFresca.allenatore_predefinito || '').toUpperCase();
     const allenatoreSecondaBase = (staffBase.allenatoreSeconda || socFresca.allenatore_seconda_predefinito || '').toUpperCase();
