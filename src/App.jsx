@@ -886,7 +886,7 @@ export default function App() {
                   ];
                   return annateComuni.map(anno => (
                     <option key={anno} value={String(anno)} className="bg-slate-900 text-white">
-                      {labelLND}
+                      {getCategoriaLND(stagioneSelezionata, String(anno))}
                     </option>
                   ));
                 })()}
