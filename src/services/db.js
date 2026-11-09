@@ -450,7 +450,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Salvataggio della partita nello storico
+    // 1. Salvataggio della partita nello storico con TUTTI i campi dello staff inclusi
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -464,7 +464,17 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       stato: 'completata',
       referto_eventi: eventi,
       referto_giocatori: giocatori,
-      terminata_il: new Date().toISOString()
+      terminata_il: new Date().toISOString(),
+      // AGGIUNTI TUTTI I CAMPI DELLO STAFF NELLO STORICO:
+      allenatore: partitaInfo.allenatore || '',
+      allenatore_seconda: partitaInfo.allenatoreSeconda || '',
+      dirigente: partitaInfo.dirigente || '',
+      dirigente_ufficiali: partitaInfo.dirigenteUfficiali || '',
+      assistente_arbitro: partitaInfo.assistenteArbitro || '',
+      medico_sociale: partitaInfo.medicoSociale || '',
+      massaggiatore: partitaInfo.massaggiatore || '',
+      preparatore_atletico: partitaInfo.preparatoreAtletico || '',
+      preparatore_portieri: partitaInfo.preparatorePortieri || ''
     }]);
 
     await supabase
@@ -503,7 +513,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     if (socCorrente?.staff_base && typeof socCorrente.staff_base === 'object') {
       let staffMap = { ...socCorrente.staff_base };
       if (staffMap[chiave]) {
-        staffMap[chiave].squadraOspite = ''; // Svuota la squadra avversaria salvata in bozza
+        staffMap[chiave].squadraOspite = ''; 
       }
       await supabase.from('societa').update({ staff_base: staffMap }).eq('id', societaId);
     }
