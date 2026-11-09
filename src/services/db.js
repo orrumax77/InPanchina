@@ -312,6 +312,7 @@ export async function salvaBozzaKeepalive(societaId, partitaInfo, campionato, an
 }
 
 export async function syncStatoPartitaSuDb(partitaId, dati) {
+  if (!partitaId) return;
   const updateData = {
     gol_casa: dati.golCasa,
     gol_ospite: dati.golOspiti,
@@ -322,7 +323,8 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
     recupero: dati.recupero,
     minuto_corrente: dati.minutoCorrente,
     slot_usati: dati.slotUsati,
-    cambi_effettuati: dati.cambiEffettuati
+    cambi_effettuati: dati.cambiEffettuati,
+    updated_at: new Date().toISOString() // <-- Forza la notifica Realtime immediata a tutti i dispositivi
   };
 
   await supabase.from('partite').update(updateData).eq('id', partitaId);
