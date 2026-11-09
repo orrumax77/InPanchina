@@ -35,6 +35,22 @@ import {
   ArrowRight 
 } from 'lucide-react';
 
+// Calcola dinamicamente la categoria LND in base alla stagione e all'anno di nascita
+const getCategoriaLND = (stagione, annataStr) => {
+  if (!annataStr || isNaN(annataStr)) return annataStr;
+  const annoNascita = parseInt(annataStr, 10);
+  const annoInizioStagione = parseInt(stagione.split('/')[0], 10);
+  const eta = annoInizioStagione - annoNascita;
+
+  if (eta === 18 || eta === 19) return `Under 19 (${annataStr})`;
+  if (eta === 17) return `Under 17 (${annataStr})`;
+  if (eta === 16) return `Under 16 (${annataStr})`;
+  if (eta === 15) return `Under 15 (${annataStr})`;
+  if (eta === 14) return `Under 14 (${annataStr})`;
+  if (eta <= 13) return `Attività di Base / Esordienti (${annataStr})`;
+  return `Annata ${annataStr}`;
+};
+
 // Funzione per calcolare automaticamente la stagione calcistica corrente in base alla data
 const getStagioneDinamicaCorrente = () => {
   const now = new Date();
