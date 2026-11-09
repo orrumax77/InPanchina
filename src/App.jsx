@@ -860,7 +860,7 @@ export default function App() {
               </select>
             </div>
 
-            {/* SELEZIONE ANNATA (SALVA SOLO L'ANNO NEL DB, MOSTRA LA CATEGORIA LND) */}
+            {/* SELEZIONE ANNATA DINAMICA IN BASE ALLA STAGIONE SCELTA */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase flex justify-between items-center">
                 <span>Annata Squadra</span>
@@ -874,13 +874,14 @@ export default function App() {
               >
                 {(() => {
                   const annoBase = parseInt(stagioneSelezionata.split('/')[0], 10);
+                  // Scalano automaticamente se cambi stagione (es. se passi a 2027/2028, il 2010 diventerà Under 18 e il 2011 Under 17)
                   const annateComuni = [
-                    annoBase - 19,
-                    annoBase - 17,
-                    annoBase - 16,
-                    annoBase - 15,
-                    annoBase - 14,
-                    annoBase - 13,
+                    annoBase - 18, // Under 19
+                    annoBase - 17, // Under 18
+                    annoBase - 16, // Under 17 (es. 2010 per la stagione 2026/2027)
+                    annoBase - 15, // Under 16 (es. 2011 per la stagione 2026/2027)
+                    annoBase - 14, // Under 15
+                    annoBase - 13, // Under 14
                     annoBase - 12,
                     annoBase - 11,
                     annoBase - 10
@@ -893,7 +894,7 @@ export default function App() {
                 })()}
               </select>
             </div>
-
+            
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Username</label>
               <input
