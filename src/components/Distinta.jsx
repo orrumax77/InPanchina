@@ -245,8 +245,8 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setGiocatori(nuovaLista);
     aggiornaRosaGlobale(nuovaLista); // <-- Notifica App.jsx
 
-    await dbModificaGiocatore(societa.id, aggiornato);
-    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined);
+    await dbModificaGiocatore(societa.id, aggiornato, campionato, annata);
+    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -263,9 +263,9 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     aggiornaRosaGlobale(nuovaLista); // <-- Notifica App.jsx
 
     for (const g of nuovaLista) {
-      await dbModificaGiocatore(societa.id, g);
+      await dbModificaGiocatore(societa.id, g, campionato, annata);
     }
-    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined);
+    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -282,9 +282,9 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     aggiornaRosaGlobale(nuovaLista); // <-- Notifica App.jsx
 
     for (const g of nuovaLista) {
-      await dbModificaGiocatore(societa.id, g);
+      await dbModificaGiocatore(societa.id, g, campionato, annata);
     }
-    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined);
+    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
