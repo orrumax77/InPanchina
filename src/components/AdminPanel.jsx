@@ -749,7 +749,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagione
                   >
                     {listaStagioni.map((stagione) => (
                       <option key={stagione} value={stagione} className="bg-slate-900 text-white">
-                        {stagione} {stagione === stagioneCorrente ? '(Attuale)' : ''}
+                        {stagione}
                       </option>
                     ))}
                   </select>
