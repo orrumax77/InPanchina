@@ -93,7 +93,8 @@ export default function App() {
   
   // STATO STAGIONE INIZIALIZZATO DINAMICAMENTE
   const [stagioneSelezionata, setStagioneSelezionata] = useState(getStagioneDinamicaCorrente);
-  const [annataSelezionata, setAnnataSelezionata] = useState('2010'); // <-- STATO ANNATA
+  const [annataSelezionata, setAnnataSelezionata] = useState(() => localStorage.getItem('inpanchina_annata') || '2010');
+  
   const [loginError, setLoginError] = useState('');
 
   const [partitaInfo, setPartitaInfo] = useState(null);
@@ -288,6 +289,7 @@ export default function App() {
     const passwordDigitata = loginPassword.trim();
 
     localStorage.setItem('inpanchina_username', utenteDigitato);
+    localStorage.setItem('inpanchina_annata', annataSelezionata.trim());
 
     const res = await loginSistema(utenteDigitato, passwordDigitata);
     setSalvataggioInCorso(false);
