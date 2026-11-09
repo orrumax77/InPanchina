@@ -15,10 +15,11 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   const partitaId = societa?.id ? `${societa.id}_PARTITA_LIVE` : null;
 
   const staffSocieta = societa?.staff_base || {};
+  const nomeSocietaUfficiale = (societa?.nome || '').toUpperCase();
 
   const [partitaInfo, setPartitaInfo] = useState({
-    squadraCasa: (partitaIniziale?.squadraCasa || staffSocieta.squadraCasa || societa?.nome || '').toUpperCase(),
-    squadraOspite: (partitaIniziale?.squadraOspite || '').toUpperCase(),
+    squadraCasa: (partitaIniziale?.squadraCasa && partitaIniziale.squadraCasa !== societa?.id ? partitaIniziale.squadraCasa : staffSocieta.squadraCasa || nomeSocietaUfficiale).toUpperCase(),
+    squadraOspite: (partitaIniziale?.squadraOspite || staffSocieta.squadraOspite || '').toUpperCase(),
     allenatore: (partitaIniziale?.allenatore || staffSocieta.allenatore || societa?.allenatore_predefinito || '').toUpperCase(),
     allenatoreSeconda: (partitaIniziale?.allenatoreSeconda || staffSocieta.allenatoreSeconda || societa?.allenatore_seconda_predefinito || '').toUpperCase(),
     dirigente: (partitaIniziale?.dirigente || staffSocieta.dirigente || societa?.dirigente_predefinito || '').toUpperCase(),
@@ -93,14 +94,18 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const massaggiatoreVal = (staff.massaggiatore || partitaIniziale?.massaggiatore || '').toUpperCase();
     const prepAtlVal = (staff.preparatoreAtletico || partitaIniziale?.preparatoreAtletico || '').toUpperCase();
     const prepPortVal = (staff.preparatorePortieri || partitaIniziale?.preparatorePortieri || '').toUpperCase();
-    const squadraCasaVal = (staff.squadraCasa || partitaIniziale?.squadraCasa || societa?.nome || '').toUpperCase();
-    const squadraOspiteVal = (partitaIniziale?.squadraOspite || '').toUpperCase();
+    
+    // Gestione sicura del nome squadra casa (evita l'ID tecnico)
+    const dbCasa = partitaIniziale?.squadraCasa || staff.squadraCasa;
+    const squadraCasaVal = (dbCasa && dbCasa !== societa?.id ? dbCasa : nomeSocietaUfficiale).toUpperCase();
+    
+    const squadraOspiteVal = (partitaIniziale?.squadraOspite || staff.squadraOspite || '').toUpperCase();
     const dataPartitaVal = partitaIniziale?.dataPartita || staff.dataPartita || oggiISO;
     const isNostraCasaVal = partitaIniziale?.isNostraCasa ?? staff.isNostraCasa ?? true;
 
     setPartitaInfo(prev => ({
       ...prev,
-      squadraCasa: squadraCasaVal || prev.squadraCasa,
+      squadraCasa: squadraCasaVal || nomeSocietaUfficiale,
       squadraOspite: squadraOspiteVal,
       allenatore: allenatoreVal || prev.allenatore,
       allenatoreSeconda: allenatoreSecVal || prev.allenatoreSeconda,
@@ -133,7 +138,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setTimeout(() => {
       isLoaded.current = true;
     }, 200);
-  }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
+  }, [societa, partitaIniziale, rosaIniziale, oggiISO, nomeSocietaUfficiale]);
 
   const mostraNotificaSalvataggio = () => {
     setSalvataggioNotifica(true);
@@ -200,13 +205,22 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     salvaSubitoSuCloud(partitaInfo);
   };
 
+  // Funzione di inversione pulita e sicura
   const invertiCasaTrasferta = () => {
+    const casaAttuale = (partitaInfo.squadraCasa || '').trim();
+    const ospiteAttuale = (partitaInfo.squadraOspite || '').trim();
+
+    // Se la squadra ospite era vuota, le assegniamo il nome ufficiale della società prima di invertirla
+    const ospiteEffettivo = ospiteAttuale || nomeSocietaUfficiale;
+    const casaEffettiva = casaAttuale || nomeSocietaUfficiale;
+
     const nuoveInfo = {
       ...partitaInfo,
-      squadraCasa: partitaInfo.squadraOspite,
-      squadraOspite: partitaInfo.squadraCasa,
+      squadraCasa: ospiteEffettivo,
+      squadraOspite: casaEffettiva,
       isNostraCasa: !partitaInfo.isNostraCasa
     };
+    
     setPartitaInfo(nuoveInfo);
     salvaSubitoSuCloud(nuoveInfo);
   };
@@ -241,7 +255,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     }
 
     const nuovoStatoConvocato = !target.isConvocato;
-    
+     
     const nuovaLista = giocatori.map(g => {
       if (g.id === id) {
         return { 
@@ -254,7 +268,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     });
 
     const listaOrdinata = ordinaPerNumeroMaglia(nuovaLista);
-    
+     
     setGiocatori(listaOrdinata);
     aggiornaRosaGlobale(listaOrdinata);
 
@@ -375,7 +389,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     if (editingId === id) setEditingId(null);
 
     await dbEliminaGiocatore(societa.id, id, campionato, annata);
-    await salvaRosaBaseSocieta(societa.id, nuevaRosa, undefined, campionato, annata);
+    await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -788,7 +802,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                     </div>
                   ) : (
                     <>
-                      {/* Info Giocatore (Sempre ben visibile) */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <span className="w-9 h-9 rounded-lg bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400 font-mono flex-shrink-0 shadow-sm">
                           {g.numero}
@@ -812,9 +825,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                         </div>
                       </div>
 
-                      {/* Pulsanti Azione (Disposti in griglia flessibile per adattarsi perfettamente a smartphone e desktop) */}
                       <div className="flex flex-wrap items-center justify-end gap-1.5 flex-shrink-0 pt-1 md:pt-0">
-                        {/* Modifica */}
                         <button
                           type="button"
                           onClick={() => avviaModifica(g)}
@@ -824,7 +835,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                           <Pencil className="w-4 h-4" />
                         </button>
 
-                        {/* Convocato / Tribuna */}
                         <button
                           type="button"
                           onClick={() => toggleConvocato(g.id)}
@@ -837,7 +847,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                           {g.isConvocato ? 'CONVOCATO' : 'TRIBUNA'}
                         </button>
 
-                        {/* Titolare / Panchina */}
                         <button
                           type="button"
                           onClick={() => toggleTitolare(g.id)}
@@ -853,7 +862,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                           {g.isTitolare ? 'TITOLARE' : 'PANCHINA'}
                         </button>
 
-                        {/* Capitano (C) */}
                         <button
                           type="button"
                           onClick={() => setCapitano(g.id)}
@@ -870,7 +878,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                           C
                         </button>
 
-                        {/* Vice Capitano (VC) */}
                         <button
                           type="button"
                           onClick={() => setViceCapitano(g.id)}
@@ -887,7 +894,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                           VC
                         </button>
 
-                        {/* Elimina */}
                         <button
                           type="button"
                           onClick={() => rimuoviGiocatore(g.id)}
