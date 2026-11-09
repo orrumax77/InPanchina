@@ -52,11 +52,13 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       const rosaBaseAnnata = soc.rosa_base[chiave] || [];
 
       if (Array.isArray(rosaBaseAnnata) && rosaBaseAnnata.length > 0) {
-        return rosaBaseAnnata.map(g => ({
+        return rosaBaseAnnata.map((g, index) => ({
           id: String(g.id),
           numero: String(g.numero),
           nome: (g.nome || '').toUpperCase(),
           ruolo: g.ruolo || '',
+          // MANTENIAMO CORRETTAMENTE LO STATO DI CONVOCAZIONE SALVATO NEL JSON
+          isConvocato: g.isConvocato ?? (index < 20),
           isTitolare: g.isTitolare ?? g.is_titolare ?? false,
           isCapitano: g.isCapitano ?? g.is_capitano ?? false,
           isVice: g.isVice ?? g.is_vice ?? false,
@@ -76,11 +78,12 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       .order('numero', { ascending: true });
 
     if (!errG && gList && gList.length > 0) {
-      return gList.map(g => ({
+      return gList.map((g, index) => ({
         id: String(g.id).replace(`${societaId}_${campionatoPulito}_${annataPulita}_`, '').replace(`${societaId}_`, ''),
         numero: String(g.numero),
         nome: (g.nome || '').toUpperCase(),
         ruolo: g.ruolo || '',
+        isConvocato: g.isConvocato ?? (index < 20),
         isTitolare: g.is_titolare ?? false,
         isCapitano: g.is_capitano ?? false,
         isVice: g.is_vice ?? false,
