@@ -175,7 +175,10 @@ export default function App() {
     const massaggiatoreBase = (staffBase.massaggiatore || '').toUpperCase();
     const preparatoreAtleticoBase = (staffBase.preparatoreAtletico || '').toUpperCase();
     const preparatorePortieriBase = (staffBase.preparatorePortieri || '').toUpperCase();
-    const squadraCasaBase = (staffBase.squadraCasa || socFresca.nome || '').toUpperCase();
+    
+    // FORZATURA SICURA: La squadra di casa DEVE ESSERE SEMPRE IL NOME UFFICIALE DELLA SOCIETÀ (mai l'ID tecnico)
+    const nomeSocietaUfficiale = (socFresca.nome || '').toUpperCase();
+    const squadraCasaBase = nomeSocietaUfficiale;
     const squadraOspiteBase = (staffBase.squadraOspite || '').toUpperCase();
     const isNostraCasaBase = staffBase.isNostraCasa ?? true;
     const dataPartitaBase = staffBase.dataPartita || new Date().toISOString().split('T')[0];
@@ -197,8 +200,12 @@ export default function App() {
     );
 
     if (isLiveInCorso) {
+      // Controlliamo che il nome squadra casa non sia l'ID tecnico
+      const dbCasa = partitaDB.squadra_casa;
+      const nomeCasaValido = (dbCasa && dbCasa !== socFresca.id) ? dbCasa : nomeSocietaUfficiale;
+
       const pInfo = {
-        squadraCasa: (partitaDB.squadra_casa || squadraCasaBase).toUpperCase(),
+        squadraCasa: nomeCasaValido.toUpperCase(),
         squadraOspite: (partitaDB.squadra_ospite || squadraOspiteBase).toUpperCase(),
         allenatore: (partitaDB.allenatore || allenatoreBase).toUpperCase(),
         allenatoreSeconda: (partitaDB.allenatore_seconda || allenatoreSecondaBase).toUpperCase(),
@@ -243,8 +250,8 @@ export default function App() {
       setFaseApp('partita');
     } else {
       const pInfo = {
-        squadraCasa: (staffBase.squadraCasa || partitaDB?.squadra_casa || socFresca.nome || '').toUpperCase(),
-        squadraOspite: (staffBase.squadraOspite || partitaDB?.squadra_ospite || '').toUpperCase(),
+        squadraCasa: nomeSocietaUfficiale,
+        squadraOspite: (staffBase.squadraOspite || '').toUpperCase(),
         allenatore: allenatoreBase,
         allenatoreSeconda: allenatoreSecondaBase,
         dirigente: dirigenteBase,
@@ -254,7 +261,7 @@ export default function App() {
         massaggiatore: massaggiatoreBase,
         preparatoreAtletico: preparatoreAtleticoBase,
         preparatorePortieri: preparatorePortieriBase,
-        dataPartita: staffBase.dataPartita || partitaDB?.data_gara || dataPartitaBase,
+        dataPartita: staffBase.dataPartita || dataPartitaBase,
         isNostraCasa: isNostraCasaBase
       };
 
@@ -310,7 +317,6 @@ export default function App() {
     await avviaSessioneSocieta(soc);
   };
 
-  // Funzione di supporto per sincronizzare lo stato live senza sbalzi o salti del timer
   const syncStatoLive = async (datiExtra = {}) => {
     const adessoISO = inEsecuzione ? new Date().toISOString() : avviatoAlle;
     
@@ -545,10 +551,7 @@ export default function App() {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
 
-    // 1. Salviamo la distinta ufficiale della partita (solo i convocati che scendono in campo)
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatori, stagioneSelezionata, annataSelezionata);
-
-    // 2. SALVIAMO SOLO LO STAFF (lasciando intatta la rosa globale dei 22 nel DB, così i giocatori in tribuna non vengono cancellati)
     await salvaBozzaPartitaSuDb(societaAttiva.id, partitaId, pInfo, stagioneSelezionata, annataSelezionata);
 
     setSalvataggioInCorso(false);
@@ -592,7 +595,6 @@ export default function App() {
 
     const eventiRimasti = eventi.filter(e => e.id !== id);
 
-    // 1. GESTIONE STORNO GOL (Modifica solo il punteggio usando syncStatoLive)
     if (eventoDaEliminare.tipo === 'GOL') {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
@@ -610,7 +612,6 @@ export default function App() {
       });
     }
 
-    // 2. GESTIONE STORNO SOSTITUZIONE (Ripristina i ruoli in rosa)
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       const nuoviCambi = Math.max(0, cambiEffettuati - 1);
       const isIntervallo = eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo');
@@ -663,7 +664,6 @@ export default function App() {
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio, stagioneSelezionata, annataSelezionata);
     }
 
-    // 3. GESTIONE CARTELLINI (Aggiorna ammonizioni)
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
@@ -797,7 +797,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN CON SELEZIONE CAMPIONATO (TENDINA) E ANNATA DINAMICA LND */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
@@ -840,7 +839,6 @@ export default function App() {
               </select>
             </div>
 
-            {/* SELEZIONE ANNATA DINAMICA IN BASE ALLA STAGIONE SCELTA */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase flex justify-between items-center">
                 <span>Annata Squadra</span>
@@ -920,7 +918,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. ADMIN */}
       {faseApp === 'admin' && (
         <AdminPanel
           onEsci={disconnetti}
@@ -930,7 +927,6 @@ export default function App() {
         />
       )}
 
-      {/* 3. DISTINTA */}
       {faseApp === 'distinta' && (
         <div className="space-y-4">
           <div className="max-w-4xl mx-auto flex flex-wrap justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl gap-3 shadow-lg">
@@ -1002,7 +998,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 4. LIVE MATCH */}
       {faseApp === 'partita' && (
         <div className="max-w-2xl mx-auto space-y-5">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -1106,7 +1101,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 5. REFERTO FINALE */}
       {faseApp === 'referto' && (
         <RefertoGara
           partitaInfo={partitaInfo}
@@ -1122,7 +1116,6 @@ export default function App() {
         />
       )}
 
-      {/* 6. ARCHIVIO REFERTI STORICI */}
       {faseApp === 'archivio' && (
         <ArchivioReferti
           societa={societaAttiva}
@@ -1132,7 +1125,6 @@ export default function App() {
         />
       )}
 
-      {/* MODALE DI BLOCCO A FINE TEMPO */}
       {modaleBloccoTempo && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[99999] select-none">
           <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-rose-950">
