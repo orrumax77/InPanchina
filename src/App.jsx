@@ -852,7 +852,7 @@ export default function App() {
                   const isAttuale = stagione === getStagioneDinamicaCorrente();
                   return (
                     <option key={stagione} value={stagione} className="bg-slate-900 text-white">
-                      Stagione {stagione} {isAttuale ? '(Attuale)' : ''}
+                      {stagione}
                     </option>
                   );
                 })}
@@ -886,7 +886,7 @@ export default function App() {
                   ];
                   return annateComuni.map(anno => (
                     <option key={anno} value={String(anno)} className="bg-slate-900 text-white">
-                      Anno {anno} — {getCategoriaLND(stagioneSelezionata, String(anno))}
+                      {labelLND}
                     </option>
                   ));
                 })()}
