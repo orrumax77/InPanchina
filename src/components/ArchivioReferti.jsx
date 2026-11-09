@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
 import { supabase } from '../supabaseClient';
-import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
+import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock } from 'lucide-react';
 
 export default function ArchivioReferti({ societa, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
@@ -37,6 +37,14 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
         setEventiDbDettaglio(prev => ({ ...prev, [id]: data }));
       }
     }
+  };
+
+  // Funzione di supporto per formattare l'ora (es. dalle 15:30)
+  const formattaOra = (dataIso) => {
+    if (!dataIso) return '';
+    const d = new Date(dataIso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
   };
 
   const generaTestoReferto = (p) => {
@@ -167,6 +175,8 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
           {partiteStorico.map((p) => {
             const aperta = partitaApertaId === p.id;
             const dataFormatted = p.data_gara ? p.data_gara.split('-').reverse().join('/') : '';
+            // Recupera l'orario (controlla sia terminata_il che created_at se presenti nel record)
+            const oraSalvataggio = formattaOra(p.terminata_il || p.created_at);
 
             return (
               <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg transition">
@@ -177,6 +187,11 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
                   <div className="flex items-center gap-3 min-w-[200px]">
                     <span className="text-xs font-mono font-bold text-slate-400 flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5 text-emerald-400" /> {dataFormatted}
+                      {oraSalvataggio && (
+                        <span className="text-slate-500 font-normal ml-1 flex items-center gap-0.5">
+                          <Clock className="w-3 h-3 text-slate-500" /> {oraSalvataggio}
+                        </span>
+                      )}
                     </span>
                     <span className="text-xs uppercase font-bold text-slate-200">
                       {p.squadra_casa} vs {p.squadra_ospite}
