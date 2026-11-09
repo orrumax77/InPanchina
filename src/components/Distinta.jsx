@@ -210,8 +210,8 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const casaAttuale = (partitaInfo.squadraCasa || '').trim();
     const ospiteAttuale = (partitaInfo.squadraOspite || '').trim();
 
-    // Se la squadra ospite era vuota, le assegniamo il nome ufficiale della società prima di invertirla
-    const ospiteEffettivo = ospiteAttuale || nomeSocietaUfficiale;
+    // Se la squadra ospite è vuota, usiamo un testo temporaneo o prendiamo la casa attuale per evitare che si azzerino
+    const ospiteEffettivo = ospiteAttuale || 'AVVERSARIO';
     const casaEffettiva = casaAttuale || nomeSocietaUfficiale;
 
     const nuoveInfo = {
@@ -224,7 +224,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setPartitaInfo(nuoveInfo);
     salvaSubitoSuCloud(nuoveInfo);
   };
-
+  
   const formattaDataItaliana = (isoDate) => {
     if (!isoDate) return '';
     const parts = isoDate.split('-');
