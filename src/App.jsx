@@ -91,7 +91,7 @@ export default function App() {
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
   
-  // STATO STAGIONE INIZIALIZZATO DINAMICAMENTE
+  // STATI DINAMICI STAGIONE E ANNATA (CON MEMORIA LOCALE)
   const [stagioneSelezionata, setStagioneSelezionata] = useState(getStagioneDinamicaCorrente);
   const [annataSelezionata, setAnnataSelezionata] = useState(() => localStorage.getItem('inpanchina_annata') || '2010');
   
@@ -125,7 +125,7 @@ export default function App() {
 
   useEffect(() => {
     Object.keys(localStorage).forEach(key => {
-      if (key !== 'inpanchina_username') {
+      if (key !== 'inpanchina_username' && key !== 'inpanchina_annata') {
         localStorage.removeItem(key);
       }
     });
@@ -811,7 +811,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN CON SELEZIONE CAMPIONATO (TENDINA) E ANNATA */}
+      {/* 1. LOGIN CON SELEZIONE CAMPIONATO (TENDINA) E ANNATA DINAMICA LND */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
@@ -852,17 +852,38 @@ export default function App() {
               </select>
             </div>
 
-            {/* SELEZIONE ANNATA */}
+            {/* SELEZIONE ANNATA DINAMICA CON CATEGORIE LND */}
             <div>
-              <label className="text-xs font-semibold text-slate-400 uppercase">Annata Squadra (es. 2010, 2011, Under 15)</label>
-              <input
-                type="text"
-                placeholder="Es. 2010"
+              <label className="text-xs font-semibold text-slate-400 uppercase flex justify-between items-center">
+                <span>Annata Squadra</span>
+                <span className="text-emerald-400 lowercase font-mono tracking-normal">{getCategoriaLND(stagioneSelezionata, annataSelezionata)}</span>
+              </label>
+              <select
                 value={annataSelezionata}
                 onChange={(e) => setAnnataSelezionata(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 uppercase font-bold"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 uppercase font-bold cursor-pointer"
                 required
-              />
+              >
+                {(() => {
+                  const annoBase = parseInt(stagioneSelezionata.split('/')[0], 10);
+                  const annateComuni = [
+                    annoBase - 19, // Under 19
+                    annoBase - 17, // Under 17
+                    annoBase - 16, // Under 16
+                    annoBase - 15, // Under 15
+                    annoBase - 14, // Under 14
+                    annoBase - 13, // Esordienti / Under 14 B
+                    annoBase - 12,
+                    annoBase - 11,
+                    annoBase - 10
+                  ];
+                  return annateComuni.map(anno => (
+                    <option key={anno} value={anno} className="bg-slate-900 text-white">
+                      Anno {anno} — {getCategoriaLND(stagioneSelezionata, String(anno))}
+                    </option>
+                  ));
+                })()}
+              </select>
             </div>
 
             <div>
@@ -931,7 +952,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-black text-white uppercase">{societaAttiva?.nome}</span>
                   <span className="bg-emerald-500 text-slate-950 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow">
-                    Annata {annataSelezionata}
+                    {getCategoriaLND(stagioneSelezionata, annataSelezionata)}
                   </span>
                 </div>
                 <span className="text-[11px] text-slate-400 flex items-center gap-1 uppercase mt-0.5">
@@ -1004,7 +1025,7 @@ export default function App() {
              
             <div className="flex items-center gap-2">
               <span className="bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider shadow">
-                Annata {annataSelezionata} ({stagioneSelezionata})
+                {getCategoriaLND(stagioneSelezionata, annataSelezionata)} ({stagioneSelezionata})
               </span>
 
               <button
@@ -1169,7 +1190,7 @@ export default function App() {
                 className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-xs uppercase transition cursor-pointer"
               >
                 + Aggiungi 1 Minuto di Recupero Extra
-              </button>
+            </button>
             </div>
           </div>
         </div>
