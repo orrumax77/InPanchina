@@ -449,43 +449,53 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campiona
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const chiave = `${campionatoPulito}_${annataPulita}`;
 
+    // 1. Leggiamo lo stato attuale dal DB
     const { data: socCorrente } = await supabase
       .from('societa')
       .select('rosa_base, staff_base')
       .eq('id', societaId)
       .single();
 
-    // Gestione sicura della mappa rosa_base
+    // 2. Gestione sicura della mappa rosa_base
     const rosaMap = (socCorrente?.rosa_base && typeof socCorrente.rosa_base === 'object' && !Array.isArray(socCorrente.rosa_base))
-      ? socCorrente.rosa_base
+      ? { ...socCorrente.rosa_base }
       : {};
 
-    // Gestione sicura della mappa staff_base (evita il formato piatto)
+    // 3. GESTIONE DI FERRO PER STAFF_BASE: Garantiamo che sia SEMPRE una mappa a chiavi
     let staffMap = {};
-    if (socCorrente?.staff_base && typeof socCorrente.staff_base === 'object' && !Array.isArray(socCorrente.staff_base)) {
-      // Controlliamo se è nel vecchio formato piatto (es. ha la chiave 'allenatore' diretta)
-      if (socCorrente.staff_base.allenatore || socCorrente.staff_base.dirigente || socCorrente.staff_base.squadraCasa) {
-        staffMap['2026_2027_2010'] = socCorrente.staff_base; // Migrazione al volo in sicurezza
+    const dbStaff = socCorrente?.staff_base;
+    
+    if (dbStaff && typeof dbStaff === 'object' && !Array.isArray(dbStaff)) {
+      // Se nel DB è un oggetto piatto (es. ha la chiave 'allenatore' diretta), lo migriamo subito a mappa
+      if (dbStaff.allenatore !== undefined || dbStaff.dirigente !== undefined || dbStaff.squadraCasa !== undefined) {
+        staffMap[chiave] = { ...dbStaff };
       } else {
-        staffMap = socCorrente.staff_base;
+        // Altrimenti è già una mappa corretta
+        staffMap = { ...dbStaff };
       }
     }
 
     const payload = {};
 
+    // 4. Aggiorniamo i giocatori se presenti
     if (giocatori !== undefined) {
       rosaMap[chiave] = giocatori;
       payload.rosa_base = rosaMap;
     }
 
+    // 5. Aggiorniamo lo staff FORZANDO la struttura a mappa sulla chiave specifica
     if (staff !== undefined) {
+      if (!staffMap[chiave]) {
+        staffMap[chiave] = {};
+      }
       staffMap[chiave] = {
-        ...(staffMap[chiave] || {}),
+        ...staffMap[chiave],
         ...staff
       };
       payload.staff_base = staffMap;
     }
 
+    // 6. Salvataggio su Supabase
     const { data, error } = await supabase
       .from('societa')
       .update(payload)
