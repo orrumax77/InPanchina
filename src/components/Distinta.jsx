@@ -541,7 +541,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
             </label>
             <input
               type="text"
-              placeholder="ES. SQUADRA CASA"
               value={partitaInfo.squadraCasa}
               onChange={(e) => handleAggiornaCampo('squadraCasa', e.target.value)}
               onBlur={handleBlurCampo}
@@ -590,7 +589,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
               <label className="text-xs uppercase text-slate-400 font-semibold">Allenatore</label>
               <input
                 type="text"
-                placeholder="ES. MARIO ROSSI"
                 value={partitaInfo.allenatore}
                 onChange={(e) => handleAggiornaCampo('allenatore', e.target.value)}
                 onBlur={handleBlurCampo}
@@ -602,7 +600,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
               <label className="text-xs uppercase text-slate-400 font-semibold">Allenatore in Seconda</label>
               <input
                 type="text"
-                placeholder="ES. PAOLO VERDI"
                 value={partitaInfo.allenatoreSeconda}
                 onChange={(e) => handleAggiornaCampo('allenatoreSeconda', e.target.value)}
                 onBlur={handleBlurCampo}
@@ -614,7 +611,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
               <label className="text-xs uppercase text-slate-400 font-semibold">Dirigente Accompagnatore Ufficiale della Squadra</label>
               <input
                 type="text"
-                placeholder="ES. LUIGI BIANCHI"
                 value={partitaInfo.dirigente}
                 onChange={(e) => handleAggiornaCampo('dirigente', e.target.value)}
                 onBlur={handleBlurCampo}
@@ -626,7 +622,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
               <label className="text-xs uppercase text-slate-400 font-semibold">Dirigente Addetto Ufficiali di Gara</label>
               <input
                 type="text"
-                placeholder="ES. ANDREA NERI"
                 value={partitaInfo.dirigenteUfficiali}
                 onChange={(e) => handleAggiornaCampo('dirigenteUfficiali', e.target.value)}
                 onBlur={handleBlurCampo}
@@ -638,7 +633,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
               <label className="text-xs uppercase text-slate-400 font-semibold">Assistente all'Arbitro</label>
               <input
                 type="text"
-                placeholder="ES. GIOVANNI FERRARI"
                 value={partitaInfo.assistenteArbitro}
                 onChange={(e) => handleAggiornaCampo('assistenteArbitro', e.target.value)}
                 onBlur={handleBlurCampo}
@@ -650,7 +644,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
               <label className="text-xs uppercase text-slate-400 font-semibold">Medico Sociale</label>
               <input
                 type="text"
-                placeholder="ES. DOTT. MARCO MANCINI"
                 value={partitaInfo.medicoSociale}
                 onChange={(e) => handleAggiornaCampo('medicoSociale', e.target.value)}
                 onBlur={handleBlurCampo}
@@ -662,7 +655,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
               <label className="text-xs uppercase text-slate-400 font-semibold">Massaggiatore</label>
               <input
                 type="text"
-                placeholder="ES. LUCA COSTA"
                 value={partitaInfo.massaggiatore}
                 onChange={(e) => handleAggiornaCampo('massaggiatore', e.target.value)}
                 onBlur={handleBlurCampo}
@@ -674,7 +666,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
               <label className="text-xs uppercase text-slate-400 font-semibold">Preparatore Atletico</label>
               <input
                 type="text"
-                placeholder="ES. MATTEO GALLI"
                 value={partitaInfo.preparatoreAtletico}
                 onChange={(e) => handleAggiornaCampo('preparatoreAtletico', e.target.value)}
                 onBlur={handleBlurCampo}
@@ -686,7 +677,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
               <label className="text-xs uppercase text-slate-400 font-semibold">Preparatore dei Portieri</label>
               <input
                 type="text"
-                placeholder="ES. ROBERTO VILLA"
                 value={partitaInfo.preparatorePortieri}
                 onChange={(e) => handleAggiornaCampo('preparatorePortieri', e.target.value)}
                 onBlur={handleBlurCampo}
@@ -714,7 +704,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
           <label className="text-[11px] sm:text-xs text-slate-400 uppercase font-semibold">Nome e Cognome Giocatore</label>
           <input
             type="text"
-            placeholder="ES. ROSSI MARCO"
             value={nuovoNome}
             onChange={(e) => setNuovoNome(e.target.value.toUpperCase())}
             className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-sm uppercase font-semibold"
