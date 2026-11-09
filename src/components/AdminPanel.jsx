@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient'; // Assicurati che il percorso del client supabase sia corretto
+import { supabase } from '../supabaseClient';
 import { 
   getSocieta, 
   adminCreaSquadra, 
@@ -30,7 +30,7 @@ import {
   Upload
 } from 'lucide-react';
 
-export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
+export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagioneCorrente, listaStagioni = [] }) {
   const [societaList, setSocietaList] = useState([]);
   const [caricamento, setCaricamento] = useState(true);
   const [notifica, setNotifica] = useState('');
@@ -47,13 +47,14 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const [utentiSquadra, setUtentiSquadra] = useState([]);
   const [nuovoUsername, setNuovoUsername] = useState('');
   const [nuovaPassword, setNuovaPassword] = useState('');
+  const [nuovoCampionatoUtente, setNuovoCampionatoUtente] = useState(stagioneCorrente || '');
   const [copiatoId, setCopiatoId] = useState(null);
 
   // Modifica password rapida
   const [modificaPassId, setModificaPassId] = useState(null);
   const [tempPass, setTempPass] = useState('');
 
-  // NUOVI STATI PER LA MODIFICA SOCIETÀ DALL'ADMIN PANEL
+  // Stati per la modifica società dall'Admin Panel
   const [societaInModifica, setSocietaInModifica] = useState(null);
   const [formModificaSocieta, setFormModificaSocieta] = useState({
     nome: '',
@@ -77,6 +78,13 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   useEffect(() => {
     caricaDati();
   }, []);
+
+  // Aggiorna il campionato predefinito dell'utente se cambia la prop
+  useEffect(() => {
+    if (stagioneCorrente) {
+      setNuovoCampionatoUtente(stagioneCorrente);
+    }
+  }, [stagioneCorrente]);
 
   // Upload logo da dispositivo in Base64 compresso (Nuova Squadra)
   const handleCaricaLogoDaDispositivo = (e) => {
@@ -189,7 +197,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     }
   };
 
-  // Apertura modale di modifica dati società
   const apriModificaSocieta = (soc) => {
     setSocietaInModifica(soc);
     setFormModificaSocieta({
@@ -199,7 +206,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     });
   };
 
-  // Salvataggio modifiche società su Supabase
   const handleSalvaModificaSocieta = async (e) => {
     e.preventDefault();
     if (!societaInModifica?.id) return;
@@ -230,6 +236,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     setUtentiSquadra(utenti);
     setNuovoUsername('');
     setNuovaPassword('');
+    setNuovoCampionatoUtente(stagioneCorrente || '');
   };
 
   const handleCreaUtente = async (e) => {
@@ -241,7 +248,8 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         societaId: squadraSelezionata.id,
         username: nuovoUsername.trim(),
         password: nuovaPassword.trim(),
-        ruolo: 'dirigente'
+        ruolo: 'dirigente',
+        campionato: nuovoCampionatoUtente.trim()
       });
       setNuovoUsername('');
       setNuovaPassword('');
@@ -505,7 +513,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                           {soc.codice_societa || soc.id}
                         </span>
 
-                        {/* PULSANTE MODIFICA RAPIDA DATI SOCIETÀ */}
                         <button
                           type="button"
                           onClick={() => apriModificaSocieta(soc)}
@@ -725,13 +732,29 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               </button>
             </div>
 
-            {/* Form Aggiunta Nuovo Utente */}
+            {/* Form Aggiunta Nuovo Utente con Campionato Dinamico */}
             <form onSubmit={handleCreaUtente} className="bg-slate-950 p-3.5 sm:p-4 rounded-xl border border-slate-800 space-y-3">
               <h4 className="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
-                <Plus className="w-3.5 h-3.5 text-emerald-400" /> Rilascia Nuovo Profilo Dirigente
+                <Plus className="w-3.5 h-3.5 text-emerald-400" /> Rilascia Nuovo Profilo Dirigente (Valido per tutte le annate)
               </h4>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Campionato / Stagione</label>
+                  <select
+                    value={nuovoCampionatoUtente}
+                    onChange={(e) => setNuovoCampionatoUtente(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white uppercase font-bold outline-none focus:border-blue-500 cursor-pointer"
+                    required
+                  >
+                    {listaStagioni.map((stagione) => (
+                      <option key={stagione} value={stagione} className="bg-slate-900 text-white">
+                        {stagione} {stagione === stagioneCorrente ? '(Attuale)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Username Accesso</label>
                   <input
@@ -751,7 +774,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                   <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Password</label>
                   <input
                     type="text"
-                    placeholder="Aurora_2026!"
+                    placeholder="Password in chiaro"
                     value={nuovaPassword}
                     onChange={(e) => setNuovaPassword(e.target.value)}
                     autoCapitalize="none"
