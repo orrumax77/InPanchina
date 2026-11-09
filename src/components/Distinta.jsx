@@ -17,9 +17,17 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   const staffSocieta = societa?.staff_base || {};
   const nomeSocietaUfficiale = (societa?.nome || '').toUpperCase();
 
+  const isCasaIniziale = partitaIniziale?.isNostraCasa ?? staffSocieta.isNostraCasa ?? true;
+  const dbCasaIniziale = partitaIniziale?.squadraCasa || staffSocieta.squadraCasa || '';
+  const dbOspiteIniziale = partitaIniziale?.squadraOspite || staffSocieta.squadraOspite || '';
+
+  const avversarioIniziale = isCasaIniziale 
+    ? (dbOspiteIniziale && dbOspiteIniziale !== nomeSocietaUfficiale ? dbOspiteIniziale : '')
+    : (dbCasaIniziale && dbCasaIniziale !== nomeSocietaUfficiale ? dbCasaIniziale : '');
+
   const [partitaInfo, setPartitaInfo] = useState({
-    squadraCasa: (partitaIniziale?.squadraCasa && partitaIniziale.squadraCasa !== societa?.id ? partitaIniziale.squadraCasa : staffSocieta.squadraCasa || nomeSocietaUfficiale).toUpperCase(),
-    squadraOspite: (partitaIniziale?.squadraOspite || staffSocieta.squadraOspite || '').toUpperCase(),
+    squadraCasa: isCasaIniziale ? nomeSocietaUfficiale : avversarioIniziale,
+    squadraOspite: isCasaIniziale ? avversarioIniziale : nomeSocietaUfficiale,
     allenatore: (partitaIniziale?.allenatore || staffSocieta.allenatore || societa?.allenatore_predefinito || '').toUpperCase(),
     allenatoreSeconda: (partitaIniziale?.allenatoreSeconda || staffSocieta.allenatoreSeconda || societa?.allenatore_seconda_predefinito || '').toUpperCase(),
     dirigente: (partitaIniziale?.dirigente || staffSocieta.dirigente || societa?.dirigente_predefinito || '').toUpperCase(),
@@ -30,7 +38,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     preparatoreAtletico: (partitaIniziale?.preparatoreAtletico || staffSocieta.preparatoreAtletico || '').toUpperCase(),
     preparatorePortieri: (partitaIniziale?.preparatorePortieri || staffSocieta.preparatorePortieri || '').toUpperCase(),
     dataPartita: partitaIniziale?.dataPartita || staffSocieta.dataPartita || oggiISO,
-    isNostraCasa: partitaIniziale?.isNostraCasa ?? staffSocieta.isNostraCasa ?? true
+    isNostraCasa: isCasaIniziale
   });
 
   const [giocatori, setGiocatori] = useState([]);
@@ -95,18 +103,10 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const prepAtlVal = (staff.preparatoreAtletico || partitaIniziale?.preparatoreAtletico || '').toUpperCase();
     const prepPortVal = (staff.preparatorePortieri || partitaIniziale?.preparatorePortieri || '').toUpperCase();
     
-    // Gestione sicura del nome squadra casa (evita l'ID tecnico)
-    const dbCasa = partitaIniziale?.squadraCasa || staff.squadraCasa;
-    const squadraCasaVal = (dbCasa && dbCasa !== societa?.id ? dbCasa : nomeSocietaUfficiale).toUpperCase();
-    
-    const squadraOspiteVal = (partitaIniziale?.squadraOspite || staff.squadraOspite || '').toUpperCase();
     const dataPartitaVal = partitaIniziale?.dataPartita || staff.dataPartita || oggiISO;
-    const isNostraCasaVal = partitaIniziale?.isNostraCasa ?? staff.isNostraCasa ?? true;
 
     setPartitaInfo(prev => ({
       ...prev,
-      squadraCasa: squadraCasaVal || nomeSocietaUfficiale,
-      squadraOspite: squadraOspiteVal,
       allenatore: allenatoreVal || prev.allenatore,
       allenatoreSeconda: allenatoreSecVal || prev.allenatoreSeconda,
       dirigente: dirigenteVal || prev.dirigente,
@@ -116,8 +116,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       massaggiatore: massaggiatoreVal || prev.massaggiatore,
       preparatoreAtletico: prepAtlVal || prev.preparatoreAtletico,
       preparatorePortieri: prepPortVal || prev.preparatorePortieri,
-      dataPartita: dataPartitaVal,
-      isNostraCasa: isNostraCasaVal
+      dataPartita: dataPartitaVal
     }));
 
     const rosaDaCaricare = (rosaIniziale && rosaIniziale.length > 0)
@@ -138,7 +137,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setTimeout(() => {
       isLoaded.current = true;
     }, 200);
-  }, [societa, partitaIniziale, rosaIniziale, oggiISO, nomeSocietaUfficiale]);
+  }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
 
   const mostraNotificaSalvataggio = () => {
     setSalvataggioNotifica(true);
@@ -184,20 +183,14 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     mostraNotificaSalvataggio();
   };
 
-  const salvaInfoPartitaCloud = (nuoveInfo) => {
-    if (!societa?.id) return;
-
-    if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
-    infoDebounceRef.current = setTimeout(async () => {
-      await salvaSubitoSuCloud(nuoveInfo);
-    }, 250);
-  };
-
   const handleAggiornaCampo = (campo, valore) => {
     const valoreFormattato = (campo === 'dataPartita') ? valore : valore.toUpperCase();
     const nuoveInfo = { ...partitaInfo, [campo]: valoreFormattato };
     setPartitaInfo(nuoveInfo);
-    salvaInfoPartitaCloud(nuoveInfo);
+    
+    // Salvataggio immediato sul Cloud senza ritardi (debounce)
+    if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
+    salvaSubitoSuCloud(nuoveInfo);
   };
 
   const handleBlurCampo = () => {
@@ -207,18 +200,14 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
   // Funzione di inversione pulita e sicura
   const invertiCasaTrasferta = () => {
-    const casaAttuale = (partitaInfo.squadraCasa || '').trim();
-    const ospiteAttuale = (partitaInfo.squadraOspite || '').trim();
-
-    // Se la squadra ospite è vuota, usiamo un testo temporaneo o prendiamo la casa attuale per evitare che si azzerino
-    const ospiteEffettivo = ospiteAttuale || 'AVVERSARIO';
-    const casaEffettiva = casaAttuale || nomeSocietaUfficiale;
+    const avversario = partitaInfo.isNostraCasa ? partitaInfo.squadraOspite : partitaInfo.squadraCasa;
+    const nuovoIsNostraCasa = !partitaInfo.isNostraCasa;
 
     const nuoveInfo = {
       ...partitaInfo,
-      squadraCasa: ospiteEffettivo,
-      squadraOspite: casaEffettiva,
-      isNostraCasa: !partitaInfo.isNostraCasa
+      isNostraCasa: nuovoIsNostraCasa,
+      squadraCasa: nuovoIsNostraCasa ? nomeSocietaUfficiale : avversario,
+      squadraOspite: nuovoIsNostraCasa ? avversario : nomeSocietaUfficiale
     };
     
     setPartitaInfo(nuoveInfo);
@@ -327,7 +316,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setGiocatori(nuovaLista);
     aggiornaRosaGlobale(nuovaLista);
 
-    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
+    await salvaRosaBaseSocieta(societa.id, nuevaLista, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -541,11 +530,17 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
             </label>
             <input
               type="text"
-              value={partitaInfo.squadraCasa}
-              onChange={(e) => handleAggiornaCampo('squadraCasa', e.target.value)}
-              onBlur={handleBlurCampo}
-              className={`w-full bg-slate-950 border rounded-lg p-2.5 outline-none text-white text-sm uppercase font-semibold ${
-                partitaInfo.isNostraCasa ? 'border-emerald-500/50' : 'border-slate-700'
+              value={partitaInfo.isNostraCasa ? nomeSocietaUfficiale : partitaInfo.squadraCasa}
+              onChange={(e) => {
+                if (!partitaInfo.isNostraCasa) {
+                  handleAggiornaCampo('squadraCasa', e.target.value);
+                }
+              }}
+              readOnly={partitaInfo.isNostraCasa}
+              className={`w-full border rounded-lg p-2.5 outline-none text-sm uppercase font-semibold ${
+                partitaInfo.isNostraCasa 
+                  ? 'bg-slate-900 border-emerald-500/50 text-emerald-400 cursor-not-allowed' 
+                  : 'bg-slate-950 border-slate-700 text-white'
               }`}
             />
           </div>
@@ -567,12 +562,17 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
             </label>
             <input
               type="text"
-              placeholder="DIGITA SQUADRA AVVERSARIA"
-              value={partitaInfo.squadraOspite}
-              onChange={(e) => handleAggiornaCampo('squadraOspite', e.target.value)}
-              onBlur={handleBlurCampo}
-              className={`w-full bg-slate-950 border rounded-lg p-2.5 outline-none text-white text-sm uppercase font-semibold ${
-                !partitaInfo.isNostraCasa ? 'border-emerald-500/50' : 'border-slate-700'
+              value={!partitaInfo.isNostraCasa ? nomeSocietaUfficiale : partitaInfo.squadraOspite}
+              onChange={(e) => {
+                if (partitaInfo.isNostraCasa) {
+                  handleAggiornaCampo('squadraOspite', e.target.value);
+                }
+              }}
+              readOnly={!partitaInfo.isNostraCasa}
+              className={`w-full border rounded-lg p-2.5 outline-none text-sm uppercase font-semibold ${
+                !partitaInfo.isNostraCasa 
+                  ? 'bg-slate-900 border-emerald-500/50 text-emerald-400 cursor-not-allowed' 
+                  : 'bg-slate-950 border-slate-700 text-white'
               }`}
             />
           </div>
@@ -697,7 +697,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
             value={nuovoNumero}
             onChange={(e) => setNuovoNumero(e.target.value)}
             className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-bold text-center text-sm"
-            title="Lascia vuoto per procedere automaticamente dal numero successivo disponibile"
           />
         </div>
         <div className="flex-1 min-w-[180px]">
@@ -768,7 +767,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                         value={editNome}
                         onChange={(e) => setEditNome(e.target.value.toUpperCase())}
                         className="flex-1 min-w-[140px] bg-slate-950 border border-emerald-500 rounded p-1.5 text-sm font-bold text-white uppercase"
-                        placeholder="NOME GIOCATORE"
                       />
                       <div className="flex items-center gap-1.5">
                         <button
