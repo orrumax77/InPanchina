@@ -9,7 +9,7 @@ import {
   dbEliminaGiocatore 
 } from '../services/db';
 
-export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, partitaIniziale, rosaIniziale }) {
+export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, partitaIniziale, rosaIniziale, campionato, annata }) {
   const dateInputRef = useRef(null);
   const oggiISO = new Date().toISOString().split('T')[0];
   const partitaId = societa?.id ? `${societa.id}_PARTITA_LIVE` : null;
@@ -177,7 +177,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
   const salvaSubitoSuCloud = async (infoDaSalvare) => {
     if (!societa?.id) return;
-    await salvaBozzaPartitaSuDb(societa.id, partitaId, infoDaSalvare);
+    await salvaBozzaPartitaSuDb(societa.id, partitaId, infoDaSalvare, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
