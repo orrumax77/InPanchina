@@ -125,7 +125,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       const formattati = rosaDaCaricare.map((g, index) => ({
         ...g,
         nome: (g.nome || '').toUpperCase(),
-        // Legge lo stato precedentemente salvato, altrimenti i primi 20 sono convocati di default
         isConvocato: g.isConvocato ?? (index < 20)
       }));
       setGiocatori(ordinaPerNumeroMaglia(formattati));
@@ -229,11 +228,9 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     }
   };
 
-  // Conteggi ufficiali
   const convocatiCount = giocatori.filter(g => g.isConvocato).length;
   const titolariCount = giocatori.filter(g => g.isTitolare && g.isConvocato).length;
 
-  // Toggle Convocato / Tribuna (Con salvataggio persistente immediato)
   const toggleConvocato = async (id) => {
     const target = giocatori.find(g => g.id === id);
     if (!target) return;
@@ -261,7 +258,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setGiocatori(listaOrdinata);
     aggiornaRosaGlobale(listaOrdinata);
 
-    // Salvataggio immediato sul Cloud nella rosa base
     await salvaRosaBaseSocieta(societa.id, listaOrdinata, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
@@ -309,15 +305,15 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const target = giocatori.find(g => g.id === id);
     if (!target || !target.isConvocato) return;
 
-    const nuevaLista = ordinaPerNumeroMaglia(giocatori.map(g => ({
+    const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => ({
       ...g,
       isVice: g.id === id ? !g.isVice : false,
       isCapitano: g.id === id ? false : g.isCapitano
     })));
-    setGiocatori(nuevaLista);
+    setGiocatori(nuovaLista);
     aggiornaRosaGlobale(nuovaLista);
 
-    await salvaRosaBaseSocieta(societa.id, nuevaLista, undefined, campionato, annata);
+    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -379,7 +375,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     if (editingId === id) setEditingId(null);
 
     await dbEliminaGiocatore(societa.id, id, campionato, annata);
-    await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined, campionato, annata);
+    await salvaRosaBaseSocieta(societa.id, nuevaRosa, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -743,15 +739,15 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
             Nessun giocatore registrato per questa società. Aggiungili dal form in alto.
           </div>
         ) : (
-          <div className="divide-y divide-slate-700/80 max-h-[480px] overflow-y-auto pr-1">
+          <div className="divide-y divide-slate-700/80 max-h-[520px] overflow-y-auto pr-1 space-y-2 sm:space-y-0">
             {giocatoriOrdinati.map((g) => {
               const inModifica = editingId === g.id;
 
               return (
                 <div 
                   key={g.id} 
-                  className={`py-2.5 px-2 rounded-xl transition flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
-                    g.isConvocato ? 'hover:bg-slate-800/60' : 'bg-slate-900/40 opacity-60'
+                  className={`py-3 px-2 rounded-xl transition flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                    g.isConvocato ? 'bg-slate-900/60 hover:bg-slate-800/80 border border-slate-700/50' : 'bg-slate-950/40 opacity-50 border border-slate-800/30'
                   }`}
                 >
                   {inModifica ? (
@@ -792,103 +788,113 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <span className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400 font-mono flex-shrink-0 shadow-sm">
+                      {/* Info Giocatore (Sempre ben visibile) */}
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="w-9 h-9 rounded-lg bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400 font-mono flex-shrink-0 shadow-sm">
                           {g.numero}
                         </span>
-                        <span className="font-bold text-white text-xs sm:text-sm uppercase truncate">
-                          {g.nome}
-                        </span>
-                        {g.isCapitano && (
-                          <span className="text-[10px] font-black bg-amber-500 text-black px-1.5 py-0.2 rounded flex-shrink-0">
-                            C
+                        <div className="min-w-0 flex-1">
+                          <span className="font-bold text-white text-sm uppercase block truncate">
+                            {g.nome}
                           </span>
-                        )}
-                        {g.isVice && (
-                          <span className="text-[10px] font-black bg-sky-500 text-black px-1.5 py-0.2 rounded flex-shrink-0">
-                            VC
-                          </span>
-                        )}
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {g.isCapitano && (
+                              <span className="text-[9px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded">
+                                CAPITANO (C)
+                              </span>
+                            )}
+                            {g.isVice && (
+                              <span className="text-[9px] font-black bg-sky-500 text-black px-1.5 py-0.5 rounded">
+                                VICE (VC)
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-end gap-1.5 flex-shrink-0 pt-1 sm:pt-0">
+                      {/* Pulsanti Azione (Disposti in griglia flessibile per adattarsi perfettamente a smartphone e desktop) */}
+                      <div className="flex flex-wrap items-center justify-end gap-1.5 flex-shrink-0 pt-1 md:pt-0">
+                        {/* Modifica */}
                         <button
                           type="button"
                           onClick={() => avviaModifica(g)}
-                          className="w-7 h-7 rounded-lg bg-slate-700/80 hover:bg-slate-600 text-amber-400 flex items-center justify-center transition flex-shrink-0 cursor-pointer"
+                          className="w-8 h-8 rounded-lg bg-slate-700/80 hover:bg-slate-600 text-amber-400 flex items-center justify-center transition cursor-pointer"
                           title="Modifica Numero o Nome"
                         >
-                          <Pencil className="w-3.5 h-3.5" />
+                          <Pencil className="w-4 h-4" />
                         </button>
 
-                        {/* Pulsante CONVOCATO / TRIBUNA */}
+                        {/* Convocato / Tribuna */}
                         <button
                           type="button"
                           onClick={() => toggleConvocato(g.id)}
-                          className={`w-24 sm:w-28 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition uppercase flex items-center justify-center flex-shrink-0 cursor-pointer ${
+                          className={`px-3 h-8 text-[11px] font-bold rounded-lg transition uppercase flex items-center justify-center cursor-pointer ${
                             g.isConvocato 
-                              ? 'bg-blue-600 text-white shadow-sm' 
-                              : 'bg-slate-700/80 text-slate-400 hover:bg-slate-600'
+                              ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm' 
+                              : 'bg-slate-700/80 hover:bg-slate-600 text-slate-300'
                           }`}
                         >
                           {g.isConvocato ? 'CONVOCATO' : 'TRIBUNA'}
                         </button>
 
-                        {/* Pulsante TITOLARE / PANCHINA (Disabilitato se in tribuna) */}
+                        {/* Titolare / Panchina */}
                         <button
                           type="button"
                           onClick={() => toggleTitolare(g.id)}
                           disabled={!g.isConvocato}
-                          className={`w-20 sm:w-24 h-7 text-[10px] sm:text-[11px] font-bold rounded-lg transition uppercase flex items-center justify-center flex-shrink-0 cursor-pointer ${
+                          className={`px-3 h-8 text-[11px] font-bold rounded-lg transition uppercase flex items-center justify-center cursor-pointer ${
                             !g.isConvocato
-                              ? 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
+                              ? 'bg-slate-950 text-slate-600 border border-slate-800 cursor-not-allowed'
                               : g.isTitolare 
-                              ? 'bg-emerald-600 text-white shadow-sm' 
-                              : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm' 
+                              : 'bg-slate-700/80 hover:bg-slate-600 text-slate-300'
                           }`}
                         >
                           {g.isTitolare ? 'TITOLARE' : 'PANCHINA'}
                         </button>
 
+                        {/* Capitano (C) */}
                         <button
                           type="button"
                           onClick={() => setCapitano(g.id)}
                           disabled={!g.isConvocato}
-                          className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center transition flex-shrink-0 cursor-pointer ${
+                          className={`w-8 h-8 rounded-lg text-xs font-black flex items-center justify-center transition cursor-pointer ${
                             !g.isConvocato
-                              ? 'bg-slate-900 text-slate-700 cursor-not-allowed'
+                              ? 'bg-slate-950 text-slate-700 cursor-not-allowed'
                               : g.isCapitano 
                               ? 'bg-amber-500 text-black shadow-sm' 
                               : 'bg-slate-700/80 text-slate-400 hover:bg-slate-600'
                           }`}
-                          title="Capitano"
+                          title="Imposta Capitano"
                         >
                           C
                         </button>
 
+                        {/* Vice Capitano (VC) */}
                         <button
                           type="button"
                           onClick={() => setViceCapitano(g.id)}
                           disabled={!g.isConvocato}
-                          className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center transition flex-shrink-0 cursor-pointer ${
+                          className={`w-8 h-8 rounded-lg text-xs font-black flex items-center justify-center transition cursor-pointer ${
                             !g.isConvocato
-                              ? 'bg-slate-900 text-slate-700 cursor-not-allowed'
+                              ? 'bg-slate-950 text-slate-700 cursor-not-allowed'
                               : g.isVice 
                               ? 'bg-sky-500 text-black shadow-sm' 
                               : 'bg-slate-700/80 text-slate-400 hover:bg-slate-600'
                           }`}
-                          title="Vice Capitano"
+                          title="Imposta Vice Capitano"
                         >
                           VC
                         </button>
 
+                        {/* Elimina */}
                         <button
                           type="button"
                           onClick={() => rimuoviGiocatore(g.id)}
-                          className="w-7 h-7 rounded-lg bg-slate-700/80 text-rose-400 hover:bg-rose-950 hover:text-rose-300 transition flex items-center justify-center flex-shrink-0 cursor-pointer"
-                          title="Rimuovi ed elimina dal database"
+                          className="w-8 h-8 rounded-lg bg-slate-700/80 text-rose-400 hover:bg-rose-950 hover:text-rose-300 transition flex items-center justify-center cursor-pointer"
+                          title="Elimina definitivo"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </>
