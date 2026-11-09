@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '../supabaseClient'; // Assicurati che il percorso del client supabase sia corretto
 import { 
   getSocieta, 
   adminCreaSquadra, 
@@ -52,6 +53,15 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
   const [modificaPassId, setModificaPassId] = useState(null);
   const [tempPass, setTempPass] = useState('');
 
+  // NUOVI STATI PER LA MODIFICA SOCIETÀ DALL'ADMIN PANEL
+  const [societaInModifica, setSocietaInModifica] = useState(null);
+  const [formModificaSocieta, setFormModificaSocieta] = useState({
+    nome: '',
+    indirizzo_campo: '',
+    logo_url: ''
+  });
+  const editLogoInputRef = useRef(null);
+
   const mostraNotifica = (msg) => {
     setNotifica(msg);
     setTimeout(() => setNotifica(''), 3000);
@@ -68,7 +78,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     caricaDati();
   }, []);
 
-  // Upload logo da dispositivo in Base64 compresso
+  // Upload logo da dispositivo in Base64 compresso (Nuova Squadra)
   const handleCaricaLogoDaDispositivo = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -112,6 +122,50 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     reader.readAsDataURL(file);
   };
 
+  // Upload logo da dispositivo in Base64 compresso (Modifica Società Esistente)
+  const handleCaricaLogoModificaDaDispositivo = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Seleziona un file immagine valido (PNG, JPG, WEBP, SVG).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxSize = 256;
+        let { width, height } = img;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const base64Compresso = canvas.toDataURL('image/png', 0.85);
+        setFormModificaSocieta(prev => ({ ...prev, logo_url: base64Compresso }));
+        mostraNotifica('Logo aggiornato!');
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCreaSquadra = async (e) => {
     e.preventDefault();
     if (!nuovoCodice.trim() || !nuovoNome.trim()) return;
@@ -135,6 +189,41 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     }
   };
 
+  // Apertura modale di modifica dati società
+  const apriModificaSocieta = (soc) => {
+    setSocietaInModifica(soc);
+    setFormModificaSocieta({
+      nome: soc.nome || '',
+      indirizzo_campo: soc.indirizzo_campo || '',
+      logo_url: soc.logo_url || ''
+    });
+  };
+
+  // Salvataggio modifiche società su Supabase
+  const handleSalvaModificaSocieta = async (e) => {
+    e.preventDefault();
+    if (!societaInModifica?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('societa')
+        .update({
+          nome: formModificaSocieta.nome.toUpperCase(),
+          indirizzo_campo: formModificaSocieta.indirizzo_campo.toUpperCase(),
+          logo_url: formModificaSocieta.logo_url
+        })
+        .eq('id', societaInModifica.id);
+
+      if (error) throw error;
+
+      setSocietaInModifica(null);
+      mostraNotifica('Dati società aggiornati con successo!');
+      await caricaDati();
+    } catch (err) {
+      alert("Errore durante l'aggiornamento della società: " + err.message);
+    }
+  };
+
   const apriGestioneUtenti = async (soc) => {
     setSquadraSelezionata(soc);
     const utenti = await adminGetUtentiSocieta(soc.id);
@@ -143,7 +232,6 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
     setNuovaPassword('');
   };
 
-  // Creazione utente senza campo ruolo
   const handleCreaUtente = async (e) => {
     e.preventDefault();
     if (!nuovoUsername.trim() || !nuovaPassword.trim()) return;
@@ -416,7 +504,18 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 uppercase">
                           {soc.codice_societa || soc.id}
                         </span>
+
+                        {/* PULSANTE MODIFICA RAPIDA DATI SOCIETÀ */}
+                        <button
+                          type="button"
+                          onClick={() => apriModificaSocieta(soc)}
+                          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                          title="Modifica dati società"
+                        >
+                          <Pencil className="w-3 h-3" /> Modifica
+                        </button>
                       </div>
+
                       <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate uppercase">
                         <MapPin className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                         {soc.indirizzo_campo || 'Campo non impostato'}
@@ -504,7 +603,106 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
         )}
       </div>
 
-      {/* MODAL GESTIONE CREDENZIALI (RUOLO RIMOSSO) */}
+      {/* MODALE MODIFICA DATI SOCIETÀ */}
+      {societaInModifica && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 max-w-md w-full space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm sm:text-base font-black text-white uppercase flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-amber-400" /> Modifica Dati Società
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSocietaInModifica(null)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvaModificaSocieta} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase block mb-1">Nome Società</label>
+                <input
+                  type="text"
+                  value={formModificaSocieta.nome}
+                  onChange={(e) => setFormModificaSocieta(prev => ({ ...prev, nome: e.target.value.toUpperCase() }))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white uppercase font-bold outline-none focus:border-amber-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase block mb-1">Indirizzo Campo Sportivo</label>
+                <input
+                  type="text"
+                  value={formModificaSocieta.indirizzo_campo}
+                  onChange={(e) => setFormModificaSocieta(prev => ({ ...prev, indirizzo_campo: e.target.value.toUpperCase() }))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white uppercase font-medium outline-none focus:border-amber-500"
+                  placeholder="ES. VIA ROMA 1, MILANO"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase block mb-1">Logo Società</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    ref={editLogoInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleCaricaLogoModificaDaDispositivo}
+                    className="hidden"
+                    id="edit-upload-logo-file"
+                  />
+                  <label
+                    htmlFor="edit-upload-logo-file"
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-slate-950 border border-slate-700 hover:border-amber-500 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition min-h-[44px]"
+                  >
+                    <Upload className="w-4 h-4 text-amber-400" />
+                    <span>Cambia Logo</span>
+                  </label>
+
+                  {formModificaSocieta.logo_url && (
+                    <div className="relative flex-shrink-0">
+                      <img
+                        src={formModificaSocieta.logo_url}
+                        alt="Logo Attuale"
+                        className="w-11 h-11 rounded-xl object-cover border-2 border-amber-500/50 bg-slate-950"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormModificaSocieta(prev => ({ ...prev, logo_url: '' }))}
+                        className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white p-0.5 rounded-full hover:bg-rose-500"
+                        title="Rimuovi logo"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSocietaInModifica(null)}
+                  className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase transition cursor-pointer"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-amber-950 cursor-pointer"
+                >
+                  Salva Modifiche
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GESTIONE CREDENZIALI */}
       {squadraSelezionata && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 max-w-2xl w-full max-h-[92vh] overflow-y-auto space-y-5 shadow-2xl">
@@ -527,7 +725,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               </button>
             </div>
 
-            {/* Form Aggiunta Nuovo Utente: Solo Username e Password */}
+            {/* Form Aggiunta Nuovo Utente */}
             <form onSubmit={handleCreaUtente} className="bg-slate-950 p-3.5 sm:p-4 rounded-xl border border-slate-800 space-y-3">
               <h4 className="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
                 <Plus className="w-3.5 h-3.5 text-emerald-400" /> Rilascia Nuovo Profilo Dirigente
@@ -573,7 +771,7 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
               </button>
             </form>
 
-            {/* Elenco Utenti: Mostrati senza badge del ruolo */}
+            {/* Elenco Utenti */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center justify-between">
                 <span>Account Configurati ({utentiSquadra.length})</span>
@@ -595,11 +793,10 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin }) {
                         className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                       >
                         <div className="space-y-1 min-w-0">
-                          {/* Username senza badge del ruolo */}
                           <div className="font-bold text-white normal-case font-mono truncate text-sm">
                             {u.username}
                           </div>
-                          
+                           
                           {inModifica ? (
                             <div className="flex flex-wrap items-center gap-1.5 pt-1">
                               <input
