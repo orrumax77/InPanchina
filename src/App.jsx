@@ -35,7 +35,6 @@ import {
   ArrowRight 
 } from 'lucide-react';
 
-// Calcola dinamicamente la categoria LND in base alla stagione e all'anno di nascita
 // Calcola dinamicamente la categoria LND ufficiale in base alla stagione e all'anno di nascita
 const getCategoriaLND = (stagione, annataStr) => {
   if (!annataStr || isNaN(annataStr)) return annataStr;
@@ -43,9 +42,8 @@ const getCategoriaLND = (stagione, annataStr) => {
   const annoInizioStagione = parseInt(stagione.split('/')[0], 10);
   const eta = annoInizioStagione - annoNascita;
 
-  // Correzione categorie LND in base all'anno di compimento nel corso della stagione
   if (eta === 18 || eta === 19) return `Under 19 (${annataStr})`;
-  if (eta === 16 || eta === 17) return `Under 17 (${annataStr})`; // <-- 2010 nella stagione 2026 (2026-2010 = 16) rientra in Under 17
+  if (eta === 16 || eta === 17) return `Under 17 (${annataStr})`;
   if (eta === 15) return `Under 16 (${annataStr})`;
   if (eta === 14) return `Under 15 (${annataStr})`;
   if (eta === 13) return `Under 14 (${annataStr})`;
@@ -93,9 +91,13 @@ export default function App() {
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
   
-  // STATI DINAMICI STAGIONE E ANNATA (CON MEMORIA LOCALE)
+  // STATI DINAMICI STAGIONE E ANNATA (CON ESTRAZIONE SICURA DEL SOLO ANNO NUMERICO)
   const [stagioneSelezionata, setStagioneSelezionata] = useState(getStagioneDinamicaCorrente);
-  const [annataSelezionata, setAnnataSelezionata] = useState(() => localStorage.getItem('inpanchina_annata') || '2010');
+  const [annataSelezionata, setAnnataSelezionata] = useState(() => {
+    const salvata = localStorage.getItem('inpanchina_annata') || '2010';
+    const match = salvata.match(/\d{4}/);
+    return match ? match[0] : '2010';
+  });
   
   const [loginError, setLoginError] = useState('');
 
@@ -854,7 +856,7 @@ export default function App() {
               </select>
             </div>
 
-            {/* SELEZIONE ANNATA DINAMICA CON CATEGORIE LND */}
+            {/* SELEZIONE ANNATA (SALVA SOLO L'ANNO NEL DB, MOSTRA LA CATEGORIA LND) */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase flex justify-between items-center">
                 <span>Annata Squadra</span>
@@ -869,18 +871,18 @@ export default function App() {
                 {(() => {
                   const annoBase = parseInt(stagioneSelezionata.split('/')[0], 10);
                   const annateComuni = [
-                    annoBase - 19, // Under 19
-                    annoBase - 17, // Under 17
-                    annoBase - 16, // Under 16
-                    annoBase - 15, // Under 15
-                    annoBase - 14, // Under 14
-                    annoBase - 13, // Esordienti / Under 14 B
+                    annoBase - 19,
+                    annoBase - 17,
+                    annoBase - 16,
+                    annoBase - 15,
+                    annoBase - 14,
+                    annoBase - 13,
                     annoBase - 12,
                     annoBase - 11,
                     annoBase - 10
                   ];
                   return annateComuni.map(anno => (
-                    <option key={anno} value={anno} className="bg-slate-900 text-white">
+                    <option key={anno} value={String(anno)} className="bg-slate-900 text-white">
                       Anno {anno} — {getCategoriaLND(stagioneSelezionata, String(anno))}
                     </option>
                   ));
@@ -1192,7 +1194,7 @@ export default function App() {
                 className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-xs uppercase transition cursor-pointer"
               >
                 + Aggiungi 1 Minuto di Recupero Extra
-            </button>
+              </button>
             </div>
           </div>
         </div>
