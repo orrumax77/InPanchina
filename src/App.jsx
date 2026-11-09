@@ -443,6 +443,20 @@ export default function App() {
     }
   };
 
+  // Salvataggio incrementale della rosa mentre la modifichi nella distinta
+  const handleAggiornaRosaInDistinta = async (nuovaRosa) => {
+    setRosa(nuovaRosa);
+    if (societaAttiva?.id) {
+      await salvaRosaBaseSocieta(
+        societaAttiva.id, 
+        nuovaRosa, 
+        undefined, // non tocchiamo lo staff qui
+        stagioneSelezionata, 
+        annataSelezionata
+      );
+    }
+  };
+  
   const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
