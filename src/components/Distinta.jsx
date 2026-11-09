@@ -48,13 +48,11 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   const infoDebounceRef = useRef(null);
   const isLoaded = useRef(false);
 
-  // Riferimento sempre sincronizzato per garantire il salvataggio alla chiusura improvvisa
   const partitaInfoRef = useRef(partitaInfo);
   useEffect(() => {
     partitaInfoRef.current = partitaInfo;
   }, [partitaInfo]);
 
-  // Listener nativi del browser per salvataggio garantito se la scheda viene chiusa di colpo
   useEffect(() => {
     const salvaAllaChiusura = () => {
       if (infoDebounceRef.current) {
@@ -141,7 +139,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setTimeout(() => setSalvataggioNotifica(false), 2000);
   };
 
-  // Funzione di supporto per notificare App.jsx del cambiamento in tempo reale
   const aggiornaRosaGlobale = (nuovaLista) => {
     if (onAggiornaRosa) {
       onAggiornaRosa(nuovaLista);
@@ -231,10 +228,13 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   };
 
   const titolariCount = giocatori.filter(g => g.isTitolare).length;
+  const totaleConvocati = giocatori.length; // Tutti quelli in rosa sono convocabili/in distinta
 
   const toggleTitolare = async (id) => {
     const target = giocatori.find(g => g.id === id);
     if (!target) return;
+
+    // Se il giocatore non è titolare e vogliamo metterlo titolare, controlliamo il limite di 11
     if (!target.isTitolare && titolariCount >= 11) {
       alert('Hai già selezionato 11 titolari!');
       return;
@@ -243,7 +243,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const aggiornato = { ...target, isTitolare: !target.isTitolare };
     const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
     setGiocatori(nuovaLista);
-    aggiornaRosaGlobale(nuovaLista); // <-- Notifica App.jsx
+    aggiornaRosaGlobale(nuovaLista);
 
     await dbModificaGiocatore(societa.id, aggiornato, campionato, annata);
     await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
@@ -260,7 +260,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       isVice: g.id === id ? false : g.isVice
     })));
     setGiocatori(nuovaLista);
-    aggiornaRosaGlobale(nuovaLista); // <-- Notifica App.jsx
+    aggiornaRosaGlobale(nuovaLista);
 
     for (const g of nuovaLista) {
       await dbModificaGiocatore(societa.id, g, campionato, annata);
@@ -279,7 +279,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       isCapitano: g.id === id ? false : g.isCapitano
     })));
     setGiocatori(nuovaLista);
-    aggiornaRosaGlobale(nuovaLista); // <-- Notifica App.jsx
+    aggiornaRosaGlobale(nuovaLista);
 
     for (const g of nuovaLista) {
       await dbModificaGiocatore(societa.id, g, campionato, annata);
@@ -291,6 +291,12 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   const aggiungiGiocatore = async (e) => {
     e.preventDefault();
     if (!nuovoNome.trim()) return;
+
+    // Controllo limite massimo 20 giocatori in distinta/panchina
+    if (totaleConvocati >= 20) {
+      alert("Hai già raggiunto il limite massimo di 20 giocatori convocabili in distinta!");
+      return;
+    }
 
     let numeroScelto = nuovoNumero.trim();
 
@@ -329,7 +335,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
     const nuovaRosa = ordinaPerNumeroMaglia([...giocatori, nuovo]);
     setGiocatori(nuovaRosa);
-    aggiornaRosaGlobale(nuovaRosa); // <-- Notifica App.jsx
+    aggiornaRosaGlobale(nuovaRosa);
     setNuovoNome('');
     setNuovoNumero('');
 
@@ -341,7 +347,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   const rimuoviGiocatore = async (id) => {
     const nuovaRosa = ordinaPerNumeroMaglia(giocatori.filter(g => g.id !== id));
     setGiocatori(nuovaRosa);
-    aggiornaRosaGlobale(nuovaRosa); // <-- Notifica App.jsx
+    aggiornaRosaGlobale(nuovaRosa);
     if (editingId === id) setEditingId(null);
 
     await dbEliminaGiocatore(societa.id, id);
@@ -393,11 +399,11 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
     const nuovaRosa = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
     setGiocatori(nuovaRosa);
-    aggiornaRosaGlobale(nuovaRosa); // <-- Notifica App.jsx
+    aggiornaRosaGlobale(nuovaRosa);
     setEditingId(null);
 
     await dbModificaGiocatore(societa.id, aggiornato);
-    await salvaRosaBaseSocieta(societa.id, nuevaRosa, undefined);
+    await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined);
     mostraNotificaSalvataggio();
   };
 
@@ -480,7 +486,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
           <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-950 border border-slate-700 text-slate-300 uppercase">
             {partitaInfo.isNostraCasa ? '🏠 Giochiamo in Casa' : '🚌 Giochiamo Fuori Casa'}
           </span>
-
         </div>
 
         {/* Squadre */}
@@ -681,16 +686,21 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
       {/* Elenco Rosa Giocatori */}
       <div className="bg-slate-800 p-3 sm:p-5 rounded-xl border border-slate-700 shadow-md">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
           <div>
             <h2 className="text-base sm:text-lg font-bold flex items-center gap-2 uppercase">
-              <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatoriOrdinati.length})
+              <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({totaleConvocati} / 20 max)
             </h2>
             <p className="text-[11px] text-emerald-400 mt-0.5">● Elenco ordinato per N° di maglia</p>
           </div>
-          <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
-            Titolari: {titolariCount} / 11
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${totaleConvocati <= 20 ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+              Convocati: {totaleConvocati} / 20
+            </span>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+              Titolari: {titolariCount} / 11
+            </span>
+          </div>
         </div>
 
         {giocatoriOrdinati.length === 0 ? (
@@ -821,29 +831,29 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-    <div className="pt-2">
-      <button
-        onClick={handleConferma}
-        disabled={titolariCount !== 11}
-        className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider flex justify-center items-center gap-2 transition ${
-          titolariCount === 11
-            ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-lg shadow-emerald-950'
-            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-        }`}
-      >
-        <UserCheck className="w-5 h-5" />
-        {titolariCount === 11 ? 'Conferma e Salva Distinta' : `Seleziona 11 Titolari (ora: ${titolariCount})`}
-      </button>
+      <div className="pt-2">
+        <button
+          onClick={handleConferma}
+          disabled={titolariCount !== 11}
+          className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider flex justify-center items-center gap-2 transition ${
+            titolariCount === 11
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-lg shadow-emerald-950'
+              : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+          }`}
+        >
+          <UserCheck className="w-5 h-5" />
+          {titolariCount === 11 ? 'Conferma e Salva Distinta' : `Seleziona 11 Titolari (ora: ${titolariCount})`}
+        </button>
+      </div>
     </div>
-  </div>
   );
 }
