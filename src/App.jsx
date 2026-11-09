@@ -296,7 +296,7 @@ export default function App() {
     localStorage.setItem('inpanchina_username', utenteDigitato);
     localStorage.setItem('inpanchina_annata', annataSelezionata.trim());
 
-    const res = await loginSistema(utenteDigitato, passwordDigitata, stagioneSelezionata);
+    const res = await loginSistema(utenteDigitato, passwordDigitata, campionatoSelezionato);
     setSalvataggioInCorso(false);
 
     if (res.success) {
