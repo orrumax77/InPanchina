@@ -283,6 +283,18 @@ export default function App() {
         setMinutoCorrente(p.minuto_corrente);
         setSlotUsati(p.slot_usati);
         setCambiEffettuati(p.cambi_effettuati);
+
+        // AGGIORNAMENTO ISTANTANEO DEL TIMER TRA DISPOSITIVI
+        setInEsecuzione(p.in_esecuzione);
+        setAvviatoAlle(p.avviato_alle);
+        setSecondiBase(p.secondi_gara || 0);
+
+        if (p.in_esecuzione && p.avviato_alle) {
+          const trascorsi = Math.max(0, Math.floor((Date.now() - new Date(p.avviato_alle).getTime()) / 1000));
+          setSecondiGara((p.secondi_gara || 0) + trascorsi);
+        } else {
+          setSecondiGara(p.secondi_gara || 0);
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'eventi', filter: `partita_id=eq.${partitaId}` }, async () => {
         const stato = await caricaStatoPartita(partitaId);
