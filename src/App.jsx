@@ -606,6 +606,7 @@ export default function App() {
 
     const eventiRimasti = eventi.filter(e => e.id !== id);
 
+    // 1. GESTIONE STORNO GOL (Modifica solo il punteggio, non il timer)
     if (eventoDaEliminare.tipo === 'GOL') {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
@@ -617,11 +618,12 @@ export default function App() {
       setGolCasa(nuovoCasa);
       setGolOspiti(nuovoOspiti);
 
+      // Sintonizziamo sul DB mantenendo esplicitamente il tempo corrente intatto
       await syncStatoPartitaSuDb(partitaId, {
         golCasa: nuovoCasa,
         golOspiti: nuovoOspiti,
         tempoGara,
-        secondiGara,
+        secondiGara, // Mantiene i secondi attuali esatti senza ricalcoli
         inEsecuzione,
         avviatoAlle,
         recupero,
@@ -631,6 +633,7 @@ export default function App() {
       });
     }
 
+    // 2. GESTIONE STORNO SOSTITUZIONE (Ripristina i ruoli in rosa ma NON tocca il timer)
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       const nuoviCambi = Math.max(0, cambiEffettuati - 1);
       const isIntervallo = eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo');
@@ -683,6 +686,7 @@ export default function App() {
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio, stagioneSelezionata, annataSelezionata);
     }
 
+    // 3. GESTIONE CARTELLINI (Aggiorna ammonizioni senza toccare il timer)
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
@@ -734,6 +738,7 @@ export default function App() {
       }
     }
       
+    // Infine eliminiamo l'evento dal cloud
     await eliminaEventoCloud(id);
     setEventi(eventiRimasti);
   };
