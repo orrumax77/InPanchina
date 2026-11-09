@@ -15,7 +15,6 @@ export async function getSocieta() {
 export async function caricaStatoPartita(partitaId) {
   if (!partitaId) return { partita: null, eventi: [] };
   try {
-    // Usiamo maybeSingle() invece di single() per evitare l'errore 406 se la partita live non esiste ancora
     const { data: partita } = await supabase
       .from('partite')
       .select('*')
@@ -42,7 +41,7 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
     const annataPulita = (annata || '').trim();
     const prefissoId = `${societaId}_${campionatoPulito}_${annataPulita}_`;
 
-    // 1. Cerchiamo i giocatori NEL DATABASE filtrando per la specifica combinazione
+    // 1. Cerchiamo i giocatori nel DB filtrando rigorosamente per campionato e annata
     const { data: gList, error: errG } = await supabase
       .from('giocatori')
       .select('*')
@@ -66,7 +65,7 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       }));
     }
 
-    // 2. FALLBACK SULLA MAPPA DELLA ROSA BASE NELLA TABELLA SOCIETA (filtrato per chiave)
+    // 2. Fallback sulla mappa rosa_base della tabella societa
     const { data: soc, error: errSoc } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -75,7 +74,7 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
 
     if (!errSoc && soc?.rosa_base) {
       const chiave = `${campionatoPulito}_${annataPulita.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      const rosaBaseAnnata = soc.rosa_base[chiave] || (Array.isArray(soc.rosa_base) ? soc.rosa_base : []);
+      const rosaBaseAnnata = soc.rosa_base[chiave] || [];
 
       if (Array.isArray(rosaBaseAnnata) && rosaBaseAnnata.length > 0) {
         return rosaBaseAnnata.map(g => ({
@@ -100,7 +99,7 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
 }
 
 export async function dbAggiungiGiocatore(societaId, giocatore, campionato, annata, partitaIdLive) {
-  if (!societaId || !giocatore) return;
+  if (!societaId || !giocatore || !campionato || !annata) return;
   try {
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -132,40 +131,13 @@ export async function dbAggiungiGiocatore(societaId, giocatore, campionato, anna
     };
 
     await supabase.from('giocatori').upsert(riga);
-
-    const { data: soc } = await supabase
-      .from('societa')
-      .select('rosa_base')
-      .eq('id', societaId)
-      .single();
-
-    const rosaAttuale = Array.isArray(soc?.rosa_base) ? soc.rosa_base : [];
-    const nuovaRosa = [
-      ...rosaAttuale.filter(x => String(x.id) !== String(giocatore.id)),
-      {
-        id: String(giocatore.id),
-        numero: String(giocatore.numero),
-        nome: giocatore.nome.trim().toUpperCase(),
-        ruolo: '',
-        isTitolare: giocatore.isTitolare ?? false,
-        isCapitano: giocatore.isCapitano ?? false,
-        isVice: giocatore.isVice ?? false,
-        ammonizioni: 0,
-        espulso: false
-      }
-    ];
-
-    await supabase
-      .from('societa')
-      .update({ rosa_base: nuovaRosa })
-      .eq('id', societaId);
   } catch (err) {
     console.error('Errore dbAggiungiGiocatore:', err);
   }
 }
 
 export async function dbModificaGiocatore(societaId, giocatore, campionato, annata) {
-  if (!societaId || !giocatore) return;
+  if (!societaId || !giocatore || !campionato || !annata) return;
   try {
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -182,40 +154,13 @@ export async function dbModificaGiocatore(societaId, giocatore, campionato, anna
       .from('giocatori')
       .update(payload)
       .eq('id', `${societaId}_${campionatoPulito}_${annataPulita}_${giocatore.id}`);
-
-    const { data: soc } = await supabase
-      .from('societa')
-      .select('rosa_base')
-      .eq('id', societaId)
-      .single();
-
-    if (soc?.rosa_base && Array.isArray(soc.rosa_base)) {
-      const nuovaRosa = soc.rosa_base.map(g => {
-        if (String(g.id) === String(giocatore.id)) {
-          return {
-            ...g,
-            numero: String(giocatore.numero),
-            nome: giocatore.nome.trim().toUpperCase(),
-            isTitolare: giocatore.isTitolare,
-            isCapitano: giocatore.isCapitano,
-            isVice: giocatore.isVice
-          };
-        }
-        return g;
-      });
-
-      await supabase
-        .from('societa')
-        .update({ rosa_base: nuovaRosa })
-        .eq('id', societaId);
-    }
   } catch (err) {
     console.error('Errore dbModificaGiocatore:', err);
   }
 }
 
 export async function dbEliminaGiocatore(societaId, giocatoreId, campionato, annata) {
-  if (!societaId || !giocatoreId) return;
+  if (!societaId || !giocatoreId || !campionato || !annata) return;
   try {
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -224,26 +169,13 @@ export async function dbEliminaGiocatore(societaId, giocatoreId, campionato, ann
       .from('giocatori')
       .delete()
       .eq('id', `${societaId}_${campionatoPulito}_${annataPulita}_${giocatoreId}`);
-
-    const { data: soc } = await supabase
-      .from('societa')
-      .select('rosa_base')
-      .eq('id', societaId)
-      .single();
-
-    if (soc?.rosa_base && Array.isArray(soc.rosa_base)) {
-      const nuovaRosa = soc.rosa_base.filter(g => String(g.id) !== String(giocatoreId));
-      await supabase
-        .from('societa')
-        .update({ rosa_base: nuovaRosa })
-        .eq('id', societaId);
-    }
   } catch (err) {
     console.error('Errore dbEliminaGiocatore:', err);
   }
 }
 
 export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, giocatori, campionato, annata) {
+  if (!campionato || !annata) return { success: false, error: 'Mancano campionato o annata' };
   try {
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -284,8 +216,8 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, campionato = '2026/2027', annata = '2010') {
-  if (!societaId) return null;
+export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, campionato, annata) {
+  if (!societaId || !campionato || !annata) return null;
   try {
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -297,12 +229,10 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, c
       .eq('id', societaId)
       .maybeSingle();
 
-    // 1. Gestione sicura della mappa staff_base
     let staffMap = {};
     const dbStaff = soc?.staff_base;
 
     if (dbStaff && typeof dbStaff === 'object' && !Array.isArray(dbStaff)) {
-      // Se è il vecchio formato piatto, lo migriamo al volo sulla chiave corretta
       if (dbStaff.allenatore !== undefined || dbStaff.dirigente !== undefined || dbStaff.squadraCasa !== undefined) {
         staffMap[chiave] = { ...dbStaff };
       } else {
@@ -310,7 +240,6 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, c
       }
     }
 
-    // 2. Prepariamo o aggiorniamo lo staff per questa specifica chiave
     const staffEsistentePerAnnata = staffMap[chiave] || {};
 
     staffMap[chiave] = {
@@ -330,7 +259,6 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, c
       preparatorePortieri: partitaInfo.preparatorePortieri || ''
     };
 
-    // 3. Salviamo la mappa completa sul database
     const { error: errSoc } = await supabase
       .from('societa')
       .update({ staff_base: staffMap })
@@ -364,43 +292,11 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, c
     return null;
   }
 }
-export function salvaBozzaKeepalive(societaId, partitaInfo) {
-  if (!societaId || !partitaInfo) return;
+
+export async function salvaBozzaKeepalive(societaId, partitaInfo, campionato, annata) {
+  if (!societaId || !partitaInfo || !campionato || !annata) return;
   try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || supabase.supabaseUrl;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || supabase.supabaseKey;
-
-    if (!supabaseUrl || !supabaseKey) return;
-
-    const payload = {
-      staff_base: {
-        squadraCasa: partitaInfo.squadraCasa || '',
-        squadraOspite: partitaInfo.squadraOspite || '',
-        dataPartita: partitaInfo.dataPartita || '',
-        isNostraCasa: partitaInfo.isNostraCasa ?? true,
-        allenatore: partitaInfo.allenatore || '',
-        allenatoreSeconda: partitaInfo.allenatoreSeconda || '',
-        dirigente: partitaInfo.dirigente || '',
-        dirigenteUfficiali: partitaInfo.dirigenteUfficiali || '',
-        assistenteArbitro: partitaInfo.assistenteArbitro || '',
-        medicoSociale: partitaInfo.medicoSociale || '',
-        massaggiatore: partitaInfo.massaggiatore || '',
-        preparatoreAtletico: partitaInfo.preparatoreAtletico || '',
-        preparatorePortieri: partitaInfo.preparatorePortieri || ''
-      }
-    };
-
-    fetch(`${supabaseUrl}/rest/v1/societa?id=eq.${societaId}`, {
-      method: 'PATCH',
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify(payload),
-      keepalive: true
-    }).catch(() => {});
+    await salvaBozzaPartitaSuDb(societaId, null, partitaInfo, campionato, annata);
   } catch (err) {
     console.warn('Keepalive flush non riuscito:', err);
   }
@@ -424,6 +320,7 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
 }
 
 export async function registraEventoCloud(partitaId, evento, campionato, annata) {
+  if (!campionato || !annata) return;
   await supabase.from('eventi').insert([{
     id: evento.id,
     partita_id: partitaId,
@@ -435,11 +332,13 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
     dettagli: evento.dettagli
   }]);
 }
+
 export async function eliminaEventoCloud(eventoId) {
   await supabase.from('eventi').delete().eq('id', eventoId);
 }
 
 export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, campionato, annata) {
+  if (!campionato || !annata) return;
   const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
   const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
 
@@ -462,48 +361,40 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, ca
 }
 
 export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campionato, annata) {
+  if (!campionato || !annata) return null;
   try {
-    // Se non vengono passati campionato o annata, evitiamo di hardcodarli ma usiamo stringhe vuote o logiche di sicurezza
-    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
-    const annataPulita = (annata || '2010').replace(/[^a-zA-Z0-9]/g, '_');
+    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const chiave = `${campionatoPulito}_${annataPulita}`;
 
-    // 1. Leggiamo lo stato attuale dal DB
     const { data: socCorrente } = await supabase
       .from('societa')
       .select('rosa_base, staff_base')
       .eq('id', societaId)
       .single();
 
-    // 2. Gestione sicura della mappa rosa_base
     const rosaMap = (socCorrente?.rosa_base && typeof socCorrente.rosa_base === 'object' && !Array.isArray(socCorrente.rosa_base))
       ? { ...socCorrente.rosa_base }
       : {};
 
-    // 3. GESTIONE DI FERRO PER STAFF_BASE: Garantiamo che sia SEMPRE una mappa a chiavi
     let staffMap = {};
     const dbStaff = socCorrente?.staff_base;
     
     if (dbStaff && typeof dbStaff === 'object' && !Array.isArray(dbStaff)) {
-      // Controlliamo se è un vecchio oggetto piatto
       if (dbStaff.allenatore !== undefined || dbStaff.dirigente !== undefined || dbStaff.squadraCasa !== undefined) {
-        // Se troviamo un oggetto piatto, lo mappiamo sulla chiave corrente corretta invece di perderlo
         staffMap[chiave] = { ...dbStaff };
       } else {
-        // Altrimenti ereditiamo l'intera mappa esistente
         staffMap = { ...dbStaff };
       }
     }
 
     const payload = {};
 
-    // 4. Aggiorniamo i giocatori se presenti
     if (giocatori !== undefined) {
       rosaMap[chiave] = giocatori;
       payload.rosa_base = rosaMap;
     }
 
-    // 5. Aggiorniamo lo staff sulla chiave specifica calcolata (campionato + annata)
     if (staff !== undefined) {
       if (!staffMap[chiave]) {
         staffMap[chiave] = {};
@@ -515,7 +406,6 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campiona
       payload.staff_base = staffMap;
     }
 
-    // 6. Salvataggio su Supabase
     const { data, error } = await supabase
       .from('societa')
       .update(payload)
@@ -542,6 +432,7 @@ export async function getSocietaById(societaId) {
 }
 
 export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato, annata) {
+  if (!campionato || !annata) return { success: false, error: 'Mancano campionato o annata' };
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
@@ -695,23 +586,6 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
   }).select().single();
 
   if (error) throw error;
-
-  await supabase.from('partite').upsert({
-    id: `${societaId}_PARTITA_LIVE`,
-    societa_id: societaId,
-    squadra_casa: nome.trim().toUpperCase(),
-    squadra_ospite: '',
-    stato: 'bozza',
-    tempo: 1,
-    secondi_gara: 0,
-    in_esecuzione: false,
-    avviato_alle: null,
-    recupero: 0,
-    minuto_corrente: 1,
-    slot_usati: 0,
-    cambi_effettuati: 0,
-    data_gara: new Date().toISOString().split('T')[0]
-  });
 
   return data;
 }
