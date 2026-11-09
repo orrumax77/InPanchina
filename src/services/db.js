@@ -455,13 +455,21 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campiona
       .eq('id', societaId)
       .single();
 
+    // Gestione sicura della mappa rosa_base
     const rosaMap = (socCorrente?.rosa_base && typeof socCorrente.rosa_base === 'object' && !Array.isArray(socCorrente.rosa_base))
       ? socCorrente.rosa_base
       : {};
 
-    const staffMap = (socCorrente?.staff_base && typeof socCorrente.staff_base === 'object')
-      ? socCorrente.staff_base
-      : {};
+    // Gestione sicura della mappa staff_base (evita il formato piatto)
+    let staffMap = {};
+    if (socCorrente?.staff_base && typeof socCorrente.staff_base === 'object' && !Array.isArray(socCorrente.staff_base)) {
+      // Controlliamo se è nel vecchio formato piatto (es. ha la chiave 'allenatore' diretta)
+      if (socCorrente.staff_base.allenatore || socCorrente.staff_base.dirigente || socCorrente.staff_base.squadraCasa) {
+        staffMap['2026_2027_2010'] = socCorrente.staff_base; // Migrazione al volo in sicurezza
+      } else {
+        staffMap = socCorrente.staff_base;
+      }
+    }
 
     const payload = {};
 
