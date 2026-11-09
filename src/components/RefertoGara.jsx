@@ -10,6 +10,8 @@ export default function RefertoGara({
   giocatori, 
   minutoCorrente,
   tempoGara,
+  campionato,
+  annata,
   onChiudi, 
   onTerminaEResetta 
 }) {
@@ -72,23 +74,23 @@ export default function RefertoGara({
   const sostituzioni = (eventi || []).filter(e => e.tipo === 'SOSTITUZIONE');
 
   const generaTestoReferto = () => {
-    let t = `📋 *REFERTO GARA - InPanchina*\n`;
+    let t = `📋 *REFERTO GARA*\n`;
     t += `📅 *Data:* ${partitaInfo?.dataPartita ? partitaInfo.dataPartita.split('-').reverse().join('/') : ''}\n`;
-    t += `🏆 *${(societaNome || '').toUpperCase()}*\n`;
+    if (campionato) t += `🏆 *Campionato:* ${campionato}\n`;
+    if (annata) t += `👤 *Annata:* ${annata}\n`;
+    t += `\n`;
     t += `⚽ *${(partitaInfo?.squadraCasa || 'CASA').toUpperCase()} ${golCasa} - ${golOspiti} ${(partitaInfo?.squadraOspite || 'OSPITI').toUpperCase()}*\n\n`;
 
-    t += `👤 *STAFF TECNICO & DIRIGENZIALE UFFICIALE:*\n`;
-    t += `• Allenatore: ${(partitaInfo?.allenatore || '-').toUpperCase()}\n`;
-    if (partitaInfo?.allenatoreSeconda) {
-      t += `• Allenatore in Seconda: ${partitaInfo.allenatoreSeconda.toUpperCase()}\n`;
-    }
-    t += `• Dirigente Accompagnatore Ufficiale della Squadra: ${(partitaInfo?.dirigente || '-').toUpperCase()}\n`;
-    if (partitaInfo?.dirigenteUfficiali) {
-      t += `• Dirigente Addetto Ufficiali di Gara: ${partitaInfo.dirigenteUfficiali.toUpperCase()}\n`;
-    }
-    if (partitaInfo?.assistenteArbitro) {
-      t += `• Assistente all'Arbitro: ${partitaInfo.assistenteArbitro.toUpperCase()}\n`;
-    }
+    t += `👔 *STAFF TECNICO & DIRIGENZIALE UFFICIALE:*\n`;
+    if (partitaInfo?.allenatore) t += `• Allenatore: ${partitaInfo.allenatore.toUpperCase()}\n`;
+    if (partitaInfo?.allenatoreSeconda) t += `• Allenatore in Seconda: ${partitaInfo.allenatoreSeconda.toUpperCase()}\n`;
+    if (partitaInfo?.dirigente) t += `• Dirigente Accompagnatore Ufficiale della Squadra: ${partitaInfo.dirigente.toUpperCase()}\n`;
+    if (partitaInfo?.dirigenteUfficiali) t += `• Dirigente Addetto Ufficiali di Gara: ${partitaInfo.dirigenteUfficiali.toUpperCase()}\n`;
+    if (partitaInfo?.assistenteArbitro) t += `• Assistente all'Arbitro: ${partitaInfo.assistenteArbitro.toUpperCase()}\n`;
+    if (partitaInfo?.medicoSociale) t += `• Medico Sociale: ${partitaInfo.medicoSociale.toUpperCase()}\n`;
+    if (partitaInfo?.massaggiatore) t += `• Massaggiatore: ${partitaInfo.massaggiatore.toUpperCase()}\n`;
+    if (partitaInfo?.preparatoreAtletico) t += `• Preparatore Atletico: ${partitaInfo.preparatoreAtletico.toUpperCase()}\n`;
+    if (partitaInfo?.preparatorePortieri) t += `• Preparatore dei Portieri: ${partitaInfo.preparatorePortieri.toUpperCase()}\n`;
     t += `\n`;
 
     if (golEventi.length > 0) {
@@ -177,7 +179,7 @@ export default function RefertoGara({
           <FileText className="w-5 h-5 text-emerald-400" /> Referto Completo di Gara
         </h2>
 
-        {/* Finestra/Box di testo con tutto il referto formattato, inclusa la rosa e i minutaggi */}
+        {/* Finestra/Box di testo con tutto il referto formattato */}
         <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
           {testoReferto}
         </div>
