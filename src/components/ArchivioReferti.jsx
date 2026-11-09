@@ -3,7 +3,7 @@ import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
 import { supabase } from '../supabaseClient';
 import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock } from 'lucide-react';
 
-export default function ArchivioReferti({ societa, onTornaIndietro }) {
+export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
   const [caricamento, setCaricamento] = useState(true);
   const [partitaApertaId, setPartitaApertaId] = useState(null);
@@ -39,7 +39,6 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
     }
   };
 
-  // Funzione di supporto per formattare l'ora (es. dalle 15:30)
   const formattaOra = (dataIso) => {
     if (!dataIso) return '';
     const d = new Date(dataIso);
@@ -49,23 +48,23 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
 
   const generaTestoReferto = (p) => {
     const dataFormatted = p.data_gara ? p.data_gara.split('-').reverse().join('/') : '';
-    let t = `📋 *REFERTO GARA - InPanchina*\n`;
+    let t = `📋 *REFERTO GARA*\n`;
     t += `📅 *Data:* ${dataFormatted}\n`;
-    t += `🏆 *${(societa?.nome || '').toUpperCase()}*\n`;
+    if (campionato) t += `🏆 *Campionato:* ${campionato}\n`;
+    if (annata) t += `👤 *Annata:* ${annata}\n`;
+    t += `\n`;
     t += `⚽ *${(p.squadra_casa || 'CASA').toUpperCase()} ${p.gol_casa} - ${p.gol_ospite} ${(p.squadra_ospite || 'OSPITE').toUpperCase()}*\n\n`;
 
-    t += `👤 *STAFF TECNICO & DIRIGENZIALE UFFICIALE:*\n`;
-    t += `• Allenatore: ${(p.allenatore || '-').toUpperCase()}\n`;
-    if (p.allenatore_seconda) {
-      t += `• Allenatore in Seconda: ${p.allenatore_seconda.toUpperCase()}\n`;
-    }
-    t += `• Dirigente Accompagnatore Ufficiale della Squadra: ${(p.dirigente || '-').toUpperCase()}\n`;
-    if (p.dirigente_ufficiali) {
-      t += `• Dirigente Addetto Ufficiali di Gara: ${p.dirigente_ufficiali.toUpperCase()}\n`;
-    }
-    if (p.assistente_arbitro) {
-      t += `• Assistente all'Arbitro: ${p.assistente_arbitro.toUpperCase()}\n`;
-    }
+    t += `👔 *STAFF TECNICO & DIRIGENZIALE UFFICIALE:*\n`;
+    if (p.allenatore) t += `• Allenatore: ${p.allenatore.toUpperCase()}\n`;
+    if (p.allenatore_seconda) t += `• Allenatore in Seconda: ${p.allenatore_seconda.toUpperCase()}\n`;
+    if (p.dirigente) t += `• Dirigente Accompagnatore Ufficiale della Squadra: ${p.dirigente.toUpperCase()}\n`;
+    if (p.dirigente_ufficiali) t += `• Dirigente Addetto Ufficiali di Gara: ${p.dirigente_ufficiali.toUpperCase()}\n`;
+    if (p.assistente_arbitro) t += `• Assistente all'Arbitro: ${p.assistente_arbitro.toUpperCase()}\n`;
+    if (p.medico_sociale) t += `• Medico Sociale: ${p.medico_sociale.toUpperCase()}\n`;
+    if (p.massaggiatore) t += `• Massaggiatore: ${p.massaggiatore.toUpperCase()}\n`;
+    if (p.preparatore_atletico) t += `• Preparatore Atletico: ${p.preparatore_atletico.toUpperCase()}\n`;
+    if (p.preparatore_portieri) t += `• Preparatore dei Portieri: ${p.preparatore_portieri.toUpperCase()}\n`;
     t += `\n`;
 
     const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
@@ -75,7 +74,7 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
     const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
 
     if (reti.length > 0) {
-      t += `⚽ *RETI:*\n`;
+      t += `⚽ *MARCATURE:*\n`;
       reti.forEach(r => { t += `• ${r.minuto}' ${r.dettagli.toUpperCase()}\n`; });
       t += `\n`;
     }
@@ -175,7 +174,6 @@ export default function ArchivioReferti({ societa, onTornaIndietro }) {
           {partiteStorico.map((p) => {
             const aperta = partitaApertaId === p.id;
             const dataFormatted = p.data_gara ? p.data_gara.split('-').reverse().join('/') : '';
-            // Recupera l'orario (controlla sia terminata_il che created_at se presenti nel record)
             const oraSalvataggio = formattaOra(p.terminata_il || p.created_at);
 
             return (
