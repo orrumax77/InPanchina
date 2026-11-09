@@ -141,24 +141,35 @@ export async function dbModificaGiocatore(societaId, giocatore, campionato, anna
   try {
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const idCompleto = `${societaId}_${campionatoPulito}_${annataPulita}_${giocatore.id}`;
 
     const payload = {
+      id: idCompleto,
+      societa_id: societaId,
+      campionato: campionato,
+      annata: annata,
       numero: giocatore.numero,
-      nome: giocatore.nome.trim().toUpperCase(),
-      is_titolare: giocatore.isTitolare,
-      is_capitano: giocatore.isCapitano,
-      is_vice: giocatore.isVice
+      nome: (giocatore.nome || '').trim().toUpperCase(),
+      ruolo: giocatore.ruolo || '',
+      is_titolare: giocatore.isTitolare ?? false,
+      is_capitano: giocatore.isCapitano ?? false,
+      is_vice: giocatore.isVice ?? false,
+      ammonizioni: giocatore.ammonizioni || 0,
+      espulso: giocatore.espulso || false
     };
 
-    await supabase
+    // Usiamo upsert così se il giocatore non è ancora nella tabella viene creato, altrimenti viene aggiornato
+    const { error } = await supabase
       .from('giocatori')
-      .update(payload)
-      .eq('id', `${societaId}_${campionatoPulito}_${annataPulita}_${giocatore.id}`);
+      .upsert(payload, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Errore dbModificaGiocatore upsert:', error);
+    }
   } catch (err) {
     console.error('Errore dbModificaGiocatore:', err);
   }
 }
-
 export async function dbEliminaGiocatore(societaId, giocatoreId, campionato, annata) {
   if (!societaId || !giocatoreId || !campionato || !annata) return;
   try {
