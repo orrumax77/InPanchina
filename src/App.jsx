@@ -35,6 +35,35 @@ import {
   ArrowRight 
 } from 'lucide-react';
 
+// Funzione per calcolare automaticamente la stagione calcistica corrente in base alla data
+const getStagioneDinamicaCorrente = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0 = Gennaio, 7 = Agosto, 8 = Settembre...
+  
+  if (month >= 7) {
+    return `${year}/${year + 1}`;
+  } else {
+    return `${year - 1}/${year}`;
+  }
+};
+
+// Genera una lista di stagioni attorno a quella corrente
+const getListaStagioniDisponibili = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const baseYear = currentMonth >= 7 ? year : year - 1;
+  
+  return [
+    `${baseYear - 2}/${baseYear - 1}`,
+    `${baseYear - 1}/${baseYear}`,
+    `${baseYear}/${baseYear + 1}`,
+    `${baseYear + 1}/${baseYear + 2}`,
+    `${baseYear + 2}/${baseYear + 3}`
+  ];
+};
+
 export default function App() {
   const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto' | 'archivio'
    
@@ -45,7 +74,9 @@ export default function App() {
   // UNICO dato salvato in localStorage: il nome utente esatto senza maiuscole forzate
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
-  const [stagioneSelezionata, setStagioneSelezionata] = useState('2026/2027');
+  
+  // STATO STAGIONE INIZIALIZZATO DINAMICAMENTE
+  const [stagioneSelezionata, setStagioneSelezionata] = useState(getStagioneDinamicaCorrente);
   const [annataSelezionata, setAnnataSelezionata] = useState('2010'); // <-- STATO ANNATA
   const [loginError, setLoginError] = useState('');
 
@@ -110,16 +141,12 @@ export default function App() {
     // GESTIONE RIGOROSA E ISOLATA DELLO STAFF PER ANTIMESCOLO TRA ANNATE:
     let staffBase = {};
     if (staffRaw[chiaveStaff] && typeof staffRaw[chiaveStaff] === 'object') {
-      // Se esiste la chiave esatta per questa specifica annata e campionato (es. "2026_2027_2009"), usiamo quella
       staffBase = staffRaw[chiaveStaff];
     } else {
-      // Se la chiave non esiste ancora per questa annata:
-      // Verifichiamo se siamo sul 2010 (per retrocompatibilità con i vecchi dati piatti)
       const isLegacyFlat = staffRaw.allenatore || staffRaw.dirigente || staffRaw.squadraCasa || staffRaw.dataPartita;
       if (isLegacyFlat && annataPulitaStaff === '2010') {
         staffBase = staffRaw;
       } else {
-        // Per qualsiasi altra annata (es. 2009), lo staff deve partire rigorosamente PULITO E VUOTO!
         staffBase = {};
       }
     }
@@ -143,7 +170,7 @@ export default function App() {
     
     const partitaDB = stato?.partita;
 
-    // CONTROLLO LIVE ESTESO (Funziona anche in pausa, durante l'intervallo e con eventi registrati)
+    // CONTROLLO LIVE ESTESO
     const isLiveInCorso = partitaDB && (
       partitaDB.in_esecuzione === true || 
       (partitaDB.secondi_gara !== undefined && partitaDB.secondi_gara > 0) || 
@@ -199,7 +226,7 @@ export default function App() {
       setEventi(stato.eventi || []);
 
       setSalvataggioInCorso(false);
-      setFaseApp('partita'); // <-- ACCESSO DIRETTO AL LIVE (ANCHE IN INTERVALLO O PAUSA)
+      setFaseApp('partita');
     } else {
       const pInfo = {
         squadraCasa: (staffBase.squadraCasa || partitaDB?.squadra_casa || socFresca.nome || '').toUpperCase(),
@@ -268,7 +295,7 @@ export default function App() {
     await avviaSessioneSocieta(soc);
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (Eventi, Partita e ricalcolo automatico cartellini della rosa)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO
   useEffect(() => {
     if (!partitaId) return;
 
@@ -302,7 +329,6 @@ export default function App() {
           const eventiAggiornati = stato.eventi;
           setEventi(eventiAggiornati);
 
-          // RICALCOLO AUTOMATICO DEI CARTELLINI E DELLA ROSA IN TEMPO REALE SUL SECONDO DISPOSITIVO
           setRosa(prevRosa => {
             const rosaAggiornata = prevRosa.map(g => {
               const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
@@ -337,7 +363,6 @@ export default function App() {
               };
             });
 
-            // Salviamo lo stato aggiornato anche nel cloud per mantenere coerenti i dispositivi
             if (societaAttiva?.id) {
               aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornata, stagioneSelezionata, annataSelezionata);
             }
@@ -465,14 +490,13 @@ export default function App() {
     }
   };
 
-  // Salvataggio incrementale della rosa mentre la modifichi nella distinta
   const handleAggiornaRosaInDistinta = async (nuovaRosa) => {
     setRosa(nuovaRosa);
     if (societaAttiva?.id) {
       await salvaRosaBaseSocieta(
         societaAttiva.id, 
         nuovaRosa, 
-        undefined, // non tocchiamo lo staff qui
+        undefined, 
         stagioneSelezionata, 
         annataSelezionata
       );
@@ -516,7 +540,6 @@ export default function App() {
     setGolCasa(nuovoCasa);
     setGolOspiti(nuovoOspiti);
 
-    // Manteniamo integri slotUsati e cambiEffettuati anche quando si segna un gol
     await syncStatoPartitaSuDb(partitaId, {
       golCasa: nuovoCasa,
       golOspiti: nuovoOspiti,
@@ -536,7 +559,6 @@ export default function App() {
     await registraEventoCloud(partitaId, evento, stagioneSelezionata, annataSelezionata);
   };
 
-  // Funzione dedicata per aggiornare e salvare all'istante sul DB cambi e slot usati
   const handleAggiornaCambiSlot = async (nuoviCambi, nuoviSlot) => {
     setCambiEffettuati(nuoviCambi);
     setSlotUsati(nuoviSlot);
@@ -555,15 +577,12 @@ export default function App() {
     });
   };
 
-  // ELIMINAZIONE EVENTO CON ROLLBACK PERFETTO E RICONOSCIMENTO INTELLIGENTE DI CAMBI E CARTELLINI
   const eliminaEvento = async (id) => {
     const eventoDaEliminare = eventi.find(e => e.id === id);
     if (!eventoDaEliminare) return;
 
-    // Creiamo subito l'elenco degli eventi rimasti escludendo quello da eliminare
     const eventiRimasti = eventi.filter(e => e.id !== id);
 
-    // 1. ROLLBACK GOL (Preserva slot e cambi)
     if (eventoDaEliminare.tipo === 'GOL') {
       const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
       const isGolNostro = eventoDaEliminare.squadra === 'NOSTRA' || (!eventoDaEliminare.squadra && !eventoDaEliminare.dettagli?.toLowerCase().includes('avversar'));
@@ -589,7 +608,6 @@ export default function App() {
       });
     }
 
-    // 2. ROLLBACK CAMBIO / SOSTITUZIONE (Aggiornamento istantaneo anche sul DB)
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
       const nuoviCambi = Math.max(0, cambiEffettuati - 1);
       const isIntervallo = eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo');
@@ -632,7 +650,6 @@ export default function App() {
         }
       }
 
-      // Ripristiniamo la titolarità: chi era uscito torna titolare (isTitolare: true), chi era entrato torna in panchina (isTitolare: false)
       const rosaAggiornataPerCambio = rosa.map(g => {
         if (g.id === idEsce) return { ...g, isTitolare: true };
         if (g.id === idEntra) return { ...g, isTitolare: false };
@@ -643,7 +660,6 @@ export default function App() {
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio, stagioneSelezionata, annataSelezionata);
     }
 
-    // 3. ROLLBACK CARTELLINI CON GESTIONE INTELLIGENTE DI GIALLI E RIPRISTINO TITOLARITÀ
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
@@ -656,7 +672,6 @@ export default function App() {
       if (giocatoreCoinvolto) {
         const rosaAggiornataPerCartellini = rosa.map(g => {
           if (g.id === giocatoreCoinvolto.id) {
-            // 1. Contiamo quanti singoli cartellini gialli (AMMONIZIONE) sono rimasti
             const ammonizioniNormaliRimaste = eventiRimasti.filter(e => 
               (e.tipo === 'AMMONIZIONE') && (
                 e.giocatoreId === g.id || 
@@ -664,7 +679,6 @@ export default function App() {
               )
             ).length;
 
-            // 2. Contiamo se ci sono eventi registrati come doppia ammonizione rimasti nel feed
             const doppieAmmonizioniRimaste = eventiRimasti.filter(e => 
               (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE')) && (
                 e.giocatoreId === g.id || 
@@ -672,7 +686,6 @@ export default function App() {
               )
             ).length;
 
-            // 3. Contiamo se ci sono espulsioni dirette (rosse pure) rimaste
             const espulsioniDiretteRimaste = eventiRimasti.filter(e => 
               (e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE')) && (
                 e.giocatoreId === g.id || 
@@ -680,10 +693,7 @@ export default function App() {
               )
             ).length;
 
-            // Il totale dei gialli reali accumulati è la somma delle ammonizioni normali + 2 per ogni doppia ammonizione rimasta
             const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
-
-            // Il giocatore è ancora espulso solo se ha accumulato 2 o più gialli oppure se ha un rosso diretto
             const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
 
             return {
@@ -700,12 +710,11 @@ export default function App() {
         await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCartellini, stagioneSelezionata, annataSelezionata);
       }
     }
-     
-    // 4. Rimozione definitiva dell'evento dalla cronologia e dal cloud
+      
     await eliminaEventoCloud(id);
     setEventi(eventiRimasti);
   };
-   
+    
   const handleAggiornaRosa = async (nuovaRosa) => {
     setRosa(nuovaRosa);
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa, stagioneSelezionata, annataSelezionata);
@@ -763,9 +772,6 @@ export default function App() {
     }
   };
 
-  // Disattivato il controllo automatico intrusivo: la partita si chiude SOLO se l'utente preme esplicitamente sul Referto.
-  const isFinePartitaRaggiunta = false;
-
   const disconnetti = () => {
     setUtenteConnesso(null);
     setSocietaAttiva(null);
@@ -787,7 +793,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LOGIN CON SELEZIONE CAMPIONATO E ANNATA */}
+      {/* 1. LOGIN CON SELEZIONE CAMPIONATO (TENDINA) E ANNATA */}
       {faseApp === 'login' && (
         <div className="max-w-md mx-auto space-y-6 pt-10">
           <div className="text-center space-y-2">
@@ -814,14 +820,18 @@ export default function App() {
 
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase">Campionato / Stagione</label>
-              <input
-                type="text"
-                placeholder="Es. 2026/2027"
+              <select
                 value={stagioneSelezionata}
                 onChange={(e) => setStagioneSelezionata(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 uppercase font-bold"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm mt-1 outline-none focus:border-emerald-500 uppercase font-bold cursor-pointer"
                 required
-              />
+              >
+                {getListaStagioniDisponibili().map((stagione) => (
+                  <option key={stagione} value={stagione} className="bg-slate-900 text-white">
+                    Stagione {stagione} {stagione === getStagioneDinamicaCorrente() ? '(Attuale)' : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* SELEZIONE ANNATA */}
@@ -891,7 +901,7 @@ export default function App() {
         />
       )}
 
-      {/* 3. DISTINTA (CON BADGE ANNATA EVIDENTE) */}
+      {/* 3. DISTINTA */}
       {faseApp === 'distinta' && (
         <div className="space-y-4">
           <div className="max-w-4xl mx-auto flex flex-wrap justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-xl gap-3 shadow-lg">
@@ -963,7 +973,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 4. LIVE MATCH (CON BADGE ANNATA EVIDENTE) */}
+      {/* 4. LIVE MATCH */}
       {faseApp === 'partita' && (
         <div className="max-w-2xl mx-auto space-y-5">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -1017,7 +1027,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* CRONOMETRO MULTI-DEVICE SINCRONIZZATO CON AVANZAMENTO SENZA STOP */}
           <Cronometro
             tempo={tempoGara}
             secondi={secondiGara}
@@ -1036,7 +1045,6 @@ export default function App() {
             onTriggerScadenzaTempo={null}
           />
 
-          {/* GESTIONE EVENTI CON REGOLE 5 CAMBI, 3 SLOT ED INTERVALLO */}
           <GestioneEventi
             giocatori={rosa}
             setGiocatori={handleAggiornaRosa}
