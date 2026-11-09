@@ -931,6 +931,7 @@ export default function App() {
 
           <Distinta
             onConfermaDistinta={handleConfermaDistinta}
+            onAggiornaRosa={handleAggiornaRosaInDistinta}
             societa={societaAttiva}
             partitaIniziale={partitaInfo}
             rosaIniziale={rosa}
