@@ -445,12 +445,12 @@ export async function getSocietaById(societaId) {
   return data;
 }
 
-export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatoriConvocati, campionato, annata) {
+export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato, annata) {
   if (!campionato || !annata) return { success: false, error: 'Mancano campionato o annata' };
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Salvataggio della partita nello storico con i convocati di questa gara
+    // 1. Salvataggio della partita nello storico
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -463,7 +463,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       annata: annata,
       stato: 'completata',
       referto_eventi: eventi,
-      referto_giocatori: giocatoriConvocati,
+      referto_giocatori: giocatori,
       terminata_il: new Date().toISOString()
     }]);
 
@@ -472,7 +472,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       .update({ partita_id: storicoId })
       .eq('partita_id', livePartitaId);
 
-    // 2. Reset della partita live in corso
+    // 2. Reset totale della partita live in corso (Svuota la squadra ospite)
     await supabase.from('partite').update({
       squadra_ospite: '',
       gol_casa: 0,
@@ -489,11 +489,10 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       data_gara: new Date().toISOString().split('T')[0]
     }).eq('id', livePartitaId);
 
-    // 3. RECUPERO DELLA ROSA GIA' PRESENTE NEL DB (O DAL JSON SOCIETA) 
-    // Invece di prendere solo i convocati, leggiamo la colonna rosa_base direttamente dalla tabella societa
-    const { data: socData } = await supabase
+    // 3. PULIZIA DELLA SQUADRA OSPITE ANCHE NELLA BOZZA STAFF DELLA SOCIETÀ
+    const { data: socCorrente } = await supabase
       .from('societa')
-      .select('rosa_base')
+      .select('staff_base')
       .eq('id', societaId)
       .maybeSingle();
 
@@ -501,17 +500,31 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const chiave = `${campionatoPulito}_${annataPulita}`;
 
+    if (socCorrente?.staff_base && typeof socCorrente.staff_base === 'object') {
+      let staffMap = { ...socCorrente.staff_base };
+      if (staffMap[chiave]) {
+        staffMap[chiave].squadraOspite = ''; // Svuota la squadra avversaria salvata in bozza
+      }
+      await supabase.from('societa').update({ staff_base: staffMap }).eq('id', societaId);
+    }
+
+    // 4. Ripristino della rosa completa pulendo i cartellini
+    const { data: socData } = await supabase
+      .from('societa')
+      .select('rosa_base')
+      .eq('id', societaId)
+      .maybeSingle();
+
     let rosaCompleta = [];
     if (socData?.rosa_base && socData.rosa_base[chiave]) {
       rosaCompleta = socData.rosa_base[chiave];
     }
 
-    // Se per qualche motivo rosa_base fosse vuota, usiamo i giocatori passati come fallback, altrimenti usiamo la rosa completa trovata
-    const listaDaSalvare = (rosaCompleta.length > 0 ? rosaCompleta : giocatoriConvocati).map(g => ({
+    const listaDaSalvare = (rosaCompleta.length > 0 ? rosaCompleta : giocatori).map(g => ({
       ...g,
       ammonizioni: 0,
       espulso: false,
-      isConvocato: true // Riportiamo tutti convocati di default per la prossima partita
+      isConvocato: true
     }));
 
     await aggiornaGiocatoriCloud(livePartitaId, societaId, listaDaSalvare, campionato, annata);
