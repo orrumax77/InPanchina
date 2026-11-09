@@ -9,7 +9,7 @@ import {
   dbEliminaGiocatore 
 } from '../services/db';
 
-export default function Distinta({ onConfermaDistinta, societa, partitaIniziale, rosaIniziale }) {
+export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, partitaIniziale, rosaIniziale }) {
   const dateInputRef = useRef(null);
   const oggiISO = new Date().toISOString().split('T')[0];
   const partitaId = societa?.id ? `${societa.id}_PARTITA_LIVE` : null;
@@ -18,7 +18,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
   const [partitaInfo, setPartitaInfo] = useState({
     squadraCasa: (partitaIniziale?.squadraCasa || staffSocieta.squadraCasa || societa?.nome || '').toUpperCase(),
-    squadraOspite: (partitaIniziale?.squadraOspite || '').toUpperCase(), // <-- Svuotato per evitare residui della gara precedente
+    squadraOspite: (partitaIniziale?.squadraOspite || '').toUpperCase(),
     allenatore: (partitaIniziale?.allenatore || staffSocieta.allenatore || societa?.allenatore_predefinito || '').toUpperCase(),
     allenatoreSeconda: (partitaIniziale?.allenatoreSeconda || staffSocieta.allenatoreSeconda || societa?.allenatore_seconda_predefinito || '').toUpperCase(),
     dirigente: (partitaIniziale?.dirigente || staffSocieta.dirigente || societa?.dirigente_predefinito || '').toUpperCase(),
@@ -96,7 +96,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     const prepAtlVal = (staff.preparatoreAtletico || partitaIniziale?.preparatoreAtletico || '').toUpperCase();
     const prepPortVal = (staff.preparatorePortieri || partitaIniziale?.preparatorePortieri || '').toUpperCase();
     const squadraCasaVal = (staff.squadraCasa || partitaIniziale?.squadraCasa || societa?.nome || '').toUpperCase();
-    const squadraOspiteVal = (partitaIniziale?.squadraOspite || '').toUpperCase(); // <-- Azzera se vuota
+    const squadraOspiteVal = (partitaIniziale?.squadraOspite || '').toUpperCase();
     const dataPartitaVal = partitaIniziale?.dataPartita || staff.dataPartita || oggiISO;
     const isNostraCasaVal = partitaIniziale?.isNostraCasa ?? staff.isNostraCasa ?? true;
 
@@ -139,6 +139,13 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const mostraNotificaSalvataggio = () => {
     setSalvataggioNotifica(true);
     setTimeout(() => setSalvataggioNotifica(false), 2000);
+  };
+
+  // Funzione di supporto per notificare App.jsx del cambiamento in tempo reale
+  const aggiornaRosaGlobale = (nuovaLista) => {
+    if (onAggiornaRosa) {
+      onAggiornaRosa(nuovaLista);
+    }
   };
 
   const trovaSuccessivoNumeroLibero = (aPartireDa = null, idDaEscludere = null) => {
@@ -236,6 +243,8 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
     const aggiornato = { ...target, isTitolare: !target.isTitolare };
     const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
     setGiocatori(nuovaLista);
+    aggiornaRosaGlobale(nuovaLista); // <-- Notifica App.jsx
+
     await dbModificaGiocatore(societa.id, aggiornato);
     await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined);
     mostraNotificaSalvataggio();
@@ -251,6 +260,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isVice: g.id === id ? false : g.isVice
     })));
     setGiocatori(nuovaLista);
+    aggiornaRosaGlobale(nuovaLista); // <-- Notifica App.jsx
 
     for (const g of nuovaLista) {
       await dbModificaGiocatore(societa.id, g);
@@ -269,6 +279,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
       isCapitano: g.id === id ? false : g.isCapitano
     })));
     setGiocatori(nuovaLista);
+    aggiornaRosaGlobale(nuovaLista); // <-- Notifica App.jsx
 
     for (const g of nuovaLista) {
       await dbModificaGiocatore(societa.id, g);
@@ -318,6 +329,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
     const nuovaRosa = ordinaPerNumeroMaglia([...giocatori, nuovo]);
     setGiocatori(nuovaRosa);
+    aggiornaRosaGlobale(nuovaRosa); // <-- Notifica App.jsx
     setNuovoNome('');
     setNuovoNumero('');
 
@@ -329,6 +341,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
   const rimuoviGiocatore = async (id) => {
     const nuovaRosa = ordinaPerNumeroMaglia(giocatori.filter(g => g.id !== id));
     setGiocatori(nuovaRosa);
+    aggiornaRosaGlobale(nuovaRosa); // <-- Notifica App.jsx
     if (editingId === id) setEditingId(null);
 
     await dbEliminaGiocatore(societa.id, id);
@@ -380,10 +393,11 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
 
     const nuovaRosa = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
     setGiocatori(nuovaRosa);
+    aggiornaRosaGlobale(nuovaRosa); // <-- Notifica App.jsx
     setEditingId(null);
 
     await dbModificaGiocatore(societa.id, aggiornato);
-    await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined);
+    await salvaRosaBaseSocieta(societa.id, nuevaRosa, undefined);
     mostraNotificaSalvataggio();
   };
 
@@ -466,6 +480,7 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
           <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-950 border border-slate-700 text-slate-300 uppercase">
             {partitaInfo.isNostraCasa ? '🏠 Giochiamo in Casa' : '🚌 Giochiamo Fuori Casa'}
           </span>
+
         </div>
 
         {/* Squadre */}
@@ -806,29 +821,29 @@ export default function Distinta({ onConfermaDistinta, societa, partitaIniziale,
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="pt-2">
-        <button
-          onClick={handleConferma}
-          disabled={titolariCount !== 11}
-          className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider flex justify-center items-center gap-2 transition ${
-            titolariCount === 11
-              ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-lg shadow-emerald-950'
-              : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          <UserCheck className="w-5 h-5" />
-          {titolariCount === 11 ? 'Conferma e Salva Distinta' : `Seleziona 11 Titolari (ora: ${titolariCount})`}
-        </button>
-      </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
+
+    <div className="pt-2">
+      <button
+        onClick={handleConferma}
+        disabled={titolariCount !== 11}
+        className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider flex justify-center items-center gap-2 transition ${
+          titolariCount === 11
+            ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-lg shadow-emerald-950'
+            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+        }`}
+      >
+        <UserCheck className="w-5 h-5" />
+        {titolariCount === 11 ? 'Conferma e Salva Distinta' : `Seleziona 11 Titolari (ora: ${titolariCount})`}
+      </button>
+    </div>
+  </div>
   );
 }
