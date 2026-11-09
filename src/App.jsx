@@ -946,6 +946,8 @@ export default function App() {
         <AdminPanel
           onEsci={disconnetti}
           onSelezionaSquadraDaAdmin={handleAdminEntraInSquadra}
+          stagioneCorrente={getStagioneDinamicaCorrente()}
+          listaStagioni={getListaStagioniDisponibili()}
         />
       )}
 
