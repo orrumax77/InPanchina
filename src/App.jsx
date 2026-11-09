@@ -36,18 +36,20 @@ import {
 } from 'lucide-react';
 
 // Calcola dinamicamente la categoria LND in base alla stagione e all'anno di nascita
+// Calcola dinamicamente la categoria LND ufficiale in base alla stagione e all'anno di nascita
 const getCategoriaLND = (stagione, annataStr) => {
   if (!annataStr || isNaN(annataStr)) return annataStr;
   const annoNascita = parseInt(annataStr, 10);
   const annoInizioStagione = parseInt(stagione.split('/')[0], 10);
   const eta = annoInizioStagione - annoNascita;
 
+  // Correzione categorie LND in base all'anno di compimento nel corso della stagione
   if (eta === 18 || eta === 19) return `Under 19 (${annataStr})`;
-  if (eta === 17) return `Under 17 (${annataStr})`;
-  if (eta === 16) return `Under 16 (${annataStr})`;
-  if (eta === 15) return `Under 15 (${annataStr})`;
-  if (eta === 14) return `Under 14 (${annataStr})`;
-  if (eta <= 13) return `Attività di Base / Esordienti (${annataStr})`;
+  if (eta === 16 || eta === 17) return `Under 17 (${annataStr})`; // <-- 2010 nella stagione 2026 (2026-2010 = 16) rientra in Under 17
+  if (eta === 15) return `Under 16 (${annataStr})`;
+  if (eta === 14) return `Under 15 (${annataStr})`;
+  if (eta === 13) return `Under 14 (${annataStr})`;
+  if (eta <= 12) return `Attività di Base / Esordienti (${annataStr})`;
   return `Annata ${annataStr}`;
 };
 
