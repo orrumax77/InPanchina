@@ -461,10 +461,11 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, ca
   await supabase.from('giocatori').upsert(righe);
 }
 
-export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campionato = '2026/2027', annata = '2010') {
+export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campionato, annata) {
   try {
-    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
-    const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    // Se non vengono passati campionato o annata, evitiamo di hardcodarli ma usiamo stringhe vuote o logiche di sicurezza
+    const campionatoPulito = (campionato || '2026_2027').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '2010').replace(/[^a-zA-Z0-9]/g, '_');
     const chiave = `${campionatoPulito}_${annataPulita}`;
 
     // 1. Leggiamo lo stato attuale dal DB
@@ -484,11 +485,12 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campiona
     const dbStaff = socCorrente?.staff_base;
     
     if (dbStaff && typeof dbStaff === 'object' && !Array.isArray(dbStaff)) {
-      // Se nel DB è un oggetto piatto (es. ha la chiave 'allenatore' diretta), lo migriamo subito a mappa
+      // Controlliamo se è un vecchio oggetto piatto
       if (dbStaff.allenatore !== undefined || dbStaff.dirigente !== undefined || dbStaff.squadraCasa !== undefined) {
+        // Se troviamo un oggetto piatto, lo mappiamo sulla chiave corrente corretta invece di perderlo
         staffMap[chiave] = { ...dbStaff };
       } else {
-        // Altrimenti è già una mappa corretta
+        // Altrimenti ereditiamo l'intera mappa esistente
         staffMap = { ...dbStaff };
       }
     }
@@ -501,7 +503,7 @@ export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campiona
       payload.rosa_base = rosaMap;
     }
 
-    // 5. Aggiorniamo lo staff FORZANDO la struttura a mappa sulla chiave specifica
+    // 5. Aggiorniamo lo staff sulla chiave specifica calcolata (campionato + annata)
     if (staff !== undefined) {
       if (!staffMap[chiave]) {
         staffMap[chiave] = {};
