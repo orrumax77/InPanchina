@@ -284,19 +284,37 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
   }
 }
 
-export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, campionato, annata) {
+export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, campionato = '2026/2027', annata = '2010') {
   if (!societaId) return null;
   try {
+    const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const chiave = `${campionatoPulito}_${annataPulita}`;
+
     const { data: soc } = await supabase
       .from('societa')
       .select('staff_base')
       .eq('id', societaId)
       .maybeSingle();
 
-    const staffPrecedente = soc?.staff_base || {};
+    // 1. Gestione sicura della mappa staff_base
+    let staffMap = {};
+    const dbStaff = soc?.staff_base;
 
-    const staffAggiornato = {
-      ...staffPrecedente,
+    if (dbStaff && typeof dbStaff === 'object' && !Array.isArray(dbStaff)) {
+      // Se è il vecchio formato piatto, lo migriamo al volo sulla chiave corretta
+      if (dbStaff.allenatore !== undefined || dbStaff.dirigente !== undefined || dbStaff.squadraCasa !== undefined) {
+        staffMap[chiave] = { ...dbStaff };
+      } else {
+        staffMap = { ...dbStaff };
+      }
+    }
+
+    // 2. Prepariamo o aggiorniamo lo staff per questa specifica chiave
+    const staffEsistentePerAnnata = staffMap[chiave] || {};
+
+    staffMap[chiave] = {
+      ...staffEsistentePerAnnata,
       squadraCasa: partitaInfo.squadraCasa || '',
       squadraOspite: partitaInfo.squadraOspite || '',
       dataPartita: partitaInfo.dataPartita || '',
@@ -312,9 +330,10 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, c
       preparatorePortieri: partitaInfo.preparatorePortieri || ''
     };
 
+    // 3. Salviamo la mappa completa sul database
     const { error: errSoc } = await supabase
       .from('societa')
-      .update({ staff_base: staffAggiornato })
+      .update({ staff_base: staffMap })
       .eq('id', societaId);
 
     if (errSoc) {
@@ -345,7 +364,6 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, c
     return null;
   }
 }
-
 export function salvaBozzaKeepalive(societaId, partitaInfo) {
   if (!societaId || !partitaInfo) return;
   try {
