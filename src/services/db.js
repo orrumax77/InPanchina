@@ -534,7 +534,7 @@ export async function eliminaRefertoStorico(refertoId) {
   }
 }
 
-export async function loginSistema(username, password) {
+export async function loginSistema(username, password, campionatoSelezionato) {
   const u = username.trim();
   const p = password.trim();
 
@@ -546,15 +546,21 @@ export async function loginSistema(username, password) {
     };
   }
 
-  const { data: utente, error } = await supabase
+  // Aggiungiamo il controllo .eq('stagione', campionatoSelezionato)
+  let query = supabase
     .from('utenti_panchina')
     .select('*, societa(*)')
     .eq('username', u)
-    .eq('password_chiaro', p)
-    .single();
+    .eq('password_chiaro', p);
+
+  if (campionatoSelezionato) {
+    query = query.eq('stagione', campionatoSelezionato);
+  }
+
+  const { data: utente, error } = await query.maybeSingle();
 
   if (error || !utente) {
-    return { success: false, messaggio: 'Credenziali non valide.' };
+    return { success: false, messaggio: 'Credenziali non valide o non abilitate per il campionato selezionato.' };
   }
 
   if (!utente.societa) {
