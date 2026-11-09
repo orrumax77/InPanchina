@@ -42,11 +42,12 @@ const getCategoriaLND = (stagione, annataStr) => {
   const annoInizioStagione = parseInt(stagione.split('/')[0], 10);
   const eta = annoInizioStagione - annoNascita;
 
-  if (eta === 18 || eta === 19) return `Under 19 (${annataStr})`;
-  if (eta === 16 || eta === 17) return `Under 17 (${annataStr})`;
-  if (eta === 15) return `Under 16 (${annataStr})`;
-  if (eta === 14) return `Under 15 (${annataStr})`;
-  if (eta === 13) return `Under 14 (${annataStr})`;
+  if (eta === 18) return `Under 19 (${annataStr})`;
+  if (eta === 17) return `Under 18 (${annataStr})`;
+  if (eta === 16) return `Under 17 (${annataStr})`; // 2010 per la stagione 2026/2027
+  if (eta === 15) return `Under 16 (${annataStr})`; // 2011 per la stagione 2026/2027
+  if (eta === 14) return `Under 15 (${annataStr})`; // 2012
+  if (eta === 13) return `Under 14 (${annataStr})`; // 2013
   if (eta <= 12) return `Attività di Base / Esordienti (${annataStr})`;
   return `Annata ${annataStr}`;
 };
