@@ -340,7 +340,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (CON SINCRONIZZAZIONE CARTELLINI)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -1001,14 +1001,14 @@ export default function App() {
       {faseApp === 'partita' && (
         <div className="max-w-2xl mx-auto space-y-5">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            {(!inEsecuzione && secondiGara === 0 && eventi.length === 0) && (
+            {(!inEsecuzione && secondiGara === 0 && eventi.length === 0) ? (
               <button
                 onClick={() => setFaseApp('distinta')}
                 className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" /> Distinta
               </button>
-            )}
+            ) : <div />}
              
             <div className="flex items-center gap-2">
               <span className="bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider shadow">
@@ -1038,18 +1038,22 @@ export default function App() {
           </div>
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center relative">
-            <div className="flex-1">
-              <h3 className="font-bold text-sm md:text-base text-slate-200 truncate uppercase">{partitaInfo?.squadraCasa || 'CASA'}</h3>
-              <div className="text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
+            <div className="flex-1 min-w-0 px-1">
+              <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
+                {partitaInfo?.squadraCasa || 'CASA'}
+              </h3>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
             </div>
 
-            <div className="px-3 flex flex-col items-center">
-              <span className="text-slate-500 font-black text-sm tracking-widest">VS</span>
+            <div className="px-2 flex flex-col items-center justify-center">
+              <span className="text-slate-500 font-black text-xs sm:text-sm tracking-widest">VS</span>
             </div>
 
-            <div className="flex-1">
-              <h3 className="font-bold text-sm md:text-base text-slate-200 truncate uppercase">{partitaInfo?.squadraOspite || 'OSPITE'}</h3>
-              <div className="text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
+            <div className="flex-1 min-w-0 px-1">
+              <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
+                {partitaInfo?.squadraOspite || 'OSPITE'}
+              </h3>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
             </div>
           </div>
 
