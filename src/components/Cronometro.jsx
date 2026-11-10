@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Plus, Clock, ArrowRight, FastForward, Gauge } from 'lucide-react';
+import { Play, Pause, Plus, Clock, ArrowRight, FastForward } from 'lucide-react';
 
 // Generatore Audio Web Audio API del Fischio Arbitro
 function riproduciFischioArbitro(tipo = 'fine_gara') {
@@ -76,8 +76,6 @@ export default function Cronometro({
   onTick,
   onTriggerScadenzaTempo
 }) {
-  const [moltiplicatore, setMoltiplicatore] = useState(1);
-
   const SECONDI_45_MIN = 45 * 60;
   const LIMITE_MASSIMO_CON_RECUPERO = SECONDI_45_MIN + (recupero * 60);
 
@@ -118,24 +116,6 @@ export default function Cronometro({
     }
   }, [tempoScaduto, recupero]);
 
-  // GESTIONE CAMBIO VELOCITÀ SENZA SBALZI (CHECKPOINT TEMPORALE)
-  const handleCambiaVelocita = (nuovaVelocita) => {
-    if (nuovaVelocita === moltiplicatore) return;
-
-    if (inEsecuzione && avviatoAlle) {
-      const startMs = new Date(avviatoAlle).getTime();
-      const nowMs = Date.now();
-      const diffSecondiReali = Math.max(0, (nowMs - startMs) / 1000);
-      const secondiAccumulatiFinoAdOra = Math.floor((secondiBase || 0) + (diffSecondiReali * moltiplicatore));
-
-      if (onAvanzaTempoRef.current) {
-        onAvanzaTempoRef.current(0, secondiAccumulatiFinoAdOra);
-      }
-    }
-
-    setMoltiplicatore(nuovaVelocita);
-  };
-
   // SINCRONIZZAZIONE AL SECONDO INTERO TRAMITE TIMESTAMP ASSOLUTO CONDIVISO
   useEffect(() => {
     let timer = null;
@@ -149,7 +129,7 @@ export default function Cronometro({
         // ARROTONDAMENTO A NUMERO INTERO CON Math.floor PER EVITARE MILLISECONDI
         const tempoCalcolato = Math.min(
           LIMITE_MASSIMO_CON_RECUPERO,
-          Math.floor((secondiBase || 0) + (diffSecondiReali * moltiplicatore))
+          Math.floor((secondiBase || 0) + diffSecondiReali)
         );
 
         setSecondi(tempoCalcolato);
@@ -169,22 +149,23 @@ export default function Cronometro({
 
       aggiornaTimerSincronizzato();
 
-      const stepMs = Math.max(100, Math.floor(1000 / moltiplicatore));
-      timer = setInterval(aggiornaTimerSincronizzato, stepMs);
+      // Intervallo fisso al secondo intero esatto
+      timer = setInterval(aggiornaTimerSincronizzato, 1000);
     }
 
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [inEsecuzione, avviatoAlle, secondiBase, moltiplicatore, LIMITE_MASSIMO_CON_RECUPERO, offsetMinutiPartita, tempo, setSecondi]);
+  }, [inEsecuzione, avviatoAlle, secondiBase, LIMITE_MASSIMO_CON_RECUPERO, offsetMinutiPartita, tempo, setSecondi]);
 
   const formatNumero = (num) => String(Math.floor(num)).padStart(2, '0');
 
-  // Avanza il timer SENZA fermare l'esecuzione (con calcolo esatto intero in secondi)
+  // Avanza il timer SENZA fermare l'esecuzione (con calcolo esatto del delta in secondi)
   const avanzaSecondi = (secAggiuntivi) => {
     const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, Math.floor(secondiTrascorsi + secAggiuntivi));
     setSecondi(nuovo);
 
+    // Notifica ad App.jsx per aggiornare secondiBase e sincronizzare il DB senza stoppare
     if (onAvanzaTempoRef.current) {
       onAvanzaTempoRef.current(secAggiuntivi, nuovo);
     }
@@ -220,12 +201,6 @@ export default function Cronometro({
         </span>
 
         <div className="flex items-center gap-1.5 flex-wrap">
-          {moltiplicatore > 1 && (
-            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-bold font-mono animate-pulse flex items-center gap-1">
-              <FastForward className="w-3 h-3" /> {moltiplicatore}x
-            </span>
-          )}
-
           {recupero > 0 && (
             <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold">
               +{recupero}' Rec
@@ -245,29 +220,6 @@ export default function Cronometro({
         <p className="text-[11px] sm:text-xs text-slate-500 font-mono mt-1 uppercase font-semibold">
           Minuto Totale Gara: <strong className="text-emerald-400">{minutoTotalePartita}'</strong>
         </p>
-      </div>
-
-      {/* Selettore Velocità */}
-      <div className="flex flex-wrap items-center justify-between bg-slate-950 p-2 rounded-xl border border-slate-800 text-xs gap-2">
-        <span className="text-slate-400 font-bold flex items-center gap-1.5 pl-1 uppercase text-[11px]">
-          <Gauge className="w-4 h-4 text-emerald-400" /> Velocità:
-        </span>
-        <div className="flex gap-1 flex-wrap">
-          {[1, 2, 5, 10].map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => handleCambiaVelocita(v)}
-              className={`px-2.5 sm:px-3 py-1 rounded-lg font-bold font-mono transition text-xs ${
-                moltiplicatore === v
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              {v}x
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Controlli Principali */}
