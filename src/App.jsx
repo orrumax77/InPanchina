@@ -1001,12 +1001,14 @@ export default function App() {
       {faseApp === 'partita' && (
         <div className="max-w-2xl mx-auto space-y-5">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <button
-              onClick={() => setFaseApp('distinta')}
-              className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" /> Distinta
-            </button>
+            {(!inEsecuzione && secondiGara === 0 && eventi.length === 0) && (
+              <button
+                onClick={() => setFaseApp('distinta')}
+                className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" /> Distinta
+              </button>
+            )}
              
             <div className="flex items-center gap-2">
               <span className="bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider shadow">
