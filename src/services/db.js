@@ -57,7 +57,6 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
           numero: String(g.numero),
           nome: (g.nome || '').toUpperCase(),
           ruolo: g.ruolo || '',
-          // MANTENIAMO CORRETTAMENTE LO STATO DI CONVOCAZIONE SALVATO NEL JSON
           isConvocato: g.isConvocato ?? (index < 20),
           isTitolare: g.isTitolare ?? g.is_titolare ?? false,
           isCapitano: g.isCapitano ?? g.is_capitano ?? false,
@@ -214,10 +213,10 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
       annata: annata,
       numero: g.numero,
       nome: g.nome,
-      ruolo: '',
-      is_titolare: g.isTitolare,
-      is_capitano: g.isCapitano,
-      is_vice: g.isVice,
+      ruolo: g.ruolo || '',
+      is_titolare: g.isTitolare ?? false,
+      is_capitano: g.isCapitano ?? false,
+      is_vice: g.isVice ?? false,
       ammonizioni: g.ammonizioni || 0,
       espulso: g.espulso || false
     }));
@@ -349,7 +348,6 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
     dettagli: evento.dettagli
   }]);
 
-  // 🚀 Forza l'aggiornamento della partita per sincronizzare subito tutti i dispositivi
   if (partitaId) {
     await supabase.from('partite').update({ updated_at: new Date().toISOString() }).eq('id', partitaId);
   }
@@ -358,7 +356,6 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
 export async function eliminaEventoCloud(eventoId, partitaId) {
   await supabase.from('eventi').delete().eq('id', eventoId);
 
-  // 🚀 Notifica la cancellazione a tutti i dispositivi connessi tramite il canale partite
   if (partitaId) {
     await supabase.from('partite').update({ updated_at: new Date().toISOString() }).eq('id', partitaId);
   }
@@ -377,14 +374,20 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, ca
     annata: annata,
     numero: g.numero,
     nome: g.nome,
-    ruolo: '',
-    is_titolare: g.isTitolare,
-    is_capitano: g.isCapitano,
-    is_vice: g.isVice,
+    ruolo: g.ruolo || '',
+    is_titolare: g.isTitolare ?? false,
+    is_capitano: g.isCapitano ?? false,
+    is_vice: g.isVice ?? false,
     ammonizioni: g.ammonizioni || 0,
     espulso: g.espulso || false
   }));
+
   await supabase.from('giocatori').upsert(righe);
+
+  // 🚀 Forza anche l'aggiornamento del timestamp partita per sincronizzare i cambi rosa in tempo reale
+  if (partitaId) {
+    await supabase.from('partite').update({ updated_at: new Date().toISOString() }).eq('id', partitaId);
+  }
 }
 
 export async function salvaRosaBaseSocieta(societaId, giocatori, staff, campionato, annata) {
