@@ -341,23 +341,27 @@ export default function App() {
   };
 
   // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (CON SINCRONIZZAZIONE CARTELLINI)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (DISTINTA + LIVE + CARTELLINI)
   useEffect(() => {
     if (!partitaId) return;
 
     const channel = supabase
       .channel(`realtime-partita-${partitaId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partite', filter: `id=eq.${partitaId}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'partite', filter: `id=eq.${partitaId}` }, async (payload) => {
         const p = payload.new;
-        setGolCasa(p.gol_casa);
-        setGolOspiti(p.gol_ospite);
-        setTempoGara(p.tempo);
-        setRecupero(p.recupero);
-        setMinutoCorrente(p.minuto_corrente);
-        setSlotUsati(p.slot_usati);
-        setCambiEffettuati(p.cambi_effettuati);
+        if (!p) return;
 
-        setInEsecuzione(p.in_esecuzione);
-        setAvviatoAlle(p.avviato_alle);
+        // Aggiorna gli stati di gara in tempo reale
+        setGolCasa(p.gol_casa || 0);
+        setGolOspiti(p.gol_ospite || 0);
+        setTempoGara(p.tempo || 1);
+        setRecupero(p.recupero || 0);
+        setMinutoCorrente(p.minuto_corrente || 1);
+        setSlotUsati(p.slot_usati || 0);
+        setCambiEffettuati(p.cambi_effettuati || 0);
+
+        setInEsecuzione(p.in_esecuzione || false);
+        setAvviatoAlle(p.avviato_alle || null);
         setSecondiBase(p.secondi_gara || 0);
 
         if (p.in_esecuzione && p.avviato_alle) {
@@ -365,6 +369,22 @@ export default function App() {
           setSecondiGara((p.secondi_gara || 0) + trascorsi);
         } else {
           setSecondiGara(p.secondi_gara || 0);
+        }
+
+        // 🚀 SE UN DISPOSITIVO CONFERMA LA DISTINTA O AVVIA IL LIVE, CAMBIA AUTOMATICA FASE SU TUTTI I DISPOSITIVI
+        if (p.squadra_casa && p.squadra_ospite) {
+          setPartitaInfo(prev => ({
+            ...(prev || {}),
+            squadraCasa: p.squadra_casa,
+            squadraOspite: p.squadra_ospite,
+            allenatore: p.allenatore || prev?.allenatore || '',
+            dirigente: p.dirigente || prev?.dirigente || '',
+            dataPartita: p.data_gara || prev?.dataPartita || '',
+            isNostraCasa: p.is_nostra_casa ?? (prev?.isNostraCasa ?? true)
+          }));
+
+          // Se ci troviamo ancora nella schermata distinta, passiamo automaticamente alla schermata partita
+          setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'eventi', filter: `partita_id=eq.${partitaId}` }, async () => {
@@ -421,7 +441,7 @@ export default function App() {
       supabase.removeChannel(channel);
     };
   }, [partitaId, societaAttiva?.id, stagioneSelezionata, annataSelezionata]);
-
+  
   const avviaTimer = () => {
     const adessoISO = new Date().toISOString();
     setInEsecuzione(true);
