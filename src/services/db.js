@@ -346,7 +346,7 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
     minuto: evento.minuto,
     tempo: evento.tempo,
     tipo: evento.tipo,
-    dettagli: evento.dettagli // <- CORRETTO: allineato alla colonna 'dettagli' del DB
+    dettagli: evento.dettagli // <- Corretto e allineato alla colonna del DB
   }]);
 }
 
