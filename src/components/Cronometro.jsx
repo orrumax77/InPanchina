@@ -64,11 +64,11 @@ export default function Cronometro({
   secondi,
   setSecondi,
   inEsecuzione,
-  avviatoAlle,      // Timestamp ISO assoluto di avvio condiviso da Supabase
-  secondiBase,      // Secondi accumulati prima dell'ultimo avvio
+  avviatoAlle,       // Timestamp ISO assoluto di avvio condiviso da Supabase
+  secondiBase,       // Secondi accumulati prima dell'ultimo avvio
   onAvvia,
   onPausa,
-  onAvanzaTempo,    // Notifica ad App.jsx per l'avanzamento senza fermare il timer
+  onAvanzaTempo,     // Notifica ad App.jsx per l'avanzamento senza fermare il timer
   onFinePrimoTempo,
   onFinePartita,
   recupero,
@@ -118,6 +118,26 @@ export default function Cronometro({
     }
   }, [tempoScaduto, recupero]);
 
+  // GESTIONE CAMBIO VELOCITÀ SENZA SBALZI (CHECKPOINT TEMPORALE)
+  const handleCambiaVelocita = (nuovaVelocita) => {
+    if (nuovaVelocita === moltiplicatore) return;
+
+    if (inEsecuzione && avviatoAlle) {
+      // 1. Calcoliamo i secondi esatti accumulati con la vecchia velocità fino a questo millisecondo
+      const startMs = new Date(avviatoAlle).getTime();
+      const nowMs = Date.now();
+      const diffSecondiReali = Math.max(0, (nowMs - startMs) / 1000);
+      const secondiAccumulatiFinoAdOra = (secondiBase || 0) + (diffSecondiReali * moltiplicatore);
+
+      // 2. Aggiorniamo il database/stato comunicando i secondi attuali e resettando la base e il timestamp
+      if (onAvanzaTempoRef.current) {
+        onAvanzaTempoRef.current(0, Math.floor(secondiAccumulatiFinoAdOra));
+      }
+    }
+
+    setMoltiplicatore(nuovaVelocita);
+  };
+
   // SINCRONIZZAZIONE AL MILLISECONDO TRAMITE TIMESTAMP ASSOLUTO CONDIVISO
   useEffect(() => {
     let timer = null;
@@ -126,7 +146,7 @@ export default function Cronometro({
       const aggiornaTimerSincronizzato = () => {
         const startMs = new Date(avviatoAlle).getTime();
         const nowMs = Date.now();
-        const diffSecondiReali = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+        const diffSecondiReali = Math.max(0, (nowMs - startMs) / 1000);
 
         const tempoCalcolato = Math.min(
           LIMITE_MASSIMO_CON_RECUPERO,
@@ -239,7 +259,7 @@ export default function Cronometro({
             <button
               key={v}
               type="button"
-              onClick={() => setMoltiplicatore(v)}
+              onClick={() => handleCambiaVelocita(v)}
               className={`px-3 py-1 rounded-lg font-bold font-mono transition text-xs ${
                 moltiplicatore === v
                   ? 'bg-emerald-600 text-white shadow-sm'
