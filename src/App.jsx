@@ -342,7 +342,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO STABILE (PARTITA + EVENTI + CARTELLINI)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO STABILE (PARTITA + EVENTI + CARTELLINI + ROSA)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -385,7 +385,7 @@ export default function App() {
           setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
 
-        // Sincronizzazione automatica e immediata di tutti gli eventi, gol e cartellini
+        // Sincronizzazione automatica e immediata di tutti gli eventi, gol, cartellini e stato rosa
         const stato = await caricaStatoPartita(partitaId);
         if (stato && stato.eventi) {
           const eventiAggiornati = stato.eventi;
@@ -430,6 +430,22 @@ export default function App() {
             }
 
             return rosaAggiornata;
+          });
+        }
+
+        // Sincronizza anche la rosa dal database per riflettere le sostituzioni in tempo reale
+        const rosaDbAggiornata = await caricaRosaSocieta(societaAttiva?.id, stagioneSelezionata, annataSelezionata);
+        if (rosaDbAggiornata && rosaDbAggiornata.length > 0) {
+          setRosa(prevRosa => {
+            return rosaDbAggiornata.map(gDb => {
+              const liveMatch = prevRosa.find(g => g.id === gDb.id);
+              return liveMatch ? { 
+                ...gDb, 
+                isTitolare: liveMatch.isTitolare, 
+                ammonizioni: liveMatch.ammonizioni, 
+                espulso: liveMatch.espulso 
+              } : gDb;
+            });
           });
         }
       })
@@ -600,12 +616,12 @@ export default function App() {
     await registraEventoCloud(partitaId, evento, stagioneSelezionata, annataSelezionata);
   };
 
-  const handleAggiornaCambiSlot = async (nuoviCambi, nuoviSlot) => {
+  const handleAggiornaCambiSlot = async (nuoviCambi, nuevosSlot) => {
     setCambiEffettuati(nuoviCambi);
-    setSlotUsati(nuoviSlot);
+    setSlotUsati(nuevosSlot);
 
     await syncStatoLive({
-      slotUsati: nuoviSlot,
+      slotUsati: nuevosSlot,
       cambiEffettuati: nuoviCambi
     });
   };
@@ -648,7 +664,7 @@ export default function App() {
         if (giocatoriCoinvolti.length >= 2) {
           const idxEsce = eventoDaEliminare.dettagli.indexOf('Esce');
           const idxEntra = eventoDaEliminare.dettagli.indexOf('Entra');
-           
+          
           let candidatoEsce = null;
           let candidatoEntra = null;
           let minDistanzaEsce = 999;
@@ -736,7 +752,6 @@ export default function App() {
       }
     }
       
-    // 🚀 AGGIUNTO IL SECONDO PARAMETRO partitaId PER FORZARE IL SYNC SULLA CANCELLAZIONE
     await eliminaEventoCloud(id, partitaId);
     setEventi(eventiRimasti);
   };
@@ -1203,7 +1218,6 @@ export default function App() {
               >
                 + Aggiungi 1 Minuto di Recupero Extra
               </button>
-            </div>
           </div>
         </div>
       )}
