@@ -188,6 +188,7 @@ export default function App() {
     
     const partitaDB = stato?.partita;
 
+    // 🚀 RICONOSCE SE LA DISTINTA È STATA CONFERMATA O IL LIVE È IN CORSO
     const isLiveInCorso = partitaDB && (
       partitaDB.in_esecuzione === true || 
       (partitaDB.secondi_gara !== undefined && partitaDB.secondi_gara > 0) || 
@@ -196,7 +197,8 @@ export default function App() {
       partitaDB.slot_usati > 0 ||
       partitaDB.cambi_effettuati > 0 ||
       partitaDB.gol_casa > 0 ||
-      partitaDB.gol_ospite > 0
+      partitaDB.gol_ospite > 0 ||
+      (partitaDB.squadra_ospite && partitaDB.squadra_ospite.trim() !== '')
     );
 
     if (isLiveInCorso) {
@@ -340,7 +342,6 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (CON SINCRONIZZAZIONE CARTELLINI)
   // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (DISTINTA + LIVE + CARTELLINI)
   useEffect(() => {
     if (!partitaId) return;
