@@ -342,7 +342,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (PARTITA + EVENTI + CARTELLINI + ELIMINAZIONI)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO STABILE (PARTITA + EVENTI + CARTELLINI)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -384,65 +384,53 @@ export default function App() {
 
           setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'eventi' }, async (payload) => {
-        // 🚀 GESTISCE IN TEMPO REALE QUALSIASI MODIFICA O CANCELLAZIONE SULLA TABELLA EVENTI
-        const eventoInteressato = payload.new || payload.old;
-        if (eventoInteressato && (eventoInteressato.partita_id === partitaId)) {
-          const stato = await caricaStatoPartita(partitaId);
-          if (stato) {
-            if (stato.eventi) {
-              const eventiAggiornati = stato.eventi;
-              setEventi(eventiAggiornati);
 
-              // Ricalcolo immediato di rosa e cartellini
-              setRosa(prevRosa => {
-                const rosaAggiornata = prevRosa.map(g => {
-                  const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
-                    e.tipo === 'AMMONIZIONE' && (
-                      e.giocatoreId === g.id || 
-                      (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                    )
-                  ).length;
+        // Sincronizzazione automatica e immediata di tutti gli eventi, gol e cartellini
+        const stato = await caricaStatoPartita(partitaId);
+        if (stato && stato.eventi) {
+          const eventiAggiornati = stato.eventi;
+          setEventi(eventiAggiornati);
 
-                  const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
-                    e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                      e.giocatoreId === g.id || 
-                      (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                    )
-                  ).length;
+          setRosa(prevRosa => {
+            const rosaAggiornata = prevRosa.map(g => {
+              const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
+                e.tipo === 'AMMONIZIONE' && (
+                  e.giocatoreId === g.id || 
+                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                )
+              ).length;
 
-                  const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
-                    e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                      e.giocatoreId === g.id || 
-                      (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                    )
-                  ).length;
+              const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
+                e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
+                  e.giocatoreId === g.id || 
+                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                )
+              ).length;
 
-                  const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
-                  const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
+              const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
+                e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
+                  e.giocatoreId === g.id || 
+                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                )
+              ).length;
 
-                  return {
-                    ...g,
-                    ammonizioni: totaleGialliEffettivi,
-                    espulso: ancoraEspulso,
-                    isTitolare: ancoraEspulso ? false : (g.isTitolare ?? true)
-                  };
-                });
+              const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
+              const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
 
-                if (societaAttiva?.id) {
-                  aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornata, stagioneSelezionata, annataSelezionata);
-                }
+              return {
+                ...g,
+                ammonizioni: totaleGialliEffettivi,
+                espulso: ancoraEspulso,
+                isTitolare: ancoraEspulso ? false : (g.isTitolare ?? true)
+              };
+            });
 
-                return rosaAggiornata;
-              });
+            if (societaAttiva?.id) {
+              aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornata, stagioneSelezionata, annataSelezionata);
             }
 
-            if (stato.partita) {
-              setGolCasa(stato.partita.gol_casa || 0);
-              setGolOspiti(stato.partita.gol_ospite || 0);
-            }
-          }
+            return rosaAggiornata;
+          });
         }
       })
       .subscribe();
@@ -660,7 +648,7 @@ export default function App() {
         if (giocatoriCoinvolti.length >= 2) {
           const idxEsce = eventoDaEliminare.dettagli.indexOf('Esce');
           const idxEntra = eventoDaEliminare.dettagli.indexOf('Entra');
-           
+          
           let candidatoEsce = null;
           let candidatoEntra = null;
           let minDistanzaEsce = 999;
@@ -750,6 +738,19 @@ export default function App() {
       
     await eliminaEventoCloud(id);
     setEventi(eventiRimasti);
+
+    // 🚀 FORZA L'AGGIORNAMENTO DEL TIMESTAMP SUL DB ANCHE SULLA CANCELLAZIONE
+    await syncStatoPartitaSuDb(partitaId, {
+      golCasa,
+      golOspiti,
+      tempoGara,
+      secondiGara,
+      inEsecuzione,
+      recupero,
+      minutoCorrente,
+      slotUsati,
+      cambiEffettuati
+    });
   };
     
   const handleAggiornaRosa = async (nuovaRosa) => {
@@ -1214,7 +1215,6 @@ export default function App() {
               >
                 + Aggiungi 1 Minuto di Recupero Extra
               </button>
-            </div>
           </div>
         </div>
       )}
