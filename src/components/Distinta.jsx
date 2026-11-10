@@ -129,7 +129,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       const formattati = rosaDaCaricare.map((g, index) => ({
         ...g,
         nome: (g.nome || '').toUpperCase(),
-        // Se non specificato diversamente, i primi 20 sono convocati di default, ma senza bloccare se sono di più
         isConvocato: g.isConvocato ?? (index < 20)
       }));
       setGiocatori(ordinaPerNumeroMaglia(formattati));
@@ -238,6 +237,12 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     if (!target) return;
 
     const nuovoStatoConvocato = !target.isConvocato;
+
+    // BLOCCO RIGIDO: Se sta tentando di convocare e ha già 20 giocatori, blocca e avvisa
+    if (nuovoStatoConvocato && convocatiCount >= 20) {
+      alert("Non puoi convocare più di 20 giocatori! Il limite massimo consentito è 20.");
+      return;
+    }
      
     const nuovaLista = giocatori.map(g => {
       if (g.id === id) {
@@ -348,7 +353,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       numero: numeroScelto,
       nome: nuovoNome.trim().toUpperCase(),
       ruolo: '',
-      isConvocato: true, // I nuovi inseriti partono convocati di default per comodità
+      isConvocato: convocatiCount < 20, // Convocato solo se non abbiamo già raggiunto il limite di 20
       isTitolare: false,
       isCapitano: false,
       isVice: false
@@ -437,6 +442,10 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   const handleConferma = () => {
     if (!partitaInfo.squadraCasa.trim() || !partitaInfo.squadraOspite.trim()) {
       alert("Inserisci il nome di entrambe le squadre!");
+      return;
+    }
+    if (convocatiCount > 20) {
+      alert("Non puoi avviare la live con più di 20 convocati!");
       return;
     }
     if (titolariCount !== 11) {
@@ -718,11 +727,11 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
             <h2 className="text-base sm:text-lg font-bold flex items-center gap-2 uppercase">
               <Users className="w-5 h-5 text-blue-400" /> Rosa Giocatori ({giocatoriOrdinati.length})
             </h2>
-            <p className="text-[11px] text-emerald-400 mt-0.5">● Seleziona chi convocare e schiera esattamente 11 titolari</p>
+            <p className="text-[11px] text-emerald-400 mt-0.5">● Massimo 20 convocati (di cui 11 titolari), gli altri in tribuna</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase bg-blue-500/20 text-blue-300 border border-blue-500/30">
-              Convocati: {convocatiCount}
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${convocatiCount <= 20 ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+              Convocati: {convocatiCount} / 20
             </span>
             <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${titolariCount === 11 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
               Titolari: {titolariCount} / 11
@@ -896,17 +905,19 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       <div className="pt-2">
         <button
           onClick={handleConferma}
-          disabled={titolariCount !== 11}
+          disabled={convocatiCount > 20 || titolariCount !== 11}
           className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider flex justify-center items-center gap-2 transition ${
-            titolariCount === 11 
+            convocatiCount <= 20 && titolariCount === 11 
               ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-lg shadow-emerald-950'
               : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
           }`}
         >
           <UserCheck className="w-5 h-5" />
-          {titolariCount === 11 
+          {convocatiCount <= 20 && titolariCount === 11 
             ? 'Conferma e Avvia Live' 
-            : `Seleziona esattamente 11 titolari (ora: ${titolariCount})`}
+            : convocatiCount > 20 
+              ? `Troppi convocati (${convocatiCount}/20 max)`
+              : `Seleziona esattamente 11 titolari (ora: ${titolariCount})`}
         </button>
       </div>
     </div>
