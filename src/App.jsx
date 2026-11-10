@@ -648,7 +648,7 @@ export default function App() {
         if (giocatoriCoinvolti.length >= 2) {
           const idxEsce = eventoDaEliminare.dettagli.indexOf('Esce');
           const idxEntra = eventoDaEliminare.dettagli.indexOf('Entra');
-          
+           
           let candidatoEsce = null;
           let candidatoEntra = null;
           let minDistanzaEsce = 999;
@@ -1215,6 +1215,7 @@ export default function App() {
               >
                 + Aggiungi 1 Minuto di Recupero Extra
               </button>
+            </div>
           </div>
         </div>
       )}
