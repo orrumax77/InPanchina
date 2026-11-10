@@ -736,21 +736,9 @@ export default function App() {
       }
     }
       
-    await eliminaEventoCloud(id);
+    // 🚀 AGGIUNTO IL SECONDO PARAMETRO partitaId PER FORZARE IL SYNC SULLA CANCELLAZIONE
+    await eliminaEventoCloud(id, partitaId);
     setEventi(eventiRimasti);
-
-    // 🚀 FORZA L'AGGIORNAMENTO DEL TIMESTAMP SUL DB ANCHE SULLA CANCELLAZIONE
-    await syncStatoPartitaSuDb(partitaId, {
-      golCasa,
-      golOspiti,
-      tempoGara,
-      secondiGara,
-      inEsecuzione,
-      recupero,
-      minutoCorrente,
-      slotUsati,
-      cambiEffettuati
-    });
   };
     
   const handleAggiornaRosa = async (nuovaRosa) => {
@@ -1168,7 +1156,7 @@ export default function App() {
       )}
 
       {modaleBloccoTempo && (
-        <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[99999] select-none">
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[9999] select-none">
           <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-rose-950">
             <div className="w-20 h-20 mx-auto rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center text-rose-400 animate-pulse">
               <AlertOctagon className="w-10 h-10" />
