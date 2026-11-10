@@ -193,7 +193,6 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
 
-    // 🚀 UPSERT CON AGGIORNAMENTO DI updated_at PER FORZARE IL REALTIME SU TUTTI I DISPOSITIVI
     await supabase.from('partite').upsert({
       id: partitaId,
       societa_id: societaId,
@@ -347,7 +346,7 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
     minuto: evento.minuto,
     tempo: evento.tempo,
     tipo: evento.tipo,
-    details: evento.dettagli
+    dettagli: evento.dettagli // <- CORRETTO: allineato alla colonna 'dettagli' del DB
   }]);
 }
 
