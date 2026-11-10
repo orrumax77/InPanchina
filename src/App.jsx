@@ -342,7 +342,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (DISTINTA + LIVE + CARTELLINI)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (PARTITA + EVENTI + CARTELLINI + CRONOLOGIA)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -352,7 +352,6 @@ export default function App() {
         const p = payload.new;
         if (!p) return;
 
-        // Aggiorna gli stati di gara in tempo reale
         setGolCasa(p.gol_casa || 0);
         setGolOspiti(p.gol_ospite || 0);
         setTempoGara(p.tempo || 1);
@@ -372,7 +371,6 @@ export default function App() {
           setSecondiGara(p.secondi_gara || 0);
         }
 
-        // 🚀 SE UN DISPOSITIVO CONFERMA LA DISTINTA O AVVIA IL LIVE, CAMBIA AUTOMATICA FASE SU TUTTI I DISPOSITIVI
         if (p.squadra_casa && p.squadra_ospite) {
           setPartitaInfo(prev => ({
             ...(prev || {}),
@@ -384,7 +382,6 @@ export default function App() {
             isNostraCasa: p.is_nostra_casa ?? (prev?.isNostraCasa ?? true)
           }));
 
-          // Se ci troviamo ancora nella schermata distinta, passiamo automaticamente alla schermata partita
           setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
       })
@@ -394,6 +391,7 @@ export default function App() {
           const eventiAggiornati = stato.eventi;
           setEventi(eventiAggiornati);
 
+          // Ricalcolo automatico dei cartellini su tutti i dispositivi connessi
           setRosa(prevRosa => {
             const rosaAggiornata = prevRosa.map(g => {
               const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
