@@ -342,7 +342,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (PARTITA + EVENTI + CARTELLINI + CRONOLOGIA)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (PARTITA + EVENTI + CARTELLINI)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -385,53 +385,57 @@ export default function App() {
           setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'eventi', filter: `partita_id=eq.${partitaId}` }, async () => {
-        const stato = await caricaStatoPartita(partitaId);
-        if (stato && stato.eventi) {
-          const eventiAggiornati = stato.eventi;
-          setEventi(eventiAggiornati);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'eventi' }, async (payload) => {
+        // 🚀 FILTRIAMO L'EVENTO DIRETTAMENTE LATO CLIENT PER EVITARE BLOCCHI DI SUPABASE REALTIME
+        const eventoArrivato = payload.new || payload.old;
+        if (eventoArrivato && eventoArrivato.partita_id === partitaId) {
+          const stato = await caricaStatoPartita(partitaId);
+          if (stato && stato.eventi) {
+            const eventiAggiornati = stato.eventi;
+            setEventi(eventiAggiornati);
 
-          // Ricalcolo automatico dei cartellini su tutti i dispositivi connessi
-          setRosa(prevRosa => {
-            const rosaAggiornata = prevRosa.map(g => {
-              const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
-                e.tipo === 'AMMONIZIONE' && (
-                  e.giocatoreId === g.id || 
-                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                )
-              ).length;
+            // Ricalcolo automatico dei cartellini e della rosa
+            setRosa(prevRosa => {
+              const rosaAggiornata = prevRosa.map(g => {
+                const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
+                  e.tipo === 'AMMONIZIONE' && (
+                    e.giocatoreId === g.id || 
+                    (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                  )
+                ).length;
 
-              const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
-                e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                  e.giocatoreId === g.id || 
-                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                )
-              ).length;
+                const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
+                  e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
+                    e.giocatoreId === g.id || 
+                    (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                  )
+                ).length;
 
-              const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
-                e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                  e.giocatoreId === g.id || 
-                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                )
-              ).length;
+                const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
+                  e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
+                    e.giocatoreId === g.id || 
+                    (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                  )
+                ).length;
 
-              const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
-              const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
+                const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
+                const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
 
-              return {
-                ...g,
-                ammonizioni: totaleGialliEffettivi,
-                espulso: ancoraEspulso,
-                isTitolare: ancoraEspulso ? false : (g.isTitolare ?? true)
-              };
+                return {
+                  ...g,
+                  ammonizioni: totaleGialliEffettivi,
+                  espulso: ancoraEspulso,
+                  isTitolare: ancoraEspulso ? false : (g.isTitolare ?? true)
+                };
+              });
+
+              if (societaAttiva?.id) {
+                aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornata, stagioneSelezionata, annataSelezionata);
+              }
+
+              return rosaAggiornata;
             });
-
-            if (societaAttiva?.id) {
-              aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornata, stagioneSelezionata, annataSelezionata);
-            }
-
-            return rosaAggiornata;
-          });
+          }
         }
       })
       .subscribe();
