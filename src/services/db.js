@@ -112,7 +112,8 @@ export async function dbAggiungiGiocatore(societaId, giocatore, campionato, anna
       squadra_casa: societaId,
       campionato: campionato,
       annata: annata,
-      stato: 'bozza'
+      stato: 'bozza',
+      updated_at: new Date().toISOString()
     }, { onConflict: 'id' });
 
     const riga = {
@@ -159,7 +160,6 @@ export async function dbModificaGiocatore(societaId, giocatore, campionato, anna
       espulso: giocatore.espulso || false
     };
 
-    // Usiamo upsert così se il giocatore non è ancora nella tabella viene creato, altrimenti viene aggiornato
     const { error } = await supabase
       .from('giocatori')
       .upsert(payload, { onConflict: 'id' });
@@ -171,6 +171,7 @@ export async function dbModificaGiocatore(societaId, giocatore, campionato, anna
     console.error('Errore dbModificaGiocatore:', err);
   }
 }
+
 export async function dbEliminaGiocatore(societaId, giocatoreId, campionato, annata) {
   if (!societaId || !giocatoreId || !campionato || !annata) return;
   try {
@@ -192,6 +193,7 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
 
+    // 🚀 UPSERT CON AGGIORNAMENTO DI updated_at PER FORZARE IL REALTIME SU TUTTI I DISPOSITIVI
     await supabase.from('partite').upsert({
       id: partitaId,
       societa_id: societaId,
@@ -201,7 +203,8 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
       is_nostra_casa: partitaInfo.isNostraCasa ?? true,
       campionato: campionato,
       annata: annata,
-      stato: 'in-corso'
+      stato: 'in-corso',
+      updated_at: new Date().toISOString()
     });
 
     const righeGiocatori = giocatori.map((g) => ({
@@ -291,7 +294,8 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, c
           is_nostra_casa: partitaInfo.isNostraCasa ?? true,
           campionato: campionato,
           annata: annata,
-          stato: 'bozza'
+          stato: 'bozza',
+          updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       } catch (errP) {
         console.warn('Avviso bozza partita:', errP);
@@ -327,7 +331,7 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
     minuto_corrente: dati.minutoCorrente,
     slot_usati: dati.slotUsati,
     cambi_effettuati: dati.cambiEffettuati,
-    updated_at: new Date().toISOString() // <-- Forza la notifica Realtime immediata a tutti i dispositivi
+    updated_at: new Date().toISOString()
   };
 
   await supabase.from('partite').update(updateData).eq('id', partitaId);
@@ -343,7 +347,7 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
     minuto: evento.minuto,
     tempo: evento.tempo,
     tipo: evento.tipo,
-    dettagli: evento.dettagli
+    details: evento.dettagli
   }]);
 }
 
@@ -450,7 +454,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Salvataggio della partita nello storico con TUTTI i campi dello staff inclusi
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -465,7 +468,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       referto_eventi: eventi,
       referto_giocatori: giocatori,
       terminata_il: new Date().toISOString(),
-      // CAMPI DELLO STAFF TECNICO & DIRIGENZIALE
       allenatore: partitaInfo.allenatore || '',
       allenatore_seconda: partitaInfo.allenatoreSeconda || '',
       dirigente: partitaInfo.dirigente || '',
@@ -482,7 +484,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       .update({ partita_id: storicoId })
       .eq('partita_id', livePartitaId);
 
-    // 2. Reset totale della partita live in corso (Svuota la squadra ospite)
     await supabase.from('partite').update({
       squadra_ospite: '',
       gol_casa: 0,
@@ -496,10 +497,10 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       slot_usati: 0,
       cambi_effettuati: 0,
       stato: 'bozza',
-      data_gara: new Date().toISOString().split('T')[0]
+      data_gara: new Date().toISOString().split('T')[0],
+      updated_at: new Date().toISOString()
     }).eq('id', livePartitaId);
 
-    // 3. PULIZIA DELLA SQUADRA OSPITE ANCHE NELLA BOZZA STAFF DELLA SOCIETÀ
     const { data: socCorrente } = await supabase
       .from('societa')
       .select('staff_base')
@@ -518,7 +519,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       await supabase.from('societa').update({ staff_base: staffMap }).eq('id', societaId);
     }
 
-    // 4. Ripristino della rosa completa pulendo i cartellini
     const { data: socData } = await supabase
       .from('societa')
       .select('rosa_base')
@@ -596,14 +596,12 @@ export async function loginSistema(username, password, campionatoSelezionato) {
     };
   }
 
-  // Eseguiamo la query filtrando direttamente per username, password e il campo 'campionato'
   let query = supabase
     .from('utenti_panchina')
     .select('*, societa(*)')
     .eq('username', u)
     .eq('password_chiaro', p);
 
-  // Se è stato passato un campionato, lo filtriamo
   if (campionatoScelto) {
     query = query.eq('campionato', campionatoScelto);
   }
