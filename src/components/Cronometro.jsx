@@ -123,22 +123,20 @@ export default function Cronometro({
     if (nuovaVelocita === moltiplicatore) return;
 
     if (inEsecuzione && avviatoAlle) {
-      // 1. Calcoliamo i secondi esatti accumulati con la vecchia velocità fino a questo millisecondo
       const startMs = new Date(avviatoAlle).getTime();
       const nowMs = Date.now();
       const diffSecondiReali = Math.max(0, (nowMs - startMs) / 1000);
-      const secondiAccumulatiFinoAdOra = (secondiBase || 0) + (diffSecondiReali * moltiplicatore);
+      const secondiAccumulatiFinoAdOra = Math.floor((secondiBase || 0) + (diffSecondiReali * moltiplicatore));
 
-      // 2. Aggiorniamo il database/stato comunicando i secondi attuali e resettando la base e il timestamp
       if (onAvanzaTempoRef.current) {
-        onAvanzaTempoRef.current(0, Math.floor(secondiAccumulatiFinoAdOra));
+        onAvanzaTempoRef.current(0, secondiAccumulatiFinoAdOra);
       }
     }
 
     setMoltiplicatore(nuovaVelocita);
   };
 
-  // SINCRONIZZAZIONE AL MILLISECONDO TRAMITE TIMESTAMP ASSOLUTO CONDIVISO
+  // SINCRONIZZAZIONE AL SECONDO INTERO TRAMITE TIMESTAMP ASSOLUTO CONDIVISO
   useEffect(() => {
     let timer = null;
 
@@ -146,11 +144,12 @@ export default function Cronometro({
       const aggiornaTimerSincronizzato = () => {
         const startMs = new Date(avviatoAlle).getTime();
         const nowMs = Date.now();
-        const diffSecondiReali = Math.max(0, (nowMs - startMs) / 1000);
+        const diffSecondiReali = Math.max(0, Math.floor((nowMs - startMs) / 1000));
 
+        // ARROTONDAMENTO A NUMERO INTERO CON Math.floor PER EVITARE MILLISECONDI
         const tempoCalcolato = Math.min(
           LIMITE_MASSIMO_CON_RECUPERO,
-          (secondiBase || 0) + (diffSecondiReali * moltiplicatore)
+          Math.floor((secondiBase || 0) + (diffSecondiReali * moltiplicatore))
         );
 
         setSecondi(tempoCalcolato);
@@ -179,14 +178,13 @@ export default function Cronometro({
     };
   }, [inEsecuzione, avviatoAlle, secondiBase, moltiplicatore, LIMITE_MASSIMO_CON_RECUPERO, offsetMinutiPartita, tempo, setSecondi]);
 
-  const formatNumero = (num) => String(num).padStart(2, '0');
+  const formatNumero = (num) => String(Math.floor(num)).padStart(2, '0');
 
-  // Avanza il timer SENZA fermare l'esecuzione (con calcolo esatto del delta in secondi)
+  // Avanza il timer SENZA fermare l'esecuzione (con calcolo esatto intero in secondi)
   const avanzaSecondi = (secAggiuntivi) => {
-    const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, secondiTrascorsi + secAggiuntivi);
+    const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, Math.floor(secondiTrascorsi + secAggiuntivi));
     setSecondi(nuovo);
 
-    // Notifica ad App.jsx per aggiornare secondiBase e sincronizzare il DB senza stoppare
     if (onAvanzaTempoRef.current) {
       onAvanzaTempoRef.current(secAggiuntivi, nuovo);
     }
@@ -213,54 +211,54 @@ export default function Cronometro({
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl text-center space-y-4 relative">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl text-center space-y-3 sm:space-y-4 relative w-full overflow-hidden">
       {/* Intestazione Cronometro */}
-      <div className="flex justify-between items-center text-sm font-semibold tracking-wider uppercase text-slate-400">
-        <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
-          <Clock className="w-4 h-4" />
-          {tempo === 1 ? '1° Tempo (00:00 ➔ 45:00)' : '2° Tempo (00:00 ➔ 45:00)'}
+      <div className="flex flex-wrap justify-between items-center gap-2 text-xs sm:text-sm font-semibold tracking-wider uppercase text-slate-400">
+        <span className="flex items-center gap-1.5 text-emerald-400 font-bold truncate">
+          <Clock className="w-4 h-4 flex-shrink-0" />
+          <span className="truncate">{tempo === 1 ? '1° Tempo (00:00 ➔ 45:00)' : '2° Tempo (00:00 ➔ 45:00)'}</span>
         </span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {moltiplicatore > 1 && (
-            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full text-xs font-bold font-mono animate-pulse flex items-center gap-1">
+            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-bold font-mono animate-pulse flex items-center gap-1">
               <FastForward className="w-3 h-3" /> {moltiplicatore}x
             </span>
           )}
 
           {recupero > 0 && (
-            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-xs font-bold">
-              +{recupero}' Recupero
+            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold">
+              +{recupero}' Rec
             </span>
           )}
         </div>
       </div>
 
-      {/* Cifre del Timer */}
+      {/* Cifre del Timer (Intere, senza millisecondi) */}
       <div className="py-1 select-none">
-        <div className={`font-mono text-6xl md:text-7xl font-black tracking-tight ${
+        <div className={`font-mono text-5xl sm:text-6xl md:text-7xl font-black tracking-tight ${
           tempoScaduto ? 'text-rose-400' : 'text-white'
         }`}>
           {formatNumero(minutiTempo)}:{formatNumero(secondiTempo)}
         </div>
 
-        <p className="text-xs text-slate-500 font-mono mt-1 uppercase font-semibold">
+        <p className="text-[11px] sm:text-xs text-slate-500 font-mono mt-1 uppercase font-semibold">
           Minuto Totale Gara: <strong className="text-emerald-400">{minutoTotalePartita}'</strong>
         </p>
       </div>
 
       {/* Selettore Velocità */}
-      <div className="flex items-center justify-between bg-slate-950 p-2 rounded-xl border border-slate-800 text-xs">
+      <div className="flex flex-wrap items-center justify-between bg-slate-950 p-2 rounded-xl border border-slate-800 text-xs gap-2">
         <span className="text-slate-400 font-bold flex items-center gap-1.5 pl-1 uppercase text-[11px]">
           <Gauge className="w-4 h-4 text-emerald-400" /> Velocità:
         </span>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1 flex-wrap">
           {[1, 2, 5, 10].map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => handleCambiaVelocita(v)}
-              className={`px-3 py-1 rounded-lg font-bold font-mono transition text-xs ${
+              className={`px-2.5 sm:px-3 py-1 rounded-lg font-bold font-mono transition text-xs ${
                 moltiplicatore === v
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
@@ -278,32 +276,32 @@ export default function Cronometro({
           <button
             type="button"
             onClick={() => onPausa()}
-            className="bg-amber-600 hover:bg-amber-500 text-white py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-base col-span-2 shadow-lg shadow-amber-950/40 uppercase cursor-pointer"
+            className="bg-amber-600 hover:bg-amber-500 text-white py-3 px-3 sm:px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-sm sm:text-base col-span-2 shadow-lg shadow-amber-950/40 uppercase cursor-pointer"
           >
-            <Pause className="w-5 h-5 fill-current" /> Stoppa
+            <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-current" /> Stoppa
           </button>
         ) : (
           <button
             type="button"
             onClick={onAvvia}
             disabled={tempoScaduto}
-            className={`py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-base col-span-2 uppercase shadow-lg ${
+            className={`py-3 px-3 sm:px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition text-sm sm:text-base col-span-2 uppercase shadow-lg ${
               tempoScaduto
                 ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                 : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950 cursor-pointer'
             }`}
           >
-            <Play className="w-5 h-5 fill-current" /> Avvia
+            <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current" /> Avvia
           </button>
         )}
 
         <button
           type="button"
           onClick={() => setRecupero((prev) => prev + 1)}
-          className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-3 rounded-xl font-bold flex items-center justify-center gap-1 text-sm uppercase cursor-pointer"
+          className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-3 px-2 rounded-xl font-bold flex items-center justify-center gap-1 text-xs sm:text-sm uppercase cursor-pointer whitespace-nowrap"
           title="Aggiungi 1 minuto di recupero alla frazione"
         >
-          <Plus className="w-4 h-4" /> 1' Rec
+          <Plus className="w-3.5 h-3.5" /> 1' Rec
         </button>
       </div>
 
@@ -313,18 +311,18 @@ export default function Cronometro({
           type="button"
           onClick={() => avanzaSecondi(60)}
           disabled={tempoScaduto}
-          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase cursor-pointer"
+          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase cursor-pointer"
         >
-          <FastForward className="w-3.5 h-3.5 text-blue-400" /> +1 Minuto
+          <FastForward className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /> +1 Minuto
         </button>
 
         <button
           type="button"
           onClick={() => avanzaSecondi(300)}
           disabled={tempoScaduto}
-          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase cursor-pointer"
+          className="bg-slate-950 hover:bg-slate-800 disabled:opacity-50 border border-slate-800 text-slate-300 py-2.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition uppercase cursor-pointer"
         >
-          <FastForward className="w-3.5 h-3.5 text-blue-400" /> +5 Minuti
+          <FastForward className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /> +5 Minuti
         </button>
       </div>
 
@@ -333,14 +331,14 @@ export default function Cronometro({
         <button
           type="button"
           onClick={cambiaFase}
-          className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg cursor-pointer ${
+          className={`w-full py-3 sm:py-3.5 px-2 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition shadow-lg cursor-pointer ${
             tempo === 2 && tempoScaduto
               ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950'
               : 'bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200'
           }`}
         >
-          {tempo === 1 ? 'Azzera e Passa al 2° Tempo (da 00:00)' : 'Termina Partita e Vai al Referto'}
-          <ArrowRight className="w-4 h-4" />
+          <span className="truncate">{tempo === 1 ? 'Azzera e Passa al 2° Tempo (da 00:00)' : 'Termina Partita e Vai al Referto'}</span>
+          <ArrowRight className="w-4 h-4 flex-shrink-0" />
         </button>
       </div>
     </div>
