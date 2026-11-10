@@ -556,6 +556,9 @@ export default function App() {
 
     setSalvataggioInCorso(false);
     setFaseApp('partita');
+
+    // 🚀 PORTA SUBITO IL FOCUS IN CIMA ALLA PAGINA
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleGolSegnato = async (isNostraSquadra) => {
