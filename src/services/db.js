@@ -346,12 +346,22 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
     minuto: evento.minuto,
     tempo: evento.tempo,
     tipo: evento.tipo,
-    dettagli: evento.dettagli // <- Corretto e allineato alla colonna del DB
+    dettagli: evento.dettagli
   }]);
+
+  // 🚀 Forza l'aggiornamento della partita per sincronizzare subito tutti i dispositivi
+  if (partitaId) {
+    await supabase.from('partite').update({ updated_at: new Date().toISOString() }).eq('id', partitaId);
+  }
 }
 
-export async function eliminaEventoCloud(eventoId) {
+export async function eliminaEventoCloud(eventoId, partitaId) {
   await supabase.from('eventi').delete().eq('id', eventoId);
+
+  // 🚀 Notifica la cancellazione a tutti i dispositivi connessi tramite il canale partite
+  if (partitaId) {
+    await supabase.from('partite').update({ updated_at: new Date().toISOString() }).eq('id', partitaId);
+  }
 }
 
 export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, campionato, annata) {
