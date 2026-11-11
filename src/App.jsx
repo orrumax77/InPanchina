@@ -1117,7 +1117,7 @@ export default function App() {
           />
 
           <GestioneEventi
-            giocatori={rosa}
+            giocatori={rosa.filter(g => g.isConvocato)}
             setGiocatori={handleAggiornaRosa}
             eventi={eventi}
             setEventi={setEventi}
