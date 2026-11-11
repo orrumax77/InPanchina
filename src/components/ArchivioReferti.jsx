@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
 import { supabase } from '../supabaseClient';
-import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock } from 'lucide-react';
+import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X } from 'lucide-react';
 
 export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
@@ -9,6 +9,12 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
   const [partitaApertaId, setPartitaApertaId] = useState(null);
   const [copiatoId, setCopiatoId] = useState(null);
   const [eventiDbDettaglio, setEventiDbDettaglio] = useState({});
+
+  // Stati per la gestione della modale voti a posteriori
+  const [partitaInVotazione, setPartitaInVotazione] = useState(null);
+  const [votiTemp, setVotiTemp] = useState({});
+
+  const scalaVoti = ['6', '6.5', '7', '7.5', '8', '8.5', '9', '5.5', '5', 'S.V.'];
 
   const ricaricaStorico = async () => {
     if (!societa?.id) return;
@@ -99,12 +105,13 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     const rosa = p.referto_giocatori || [];
     if (rosa.length > 0) {
-      t += `⏱️ *MINUTAGGIO ROSA GIOCATORI:*\n`;
+      t += `⏱️ *MINUTAGGIO & PAGELLE ROSA:*\n`;
       rosa.forEach(g => {
         const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
         const minStr = g.minuti !== undefined ? `${g.minuti}' giocati` : `${g.isTitolare ? "90'" : "0'"} giocati`;
         const statoStr = g.stato ? ` (${g.stato})` : '';
-        t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}: ${minStr}${statoStr}\n`;
+        const votoStr = g.voto ? ` ⭐ Voto: *${g.voto}*` : '';
+        t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}: ${minStr}${statoStr}${votoStr}\n`;
       });
     }
 
@@ -132,12 +139,45 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     await ricaricaStorico();
   };
 
+  // Apertura modale voti per una partita specifica
+  const apriModaleVoti = (p) => {
+    setPartitaInVotazione(p);
+    const iniziali = {};
+    (p.referto_giocatori || []).forEach(g => {
+      iniziali[g.id] = g.voto || '';
+    });
+    setVotiTemp(iniziali);
+  };
+
+  // Salvataggio dei voti nel database storico su Supabase
+  const salvaVotiStorico = async () => {
+    if (!partitaInVotazione) return;
+
+    const rosaAggiornata = (partitaInVotazione.referto_giocatori || []).map(g => ({
+      ...g,
+      voto: votiTemp[g.id] || ''
+    }));
+
+    const { error } = await supabase
+      .from('storico_referti')
+      .update({ referto_giocatori: rosaAggiornata })
+      .eq('id', partitaInVotazione.id);
+
+    if (error) {
+      alert("Errore durante il salvataggio dei voti.");
+      return;
+    }
+
+    setPartitaInVotazione(null);
+    await ricaricaStorico();
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
         <button
           onClick={onTornaIndietro}
-          className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5"
+          className="text-xs uppercase font-bold text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" /> Torna Indietro
         </button>
@@ -218,16 +258,24 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
                       <button
                         type="button"
                         onClick={() => handleElimina(p)}
-                        className="p-2.5 rounded-xl text-rose-400 hover:text-white bg-slate-900 hover:bg-rose-950/40 border border-rose-900/40 text-xs font-bold flex items-center gap-1.5 transition"
+                        className="p-2.5 rounded-xl text-rose-400 hover:text-white bg-slate-900 hover:bg-rose-950/40 border border-rose-900/40 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" /> Elimina
                       </button>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => apriModaleVoti(p)}
+                          className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition border border-amber-500/40 cursor-pointer"
+                        >
+                          <Star className="w-4 h-4 fill-amber-400" /> Voti Pagelle
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => handleCopia(p)}
-                          className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 transition border border-slate-700"
+                          className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 transition border border-slate-700 cursor-pointer"
                         >
                           {copiatoId === p.id ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                           {copiatoId === p.id ? 'Copiato!' : 'Copia'}
@@ -236,7 +284,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
                         <button
                           type="button"
                           onClick={() => handleWhatsApp(p)}
-                          className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-950"
+                          className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-950 cursor-pointer"
                         >
                           <Share2 className="w-4 h-4" /> Condividi
                         </button>
@@ -247,6 +295,87 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modale Assegnazione Voti a Posteriori */}
+      {partitaInVotazione && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl text-slate-100 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+                <h3 className="text-base font-bold uppercase text-white">Assegna Voti Pagelle</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPartitaInVotazione(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 uppercase">
+              Partita del {partitaInVotazione.data_gara} vs {partitaInVotazione.squadra_ospite}
+            </p>
+
+            <div className="space-y-2.5 overflow-y-auto pr-1 flex-1">
+              {(partitaInVotazione.referto_giocatori || []).map((g) => {
+                const votoAttuale = votiTemp[g.id] || '';
+
+                return (
+                  <div key={g.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center font-bold text-xs text-emerald-400 font-mono flex-shrink-0">
+                        {g.numero}
+                      </span>
+                      <span className="font-bold text-white text-xs uppercase truncate">
+                        {g.nome}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1 justify-end">
+                      {scalaVoti.map((val) => {
+                        const isSelezionato = votoAttuale === val;
+                        return (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setVotiTemp(prev => ({ ...prev, [g.id]: val }))}
+                            className={`px-2 py-1 rounded text-[11px] font-bold font-mono transition cursor-pointer ${
+                              isSelezionato
+                                ? 'bg-amber-500 text-slate-950 font-black shadow scale-105'
+                                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                            }`}
+                          >
+                            {val}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPartitaInVotazione(null)}
+                className="w-1/2 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase transition cursor-pointer"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={salvaVotiStorico}
+                className="w-1/2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase transition cursor-pointer shadow-lg shadow-emerald-950 flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" /> Salva Voti
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
