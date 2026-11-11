@@ -158,20 +158,22 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       voto: votiTemp[g.id] || ''
     }));
 
+    // Puliamo l'ID rimuovendo eventuali suffissi anomali (es. ":1") se presenti
+    const idPulito = String(partitaInVotazione.id).split(':')[0];
+
     const { error } = await supabase
-      .from('storico_referti')
+      .from('partite') // 🚀 Usiamo la tabella 'partite' corretta!
       .update({ referto_giocatori: rosaAggiornata })
-      .eq('id', partitaInVotazione.id);
+      .eq('id', idPulito);
 
     if (error) {
-      alert("Errore durante il salvataggio dei voti.");
+      alert("Errore durante il salvataggio dei voti: " + error.message);
       return;
     }
 
     setPartitaInVotazione(null);
     await ricaricaStorico();
   };
-
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
