@@ -45,10 +45,10 @@ const getCategoriaLND = (stagione, annataStr) => {
 
   if (eta === 18) return `Under 19 (${annataStr})`;
   if (eta === 17) return `Under 18 (${annataStr})`;
-  if (eta === 16) return `Under 17 (${annataStr})`; // 2010 per la stagione 2026/2027
-  if (eta === 15) return `Under 16 (${annataStr})`; // 2011 per la stagione 2026/2027
-  if (eta === 14) return `Under 15 (${annataStr})`; // 2012
-  if (eta === 13) return `Under 14 (${annataStr})`; // 2013
+  if (eta === 16) return `Under 17 (${annataStr})`;
+  if (eta === 15) return `Under 16 (${annataStr})`;
+  if (eta === 14) return `Under 15 (${annataStr})`;
+  if (eta === 13) return `Under 14 (${annataStr})`;
   if (eta <= 12) return `Attività di Base / Esordienti (${annataStr})`;
   return `Annata ${annataStr}`;
 };
@@ -57,7 +57,7 @@ const getCategoriaLND = (stagione, annataStr) => {
 const getStagioneDinamicaCorrente = () => {
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth(); // 0 = Gennaio, 7 = Agosto, 8 = Settembre...
+  const month = now.getMonth();
   
   if (month >= 7) {
     return `${year}/${year + 1}`;
@@ -83,17 +83,15 @@ const getListaStagioniDisponibili = () => {
 };
 
 export default function App() {
-  const [faseApp, setFaseApp] = useState('login'); // 'login' | 'admin' | 'distinta' | 'partita' | 'referto' | 'archivio'
+  const [faseApp, setFaseApp] = useState('login');
    
   const [utenteConnesso, setUtenteConnesso] = useState(null);
   const [societaAttiva, setSocietaAttiva] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
    
-  // UNICO dato salvato in localStorage: il nome utente esatto senza maiuscole forzate
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
   
-  // STATI DINAMICI STAGIONE E ANNATA (CON ESTRAZIONE SICURA DEL SOLO ANNO NUMERICO)
   const [stagioneSelezionata, setStagioneSelezionata] = useState(getStagioneDinamicaCorrente);
   const [annataSelezionata, setAnnataSelezionata] = useState(() => {
     const salvata = localStorage.getItem('inpanchina_annata') || '2010';
@@ -107,7 +105,6 @@ export default function App() {
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
    
-  // Stati Cronometro Sincronizzato Multi-Dispositivo
   const [tempoGara, setTempoGara] = useState(1);
   const [secondiGara, setSecondiGara] = useState(0);
   const [secondiBase, setSecondiBase] = useState(0);
@@ -124,7 +121,6 @@ export default function App() {
 
   const [modaleBloccoTempo, setModaleBloccoTempo] = useState(null);
 
-  // CHIAVE COMPOSTA TRIPLICE GENERICA: Società + Campionato + Annata
   const campionatoPulito = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
   const annataPulita = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
   const partitaId = societaAttiva ? `${societaAttiva.id}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE` : null;
@@ -176,7 +172,6 @@ export default function App() {
     const preparatoreAtleticoBase = (staffBase.preparatoreAtletico || '').toUpperCase();
     const preparatorePortieriBase = (staffBase.preparatorePortieri || '').toUpperCase();
     
-    // FORZATURA SICURA: La squadra di casa DEVE ESSERE SEMPRE IL NOME UFFICIALE DELLA SOCIETÀ (mai l'ID tecnico)
     const nomeSocietaUfficiale = (socFresca.nome || '').toUpperCase();
     const squadraCasaBase = nomeSocietaUfficiale;
     const squadraOspiteBase = (staffBase.squadraOspite || '').toUpperCase();
@@ -188,7 +183,6 @@ export default function App() {
     
     const partitaDB = stato?.partita;
 
-    // 🚀 RICONOSCE SE LA DISTINTA È STATA CONFERMATA O IL LIVE È IN CORSO
     const isLiveInCorso = partitaDB && (
       partitaDB.in_esecuzione === true || 
       (partitaDB.secondi_gara !== undefined && partitaDB.secondi_gara > 0) || 
@@ -202,7 +196,6 @@ export default function App() {
     );
 
     if (isLiveInCorso) {
-      // Controlliamo che il nome squadra casa non sia l'ID tecnico
       const dbCasa = partitaDB.squadra_casa;
       const nomeCasaValido = (dbCasa && dbCasa !== socFresca.id) ? dbCasa : nomeSocietaUfficiale;
 
@@ -342,7 +335,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (SENZA LOOP)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CARTELLINI + ROSA AGGIORNATI)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -385,23 +378,44 @@ export default function App() {
           setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
 
-        // 🚀 Legge gli eventi e la rosa aggiornata da remoto SENZA fare scritture circolari
+        // Ricarica immediata di eventi e ricalcolo dei cartellini/sostituzioni sulla rosa
         const stato = await caricaStatoPartita(partitaId);
         if (stato && stato.eventi) {
-          setEventi(stato.eventi);
-        }
+          const eventiAggiornati = stato.eventi;
+          setEventi(eventiAggiornati);
 
-        const rosaAggiornataDb = await caricaRosaSocieta(societaAttiva?.id, stagioneSelezionata, annataSelezionata);
-        if (rosaAggiornataDb && rosaAggiornataDb.length > 0) {
           setRosa(prevRosa => {
-            return rosaAggiornataDb.map(gDb => {
-              const liveMatch = prevRosa.find(g => g.id === gDb.id);
-              return liveMatch ? { 
-                ...gDb, 
-                isTitolare: liveMatch.isTitolare, 
-                ammonizioni: liveMatch.ammonizioni, 
-                espulso: liveMatch.espulso 
-              } : gDb;
+            return prevRosa.map(g => {
+              const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
+                e.tipo === 'AMMONIZIONE' && (
+                  e.giocatoreId === g.id || 
+                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                )
+              ).length;
+
+              const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
+                e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
+                  e.giocatoreId === g.id || 
+                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                )
+              ).length;
+
+              const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
+                e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
+                  e.giocatoreId === g.id || 
+                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+                )
+              ).length;
+
+              const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
+              const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
+
+              return {
+                ...g,
+                ammonizioni: totaleGialliEffettivi,
+                espulso: ancoraEspulso,
+                isTitolare: ancoraEspulso ? false : (g.isTitolare ?? true)
+              };
             });
           });
         }
@@ -548,7 +562,6 @@ export default function App() {
     setSalvataggioInCorso(false);
     setFaseApp('partita');
 
-    // 🚀 PORTA SUBITO IL FOCUS IN CIMA ALLA PAGINA
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
