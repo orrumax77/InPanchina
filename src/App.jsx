@@ -342,7 +342,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO STABILE (PARTITA + EVENTI + CARTELLINI + ROSA)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (SENZA LOOP)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -385,59 +385,16 @@ export default function App() {
           setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
 
-        // Sincronizzazione automatica e immediata di tutti gli eventi, gol, cartellini e stato rosa
+        // 🚀 Legge gli eventi e la rosa aggiornata da remoto SENZA fare scritture circolari
         const stato = await caricaStatoPartita(partitaId);
         if (stato && stato.eventi) {
-          const eventiAggiornati = stato.eventi;
-          setEventi(eventiAggiornati);
-
-          setRosa(prevRosa => {
-            const rosaAggiornata = prevRosa.map(g => {
-              const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
-                e.tipo === 'AMMONIZIONE' && (
-                  e.giocatoreId === g.id || 
-                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                )
-              ).length;
-
-              const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
-                e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                  e.giocatoreId === g.id || 
-                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                )
-              ).length;
-
-              const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
-                e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                  e.giocatoreId === g.id || 
-                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                )
-              ).length;
-
-              const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
-              const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
-
-              return {
-                ...g,
-                ammonizioni: totaleGialliEffettivi,
-                espulso: ancoraEspulso,
-                isTitolare: ancoraEspulso ? false : (g.isTitolare ?? true)
-              };
-            });
-
-            if (societaAttiva?.id) {
-              aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornata, stagioneSelezionata, annataSelezionata);
-            }
-
-            return rosaAggiornata;
-          });
+          setEventi(stato.eventi);
         }
 
-        // Sincronizza anche la rosa dal database per riflettere le sostituzioni in tempo reale
-        const rosaDbAggiornata = await caricaRosaSocieta(societaAttiva?.id, stagioneSelezionata, annataSelezionata);
-        if (rosaDbAggiornata && rosaDbAggiornata.length > 0) {
+        const rosaAggiornataDb = await caricaRosaSocieta(societaAttiva?.id, stagioneSelezionata, annataSelezionata);
+        if (rosaAggiornataDb && rosaAggiornataDb.length > 0) {
           setRosa(prevRosa => {
-            return rosaDbAggiornata.map(gDb => {
+            return rosaAggiornataDb.map(gDb => {
               const liveMatch = prevRosa.find(g => g.id === gDb.id);
               return liveMatch ? { 
                 ...gDb, 
