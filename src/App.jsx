@@ -1155,7 +1155,7 @@ export default function App() {
           golCasa={golCasa}
           golOspiti={golOspiti}
           eventi={eventi}
-          giocatori={rosa}
+          giocatori={rosa.filter(g => g.isConvocato)}
           minutoCorrente={minutoCorrente}
           tempoGara={tempoGara}
           campionato={stagioneSelezionata}
