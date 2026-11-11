@@ -576,18 +576,13 @@ export default function App() {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
 
-    // 🚀 FILTRO: Teniamo solo i giocatori convocati (es. Titolari o Panchinari effettivi)
-    // Verifica se nel tuo componente Distinta i panchinari usano un flag specifico come 'inPanchina' o 'convocato'.
-    // Se consideri convocati tutti quelli che sono titolari o esplicitamente selezionati:
-    const giocatoriConvocati = giocatori.filter(g => g.isTitolare === true || g.inPanchina === true || g.convocato === true);
-
-    // Se invece nel tuo componente Distinta i non convocati vengono semplicemente deselezionati da ogni ruolo, 
-    // puoi filtrare escludendo chi non ha nessun ruolo attivo.
+    // 🚀 FILTRO CORRETTO: Teniamo solo i giocatori con isConvocato a true
+    const giocatoriConvocati = giocatori.filter(g => g.isConvocato === true);
 
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatoriConvocati, stagioneSelezionata, annataSelezionata);
     await salvaBozzaPartitaSuDb(societaAttiva.id, partitaId, pInfo, stagioneSelezionata, annataSelezionata);
 
-    // Aggiorniamo la rosa locale solo con i convocati
+    // Aggiorniamo la rosa locale solo con i convocati effettivi
     setRosa(giocatoriConvocati);
 
     setSalvataggioInCorso(false);
@@ -595,7 +590,7 @@ export default function App() {
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
+  
   const handleGolSegnato = async (isNostraSquadra) => {
     const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
     const golVaACasa = isNostraSquadra ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
