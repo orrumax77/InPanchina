@@ -14,8 +14,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
   const [partitaInVotazione, setPartitaInVotazione] = useState(null);
   const [votiTemp, setVotiTemp] = useState({});
 
-  const scalaVoti = ['6', '6.5', '7', '7.5', '8', '8.5', '9', '5.5', '5', 'S.V.'];
-
   const ricaricaStorico = async () => {
     if (!societa?.id) return;
     setCaricamento(true);
@@ -110,7 +108,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
         const minStr = g.minuti !== undefined ? `${g.minuti}' giocati` : `${g.isTitolare ? "90'" : "0'"} giocati`;
         const statoStr = g.stato ? ` (${g.stato})` : '';
-        const votoStr = g.voto ? ` ⭐ Voto: *${g.voto}*` : '';
+        const votoStr = g.voto && g.voto !== 'S.V.' ? ` ⭐ Voto: *${g.voto}*` : g.voto === 'S.V.' ? ` ⭐ Voto: *S.V.*` : '';
         t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}: ${minStr}${statoStr}${votoStr}\n`;
       });
     }
@@ -144,7 +142,8 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     setPartitaInVotazione(p);
     const iniziali = {};
     (p.referto_giocatori || []).forEach(g => {
-      iniziali[g.id] = g.voto || '';
+      // Se non ha un voto salvato, impostiamo di default '6' o stringa vuota
+      iniziali[g.id] = g.voto !== undefined && g.voto !== '' ? g.voto : '6';
     });
     setVotiTemp(iniziali);
   };
@@ -155,14 +154,14 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     const rosaAggiornata = (partitaInVotazione.referto_giocatori || []).map(g => ({
       ...g,
-      voto: votiTemp[g.id] || ''
+      voto: votiTemp[g.id] !== undefined ? votiTemp[g.id] : ''
     }));
 
     // Puliamo l'ID rimuovendo eventuali suffissi anomali (es. ":1") se presenti
     const idPulito = String(partitaInVotazione.id).split(':')[0];
 
     const { error } = await supabase
-      .from('partite') // 🚀 Usiamo la tabella 'partite' corretta!
+      .from('partite')
       .update({ referto_giocatori: rosaAggiornata })
       .eq('id', idPulito);
 
@@ -174,6 +173,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     setPartitaInVotazione(null);
     await ricaricaStorico();
   };
+
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -300,7 +300,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         </div>
       )}
 
-      {/* Modale Assegnazione Voti a Posteriori */}
+      {/* Modale Assegnazione Voti con Slider Numerico */}
       {partitaInVotazione && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl text-slate-100 max-h-[90vh] flex flex-col">
@@ -322,40 +322,65 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
               Partita del {partitaInVotazione.data_gara} vs {partitaInVotazione.squadra_ospite}
             </p>
 
-            <div className="space-y-2.5 overflow-y-auto pr-1 flex-1">
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1">
               {(partitaInVotazione.referto_giocatori || []).map((g) => {
-                const votoAttuale = votiTemp[g.id] || '';
+                const votoCorrente = votiTemp[g.id] ?? '6';
+                const isSV = votoCorrente === 'S.V.';
+                const valoreNum = isSV ? 6 : parseFloat(votoCorrente) || 6;
 
                 return (
-                  <div key={g.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center font-bold text-xs text-emerald-400 font-mono flex-shrink-0">
-                        {g.numero}
-                      </span>
-                      <span className="font-bold text-white text-xs uppercase truncate">
-                        {g.nome}
-                      </span>
+                  <div key={g.id} className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center font-bold text-xs text-emerald-400 font-mono flex-shrink-0">
+                          {g.numero}
+                        </span>
+                        <span className="font-bold text-white text-xs uppercase truncate">
+                          {g.nome}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setVotiTemp(prev => ({ ...prev, [g.id]: isSV ? '6' : 'S.V.' }))}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition cursor-pointer border ${
+                            isSV 
+                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow' 
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          S.V.
+                        </button>
+                        <span className={`w-12 text-center font-mono font-black text-sm px-2 py-0.5 rounded-lg border ${
+                          isSV ? 'bg-slate-900 text-slate-500 border-slate-800' : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        }`}>
+                          {votoCorrente}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1 justify-end">
-                      {scalaVoti.map((val) => {
-                        const isSelezionato = votoAttuale === val;
-                        return (
-                          <button
-                            key={val}
-                            type="button"
-                            onClick={() => setVotiTemp(prev => ({ ...prev, [g.id]: val }))}
-                            className={`px-2 py-1 rounded text-[11px] font-bold font-mono transition cursor-pointer ${
-                              isSelezionato
-                                ? 'bg-amber-500 text-slate-950 font-black shadow scale-105'
-                                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
-                            }`}
-                          >
-                            {val}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {!isSV && (
+                      <div className="space-y-1 pt-1">
+                        <input
+                          type="range"
+                          min="5"
+                          max="10"
+                          step="0.5"
+                          value={valoreNum}
+                          onChange={(e) => setVotiTemp(prev => ({ ...prev, [g.id]: e.target.value }))}
+                          className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                        />
+                        <div className="flex justify-between text-[10px] font-mono text-slate-500 px-0.5">
+                          <span>5</span>
+                          <span>6</span>
+                          <span>7</span>
+                          <span>8</span>
+                          <span>9</span>
+                          <span>10</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
