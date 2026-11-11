@@ -335,8 +335,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CARTELLINI + ROSA AGGIORNATI)
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (CON AGGIORNAMENTO REALE DI CARTELLINI E SOSTITUZIONI)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CARTELLINI + CAMBI A CATENA)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -390,19 +389,16 @@ export default function App() {
 
           if (rosaBaseFresco && rosaBaseFresco.length > 0) {
             setRosa(prevRosa => {
-              // Creiamo una mappa dello stato attuale o partiamo dalla distinta originale
               return rosaBaseFresco.map(gOriginale => {
-                // Troviamo se il giocatore era uscito o entrato nei cambi attuali presenti in eventiAggiornati
                 let isTit = gOriginale.isTitolare;
 
-                // Analizziamo tutti gli eventi di sostituzione rimasti
-                eventiAggiornati.forEach(e => {
+                // Analizziamo tutti gli eventi di sostituzione in ordine cronologico corretto (dal più vecchio al più recente)
+                const eventiInOrdine = [...eventiAggiornati].reverse();
+                eventiInOrdine.forEach(e => {
                   if (e.tipo === 'SOSTITUZIONE' && e.dettagli) {
-                    // Se il giocatore è associato come quello che è uscito
                     if (e.esceId === gOriginale.id || e.dettagli.toUpperCase().includes(`ESCE #${gOriginale.numero}`) || e.dettagli.toUpperCase().includes(`ESCE ${gOriginale.nome}`)) {
                       isTit = false;
                     }
-                    // Se il giocatore è associato come quello che è entrato
                     if (e.entraId === gOriginale.id || e.dettagli.toUpperCase().includes(`ENTRA #${gOriginale.numero}`) || e.dettagli.toUpperCase().includes(`ENTRA ${gOriginale.nome}`)) {
                       isTit = true;
                     }
@@ -450,7 +446,6 @@ export default function App() {
       supabase.removeChannel(channel);
     };
   }, [partitaId, societaAttiva?.id, stagioneSelezionata, annataSelezionata]);
-  
   
   const avviaTimer = () => {
     const adessoISO = new Date().toISOString();
@@ -696,7 +691,7 @@ export default function App() {
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio, stagioneSelezionata, annataSelezionata);
       await syncStatoLive({
         slotUsati: novosSlot,
-        cambiEffettuati: nuoviCambi
+        cambiEffettuati: novosSlot
       });
     }
 
@@ -796,7 +791,7 @@ export default function App() {
       setCambiEffettuati(0);
       setEventi([]);
 
-      setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+      setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })))
 
       setPartitaInfo(prev => ({
         ...prev,
