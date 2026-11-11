@@ -768,9 +768,16 @@ export default function App() {
   const handleTerminaLiveEResetta = async (giocatoriConMinuti) => {
     setSalvataggioInCorso(true);
 
-    const giocatoriDaArchiviare = (giocatoriConMinuti && giocatoriConMinuti.length > 0) 
+    const giocatoriBase = (giocatoriConMinuti && giocatoriConMinuti.length > 0) 
       ? giocatoriConMinuti 
       : rosa;
+
+    // 🚀 FILTRO: Archiviamo solo i giocatori convocati per la gara
+    const giocatoriDaArchiviare = giocatoriBase.filter(g => g.isConvocato === true);
+    
+    /*const giocatoriDaArchiviare = (giocatoriConMinuti && giocatoriConMinuti.length > 0) 
+      ? giocatoriConMinuti 
+      : rosa;*/
 
     const res = await archiviaPartitaEResettaLive(
       societaAttiva.id,
