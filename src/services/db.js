@@ -13,7 +13,7 @@ export async function getSocieta() {
 }
 
 export async function caricaStatoPartita(partitaId) {
-  if (!partitaId) return { partita: null, eventi: [] };
+  if (!partitaId) return { partita: null, eventi: [], giocatori: [] };
   try {
     const { data: partita } = await supabase
       .from('partite')
@@ -27,7 +27,17 @@ export async function caricaStatoPartita(partitaId) {
       .eq('partita_id', partitaId)
       .order('created_at', { ascending: false });
 
-    return { partita: partita || null, eventi: eventi || [] };
+    // 🚀 Scarica anche lo stato live aggiornato dei giocatori
+    const { data: giocatori } = await supabase
+      .from('giocatori')
+      .select('*')
+      .eq('partita_id', partitaId);
+
+    return { 
+      partita: partita || null, 
+      eventi: eventi || [], 
+      giocatori: giocatori || [] 
+    };
   } catch (error) {
     console.error('Errore caricamento partita:', error);
     return null;
