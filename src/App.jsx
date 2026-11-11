@@ -144,6 +144,10 @@ export default function App() {
      
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
 
+    // 🚀 Filtriamo solo i convocati effettivi
+    const rosaConvocati = (rosaSalvataNelDb || []).filter(g => g.isConvocato === true);
+    setRosa(rosaConvocati);
+
     const campionatoPulitoStaff = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulitaStaff = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const chiaveStaff = `${campionatoPulitoStaff}_${annataPulitaStaff}`;
