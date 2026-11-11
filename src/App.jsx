@@ -336,6 +336,7 @@ export default function App() {
   };
 
   // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CARTELLINI + ROSA AGGIORNATI)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (CON AGGIORNAMENTO REALE DI CARTELLINI E SOSTITUZIONI)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -378,46 +379,69 @@ export default function App() {
           setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
 
-        // Ricarica immediata di eventi e ricalcolo dei cartellini/sostituzioni sulla rosa
+        // Ricarica immediata di eventi e ricalcolo completo di cartellini e sostituzioni sulla rosa
         const stato = await caricaStatoPartita(partitaId);
         if (stato && stato.eventi) {
           const eventiAggiornati = stato.eventi;
           setEventi(eventiAggiornati);
 
-          setRosa(prevRosa => {
-            return prevRosa.map(g => {
-              const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
-                e.tipo === 'AMMONIZIONE' && (
-                  e.giocatoreId === g.id || 
-                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                )
-              ).length;
+          // Ricarichiamo la rosa base pulita dal DB per partire dai titolari iniziali della distinta
+          const rosaBaseFresco = await caricaRosaSocieta(societaAttiva?.id, stagioneSelezionata, annataSelezionata);
 
-              const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
-                e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                  e.giocatoreId === g.id || 
-                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                )
-              ).length;
+          if (rosaBaseFresco && rosaBaseFresco.length > 0) {
+            setRosa(prevRosa => {
+              // Creiamo una mappa dello stato attuale o partiamo dalla distinta originale
+              return rosaBaseFresco.map(gOriginale => {
+                // Troviamo se il giocatore era uscito o entrato nei cambi attuali presenti in eventiAggiornati
+                let isTit = gOriginale.isTitolare;
 
-              const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
-                e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                  e.giocatoreId === g.id || 
-                  (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                )
-              ).length;
+                // Analizziamo tutti gli eventi di sostituzione rimasti
+                eventiAggiornati.forEach(e => {
+                  if (e.tipo === 'SOSTITUZIONE' && e.dettagli) {
+                    // Se il giocatore è associato come quello che è uscito
+                    if (e.esceId === gOriginale.id || e.dettagli.toUpperCase().includes(`ESCE #${gOriginale.numero}`) || e.dettagli.toUpperCase().includes(`ESCE ${gOriginale.nome}`)) {
+                      isTit = false;
+                    }
+                    // Se il giocatore è associato come quello che è entrato
+                    if (e.entraId === gOriginale.id || e.dettagli.toUpperCase().includes(`ENTRA #${gOriginale.numero}`) || e.dettagli.toUpperCase().includes(`ENTRA ${gOriginale.nome}`)) {
+                      isTit = true;
+                    }
+                  }
+                });
 
-              const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
-              const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
+                const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
+                  e.tipo === 'AMMONIZIONE' && (
+                    e.giocatoreId === gOriginale.id || 
+                    (e.dettagli && (e.dettagli.toUpperCase().includes(gOriginale.nome.toUpperCase()) || e.dettagli.includes(`#${gOriginale.numero} `)))
+                  )
+                ).length;
 
-              return {
-                ...g,
-                ammonizioni: totaleGialliEffettivi,
-                espulso: ancoraEspulso,
-                isTitolare: ancoraEspulso ? false : (g.isTitolare ?? true)
-              };
+                const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
+                  e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
+                    e.giocatoreId === gOriginale.id || 
+                    (e.dettagli && (e.dettagli.toUpperCase().includes(gOriginale.nome.toUpperCase()) || e.dettagli.includes(`#${gOriginale.numero} `)))
+                  )
+                ).length;
+
+                const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
+                  e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
+                    e.giocatoreId === gOriginale.id || 
+                    (e.dettagli && (e.dettagli.toUpperCase().includes(gOriginale.nome.toUpperCase()) || e.dettagli.includes(`#${gOriginale.numero} `)))
+                  )
+                ).length;
+
+                const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
+                const ancoraEspulso = totaleGialliEffettivi >= 2 || espulsioniDiretteRimaste > 0;
+
+                return {
+                  ...gOriginale,
+                  ammonizioni: totaleGialliEffettivi,
+                  espulso: ancoraEspulso,
+                  isTitolare: ancoraEspulso ? false : isTit
+                };
+              });
             });
-          });
+          }
         }
       })
       .subscribe();
@@ -426,6 +450,7 @@ export default function App() {
       supabase.removeChannel(channel);
     };
   }, [partitaId, societaAttiva?.id, stagioneSelezionata, annataSelezionata]);
+  
   
   const avviaTimer = () => {
     const adessoISO = new Date().toISOString();
@@ -669,6 +694,10 @@ export default function App() {
 
       setRosa(rosaAggiornataPerCambio);
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio, stagioneSelezionata, annataSelezionata);
+      await syncStatoLive({
+        slotUsati: novosSlot,
+        cambiEffettuati: nuoviCambi
+      });
     }
 
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
