@@ -84,7 +84,7 @@ const getListaStagioniDisponibili = () => {
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login');
-  const [partitaConclusa, setPartitaConclusa] = useState(false); // 🚀 Stato per mostrare i bottoni solo a fine gara
+  const [partitaConclusa, setPartitaConclusa] = useState(false);
   
   const [utenteConnesso, setUtenteConnesso] = useState(null);
   const [societaAttiva, setSocietaAttiva] = useState(null);
@@ -122,6 +122,10 @@ export default function App() {
 
   const [modaleBloccoTempo, setModaleBloccoTempo] = useState(null);
 
+  // 🚀 Stati per il conto alla rovescia di 30 secondi a fine 2° tempo
+  const [avvisoFineTempo, setAvvisoFineTempo] = useState(false);
+  const [countdownFine, setCountdownFine] = useState(30);
+
   const campionatoPulito = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
   const annataPulita = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
   const partitaId = societaAttiva ? `${societaAttiva.id}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE` : null;
@@ -145,7 +149,6 @@ export default function App() {
     
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
 
-    // 🚀 Filtriamo solo i convocati effettivi
     const rosaConvocati = (rosaSalvataNelDb || []).filter(g => g.isConvocato === true);
     setRosa(rosaConvocati);
 
@@ -340,7 +343,34 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CARTELLINI + CAMBI A CATENA)
+  // 🚀 Rilevamento automatico fine 2° tempo (al raggiungimento del 45' + recupero) per far partire il countdown di 30 secondi
+  useEffect(() => {
+    if (tempoGara === 2 && inEsecuzione) {
+      const limiteMaxSec = (45 + recupero) * 60;
+      if (secondiGara >= limiteMaxSec && !avvisoFineTempo) {
+        setInEsecuzione(false);
+        setAvviatoAlle(null);
+        setAvvisoFineTempo(true);
+        setCountdownFine(30);
+      }
+    }
+  }, [secondiGara, tempoGara, inEsecuzione, recupero, avvisoFineTempo]);
+
+  // 🚀 Gestione del conto alla rovescia di 30 secondi
+  useEffect(() => {
+    let timer;
+    if (avvisoFineTempo && countdownFine > 0) {
+      timer = setInterval(() => {
+        setCountdownFine(prev => prev - 1);
+      }, 1000);
+    } else if (avvisoFineTempo && countdownFine === 0) {
+      // SCADUTI I 30 SECONDI: Archiviazione e reset automatico globale
+      handleTerminaLiveEResetta();
+    }
+    return () => clearInterval(timer);
+  }, [avvisoFineTempo, countdownFine]);
+
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO
   useEffect(() => {
     if (!partitaId) return;
 
@@ -383,13 +413,11 @@ export default function App() {
           setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
 
-        // Ricarica immediata di eventi e ricalcolo completo di cartellini e sostituzioni sulla rosa
         const stato = await caricaStatoPartita(partitaId);
         if (stato && stato.eventi) {
           const eventiAggiornati = stato.eventi;
           setEventi(eventiAggiornati);
 
-          // Ricarichiamo la rosa base pulita dal DB per partire dai titolari iniziali della distinta
           const rosaBaseFresco = await caricaRosaSocieta(societaAttiva?.id, stagioneSelezionata, annataSelezionata);
 
           if (rosaBaseFresco && rosaBaseFresco.length > 0) {
@@ -397,7 +425,6 @@ export default function App() {
               return rosaBaseFresco.map(gOriginale => {
                 let isTit = gOriginale.isTitolare;
 
-                // Analizziamo tutti gli eventi di sostituzione in ordine cronologico corretto (dal più vecchio al più recente)
                 const eventiInOrdine = [...eventiAggiornati].reverse();
                 eventiInOrdine.forEach(e => {
                   if (e.tipo === 'SOSTITUZIONE' && e.dettagli) {
@@ -580,15 +607,13 @@ export default function App() {
   const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
-    setPartitaConclusa(false); // 🚀 Inizia la partita: azzeriamo il flag di fine gara
+    setPartitaConclusa(false);
 
-    // 🚀 FILTRO CORRETTO: Teniamo solo i giocatori con isConvocato a true
     const giocatoriConvocati = giocatori.filter(g => g.isConvocato === true);
 
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatoriConvocati, stagioneSelezionata, annataSelezionata);
     await salvaBozzaPartitaSuDb(societaAttiva.id, partitaId, pInfo, stagioneSelezionata, annataSelezionata);
 
-    // Aggiorniamo la rosa locale solo con i convocati effettivi
     setRosa(giocatoriConvocati);
 
     setSalvataggioInCorso(false);
@@ -601,15 +626,15 @@ export default function App() {
     const laNostraSquadraGiocaInCasa = partitaInfo?.isNostraCasa ?? true;
     const golVaACasa = isNostraSquadra ? laNostraSquadraGiocaInCasa : !laNostraSquadraGiocaInCasa;
 
-    const nuovoCasa = golVaACasa ? golCasa + 1 : golCasa;
-    const nuovoOspiti = !golVaACasa ? golOspiti + 1 : golOspiti;
+    const nuevoCasa = golVaACasa ? golCasa + 1 : golCasa;
+    const nuevoOspiti = !golVaACasa ? golOspiti + 1 : golOspiti;
 
-    setGolCasa(nuovoCasa);
-    setGolOspiti(nuovoOspiti);
+    setGolCasa(nuevoCasa);
+    setGolOspiti(nuevoOspiti);
 
     await syncStatoLive({
-      golCasa: nuovoCasa,
-      golOspiti: nuovoOspiti
+      golCasa: nuevoCasa,
+      golOspiti: nuevoOspiti
     });
   };
 
@@ -652,24 +677,17 @@ export default function App() {
     }
 
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
-      // 1. Rimuoviamo l'evento e ricalcoliamo quanti cambi e slot rimangono nello storico eventi
-      const eventiRimasti = eventi.filter(e => e.id !== id);
-      
       const cambiRimanentiTotali = eventiRimasti.filter(e => e.tipo === 'SOSTITUZIONE').length;
       
-      // Calcoliamo quanti slot unici rimangono attivi (escludendo i cambi avvenuti durante l'intervallo)
       const slotAttiviUnici = new Set();
       eventiRimasti.forEach(e => {
         if (e.tipo === 'SOSTITUZIONE' && e.dettagli) {
           const dettUpper = e.dettagli.toUpperCase();
-          // Se non è un cambio da intervallo, estraiamo o contiamo lo slot
           if (!dettUpper.includes('INTERVALLO')) {
-            // Cerchiamo l'indicazione dello slot nel testo (es. SLOT 1/3)
             const matchSlot = dettUpper.match(/SLOT\s+(\d+)/);
             if (matchSlot) {
               slotAttiviUnici.add(matchSlot[1]);
             } else {
-              // Fallback di sicurezza se la stringa non ha il match esatto
               slotAttiviUnici.add(Math.random()); 
             }
           }
@@ -682,7 +700,6 @@ export default function App() {
       setCambiEffettuati(nuoviCambi);
       setSlotUsati(nuoviSlot);
 
-      // Ripristiniamo lo stato dei giocatori coinvolti nel cambio eliminato
       let idEsce = eventoDaEliminare.esceId;
       let idEntra = eventoDaEliminare.entraId;
 
@@ -714,6 +731,7 @@ export default function App() {
       setEventi(eventiRimasti);
       return;
     }
+
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
@@ -775,13 +793,13 @@ export default function App() {
   };
 
   const handleTerminaLiveEResetta = async (giocatoriConMinuti) => {
+    setAvvisoFineTempo(false);
     setSalvataggioInCorso(true);
 
     const giocatoriBase = (giocatoriConMinuti && giocatoriConMinuti.length > 0) 
       ? giocatoriConMinuti 
       : rosa;
 
-    // 🚀 FILTRO: Archiviamo solo i giocatori convocati per la gara
     const giocatoriDaArchiviare = giocatoriBase.filter(g => g.isConvocato === true);
     
     const res = await archiviaPartitaEResettaLive(
@@ -798,8 +816,6 @@ export default function App() {
     setSalvataggioInCorso(false);
 
     if (res.success) {
-      alert("Partita archiviata con successo nello storico con tutti i minuti giocati! Live azzerato per la prossima gara.");
-
       setGolCasa(0);
       setGolOspiti(0);
       setTempoGara(1);
@@ -812,9 +828,9 @@ export default function App() {
       setSlotUsati(0);
       setCambiEffettuati(0);
       setEventi([]);
-      setPartitaConclusa(true); // 🚀 Partita archiviata: ora i bottoni Archivio e Referto ricompaiono
+      setPartitaConclusa(true);
 
-      setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })))
+      setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
 
       setPartitaInfo(prev => ({
         ...prev,
@@ -849,6 +865,43 @@ export default function App() {
           <p className="text-emerald-400 font-bold text-lg animate-pulse flex items-center gap-2">
             <CheckCircle2 className="w-6 h-6 animate-spin" /> Connessione Database Cloud...
           </p>
+        </div>
+      )}
+
+      {/* 🚀 MODALE CONTO ALLA ROVESCIA 30 SECONDI A FINE 2° TEMPO */}
+      {avvisoFineTempo && (
+        <div className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center p-4 animate-in fade-in select-none">
+          <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-amber-950">
+            <div className="w-20 h-20 mx-auto rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-amber-400 font-mono text-3xl font-black animate-pulse">
+              {countdownFine}s
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-white uppercase tracking-tight">Fine Secondo Tempo!</h2>
+              <p className="text-xs text-slate-300 leading-relaxed uppercase font-medium">
+                Il tempo regolamentare è scaduto. Aggiungi recupero oppure la partita verrà archiviata e resettata automaticamente tra <strong className="text-amber-400 font-mono">{countdownFine} secondi</strong>.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRecupero(prev => prev + 1);
+                  setAvvisoFineTempo(false);
+                  setInEsecuzione(true);
+                }}
+                className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase transition cursor-pointer shadow-lg"
+              >
+                + Aggiungi Recupero
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTerminaLiveEResetta()}
+                className="py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold uppercase transition cursor-pointer shadow-lg"
+              >
+                Archivia Subito
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1007,7 +1060,6 @@ export default function App() {
                 type="button"
                 onClick={() => setFaseApp('archivio')}
                 className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                title="Visualizza tutti i referti passati"
               >
                 <Archive className="w-3.5 h-3.5" /> Archivio Referti
               </button>
@@ -1070,14 +1122,12 @@ export default function App() {
                 {getCategoriaLND(stagioneSelezionata, annataSelezionata)} ({stagioneSelezionata})
               </span>
 
-              {/* 🚀 I pulsanti Archivio e Referto compaiono SOLO a partita conclusa e archiviata */}
               {partitaConclusa && (
                 <>
                   <button
                     type="button"
                     onClick={() => setFaseApp('archivio')}
                     className="bg-slate-900 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
-                    title="Vedi referti archiviati"
                   >
                     <Archive className="w-3.5 h-3.5" /> Archivio
                   </button>
@@ -1094,77 +1144,77 @@ export default function App() {
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 uppercase">
                 <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live
             </span>
-            </div>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center relative">
-            <div className="flex-1 min-w-0 px-1">
-              <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
-                {partitaInfo?.squadraCasa || 'CASA'}
-              </h3>
-              <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
-            </div>
-
-            <div className="px-2 flex flex-col items-center justify-center">
-              <span className="text-slate-500 font-black text-xs sm:text-sm tracking-widest">VS</span>
-            </div>
-
-            <div className="flex-1 min-w-0 px-1">
-              <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
-                {partitaInfo?.squadraOspite || 'OSPITE'}
-              </h3>
-              <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
-            </div>
-          </div>
-
-          <Cronometro
-            tempo={tempoGara}
-            secondi={secondiGara}
-            setSecondi={setSecondiGara}
-            inEsecuzione={inEsecuzione}
-            avviatoAlle={avviatoAlle}
-            secondiBase={secondiBase}
-            onAvvia={avviaTimer}
-            onPausa={mettiInPausaTimer}
-            onAvanzaTempo={gestisciAvanzamentoTempo}
-            onFinePrimoTempo={() => cambiaFaseGara(2)}
-            onFinePartita={() => cambiaFaseGara('fine')}
-            recupero={recupero}
-            setRecupero={setRecupero}
-            onTick={(min) => setMinutoCorrente(min)}
-            onTriggerScadenzaTempo={null}
-          />
-
-          <GestioneEventi
-            giocatori={rosa.filter(g => g.isConvocato)}
-            setGiocatori={handleAggiornaRosa}
-            eventi={eventi}
-            setEventi={setEventi}
-            onNuovoEvento={handleNuovoEvento}
-            minutoCorrente={minutoCorrente}
-            tempoGara={tempoGara}
-            secondiGara={secondiGara}
-            slotUsati={slotUsati}
-            setSlotUsati={setSlotUsati}
-            cambiEffettuati={cambiEffettuati}
-            setCambiEffettuati={setCambiEffettuati}
-            onAggiornaCambiSlot={handleAggiornaCambiSlot}
-            onGolSegnato={handleGolSegnato}
-            inEsecuzione={inEsecuzione}
-          />
-
-          <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
-
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => handleTerminaLiveEResetta()}
-              className="w-full py-3 rounded-xl border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" /> Termina Live e Archivia per Prossima Gara
-            </button>
           </div>
         </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center relative">
+          <div className="flex-1 min-w-0 px-1">
+            <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
+              {partitaInfo?.squadraCasa || 'CASA'}
+            </h3>
+            <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
+          </div>
+
+          <div className="px-2 flex flex-col items-center justify-center">
+            <span className="text-slate-500 font-black text-xs sm:text-sm tracking-widest">VS</span>
+          </div>
+
+          <div className="flex-1 min-w-0 px-1">
+            <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
+              {partitaInfo?.squadraOspite || 'OSPITE'}
+            </h3>
+            <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
+          </div>
+        </div>
+
+        <Cronometro
+          tempo={tempoGara}
+          secondi={secondiGara}
+          setSecondi={setSecondiGara}
+          inEsecuzione={inEsecuzione}
+          avviatoAlle={avviatoAlle}
+          secondiBase={secondiBase}
+          onAvvia={avviaTimer}
+          onPausa={mettiInPausaTimer}
+          onAvanzaTempo={gestisciAvanzamentoTempo}
+          onFinePrimoTempo={() => cambiaFaseGara(2)}
+          onFinePartita={() => cambiaFaseGara('fine')}
+          recupero={recupero}
+          setRecupero={setRecupero}
+          onTick={(min) => setMinutoCorrente(min)}
+          onTriggerScadenzaTempo={null}
+        />
+
+        <GestioneEventi
+          giocatori={rosa.filter(g => g.isConvocato)}
+          setGiocatori={handleAggiornaRosa}
+          eventi={eventi}
+          setEventi={setEventi}
+          onNuovoEvento={handleNuovoEvento}
+          minutoCorrente={minutoCorrente}
+          tempoGara={tempoGara}
+          secondiGara={secondiGara}
+          slotUsati={slotUsati}
+          setSlotUsati={setSlotUsati}
+          cambiEffettuati={cambiEffettuati}
+          setCambiEffettuati={setCambiEffettuati}
+          onAggiornaCambiSlot={handleAggiornaCambiSlot}
+          onGolSegnato={handleGolSegnato}
+          inEsecuzione={inEsecuzione}
+        />
+
+        <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
+
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => handleTerminaLiveEResetta()}
+            className="w-full py-3 rounded-xl border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4" /> Termina Live e Archivia per Prossima Gara
+          </button>
+        </div>
+      </div>
       )}
 
       {faseApp === 'referto' && (
