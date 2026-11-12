@@ -256,17 +256,16 @@ export default function GestioneEventi({
     });
 
     setGiocatori(nuevaRosa);
-    
-    // Calcoliamo i nuovi valori aggiornati
+     
     const nuoviCambi = cambiEffettuati + listaCambi.length;
-    const nuoviSlot = isIntervalloEffettivo ? slotUsati : Math.min(3, slotUsati + 1);
+    const novosSlot = isIntervalloEffettivo ? slotUsati : Math.min(3, slotUsati + 1);
 
     try {
       if (onAggiornaCambiSlot) {
-        await onAggiornaCambiSlot(nuoviCambi, nuoviSlot);
+        await onAggiornaCambiSlot(nuoviCambi, novosSlot);
       } else {
         setCambiEffettuati(nuoviCambi);
-        setSlotUsati(nuoviSlot);
+        setSlotUsati(novosSlot);
       }
     } catch (error) {
       console.error("Errore durante l'aggiornamento dei cambi:", error);
@@ -592,12 +591,12 @@ export default function GestioneEventi({
                               {g.numero}
                             </span>
                             <span className="text-xs font-semibold uppercase truncate">{g.nome}</span>
-                        </div>
-                        {isSel && (
-                          <span className="text-[10px] font-bold text-rose-300 bg-rose-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
-                            ESCE
-                          </span>
-                        )}
+                          </div>
+                          {isSel && (
+                            <span className="text-[10px] font-bold text-rose-300 bg-rose-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
+                              ESCE
+                            </span>
+                          )}
                         </button>
                       );
                     })
@@ -613,7 +612,8 @@ export default function GestioneEventi({
 
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                   {giocatori.filter(g => !g.isTitolare && !g.espulso).map(g => {
-                    const giaUscito = eventi.some(e => 
+                    // 🚀 Controllo robusto in tempo reale sia basato sugli eventi sia sullo stato del giocatore
+                    const giaUscito = !g.isTitolare && eventi.some(e => 
                       e.tipo === 'SOSTITUZIONE' && (
                         e.esceId === g.id || 
                         (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
