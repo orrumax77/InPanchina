@@ -1117,7 +1117,7 @@ export default function App() {
                 <ArrowLeft className="w-4 h-4" /> Distinta
               </button>
             ) : <div />}
-             
+              
             <div className="flex items-center gap-2">
               <span className="bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider shadow">
                 {getCategoriaLND(stagioneSelezionata, annataSelezionata)} ({stagioneSelezionata})
@@ -1146,7 +1146,7 @@ export default function App() {
 
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 uppercase">
                 <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live
-            </span>
+              </span>
             </div>
           </div>
 
@@ -1351,6 +1351,7 @@ export default function App() {
               >
                 + Aggiungi 1 Minuto di Recupero Extra
               </button>
+            </div>
           </div>
         </div>
       )}
