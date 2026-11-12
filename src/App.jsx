@@ -460,7 +460,7 @@ export default function App() {
         }
       })
       .on('broadcast', { event: 'RESET_GARA_AUTOMATICO' }, () => {
-        // 🚀 Sincronizzazione istantanea del reset su tutti i dispositivi collegati
+        // 🚀 Sincronizzazione istantanea del reset pulito su tutti i dispositivi
         setGolCasa(0);
         setGolOspiti(0);
         setTempoGara(1);
@@ -473,8 +473,27 @@ export default function App() {
         setSlotUsati(0);
         setCambiEffettuati(0);
         setEventi([]);
-        setPartitaConclusa(true);
+        setPartitaConclusa(false);
         setAvvisoFineTempo(false);
+
+        setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+
+        setPartitaInfo({
+          squadraCasa: societaAttiva?.nome || '',
+          squadraOspite: '',
+          allenatore: societaAttiva?.allenatore_predefinito || '',
+          allenatoreSeconda: societaAttiva?.allenatore_seconda_predefinito || '',
+          dirigente: societaAttiva?.dirigente_predefinito || '',
+          dirigenteUfficiali: societaAttiva?.dirigente_ufficiali_predefinito || '',
+          assistenteArbitro: societaAttiva?.assistente_arbitro_predefinito || '',
+          medicoSociale: '',
+          massaggiatore: '',
+          preparatoreAtletico: '',
+          preparatorePortieri: '',
+          dataPartita: new Date().toISOString().split('T')[0],
+          isNostraCasa: true
+        });
+
         setFaseApp('distinta');
       })
       .subscribe();
@@ -828,6 +847,7 @@ export default function App() {
         payload: { timestamp: Date.now() }
       });
 
+      // 🚀 Reset completo e pulito di tutti gli stati (inclusa la squadra ospite e i dati partita)
       setGolCasa(0);
       setGolOspiti(0);
       setTempoGara(1);
@@ -840,17 +860,25 @@ export default function App() {
       setSlotUsati(0);
       setCambiEffettuati(0);
       setEventi([]);
-      setPartitaConclusa(true);
+      setPartitaConclusa(false);
 
       setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
 
-      setPartitaInfo(prev => ({
-        ...prev,
+      setPartitaInfo({
         squadraCasa: societaAttiva?.nome || '',
         squadraOspite: '',
+        allenatore: societaAttiva?.allenatore_predefinito || '',
+        allenatoreSeconda: societaAttiva?.allenatore_seconda_predefinito || '',
+        dirigente: societaAttiva?.dirigente_predefinito || '',
+        dirigenteUfficiali: societaAttiva?.dirigente_ufficiali_predefinito || '',
+        assistenteArbitro: societaAttiva?.assistente_arbitro_predefinito || '',
+        medicoSociale: '',
+        massaggiatore: '',
+        preparatoreAtletico: '',
+        preparatorePortieri: '',
         dataPartita: new Date().toISOString().split('T')[0],
         isNostraCasa: true
-      }));
+      });
 
       setFaseApp('distinta');
     } else {
@@ -896,10 +924,29 @@ export default function App() {
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  setRecupero(prev => prev + 1);
+                onClick={async () => {
+                  const nuovoRecupero = recupero + 1;
+                  setRecupero(nuovoRecupero);
                   setAvvisoFineTempo(false);
+
+                  // 🚀 Riavvio immediato e automatico del cronometro
+                  const adessoISO = new Date().toISOString();
                   setInEsecuzione(true);
+                  setAvviatoAlle(adessoISO);
+                  setSecondiBase(secondiGara);
+
+                  await syncStatoPartitaSuDb(partitaId, {
+                    golCasa,
+                    golOspiti,
+                    tempoGara,
+                    secondiGara,
+                    inEsecuzione: true,
+                    avviatoAlle: adessoISO,
+                    recupero: nuovoRecupero,
+                    minutoCorrente,
+                    slotUsati,
+                    cambiEffettuati
+                  });
                 }}
                 className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase transition cursor-pointer shadow-lg"
               >
@@ -1308,7 +1355,6 @@ export default function App() {
               >
                 + Aggiungi 1 Minuto di Recupero Extra
               </button>
-            </div>
           </div>
         </div>
       )}
