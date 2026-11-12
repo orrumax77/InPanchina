@@ -36,7 +36,6 @@ import {
   ArrowRight 
 } from 'lucide-react';
 
-// Calcola dinamicamente la categoria LND ufficiale in base alla stagione e all'anno di nascita
 const getCategoriaLND = (stagione, annataStr) => {
   if (!annataStr || isNaN(annataStr)) return annataStr;
   const annoNascita = parseInt(annataStr, 10);
@@ -53,7 +52,6 @@ const getCategoriaLND = (stagione, annataStr) => {
   return `Annata ${annataStr}`;
 };
 
-// Funzione per calcolare automaticamente la stagione calcistica corrente in base alla data
 const getStagioneDinamicaCorrente = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -66,7 +64,6 @@ const getStagioneDinamicaCorrente = () => {
   }
 };
 
-// Genera una lista di stagioni attorno a quella corrente
 const getListaStagioniDisponibili = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -122,7 +119,6 @@ export default function App() {
 
   const [modaleBloccoTempo, setModaleBloccoTempo] = useState(null);
 
-  // 🚀 Stati per il conto alla rovescia di 30 secondi a fine 2° tempo
   const [avvisoFineTempo, setAvvisoFineTempo] = useState(false);
   const [countdownFine, setCountdownFine] = useState(30);
 
@@ -343,7 +339,6 @@ export default function App() {
     });
   };
 
-  // 🚀 Gestione del conto alla rovescia di 30 secondi
   useEffect(() => {
     let timer;
     if (avvisoFineTempo && countdownFine > 0) {
@@ -351,13 +346,11 @@ export default function App() {
         setCountdownFine(prev => prev - 1);
       }, 1000);
     } else if (avvisoFineTempo && countdownFine === 0) {
-      // SCADUTI I 30 SECONDI: Archiviazione e reset automatico globale
       handleTerminaLiveEResetta();
     }
     return () => clearInterval(timer);
   }, [avvisoFineTempo, countdownFine]);
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO
   useEffect(() => {
     if (!partitaId) return;
 
@@ -460,7 +453,6 @@ export default function App() {
         }
       })
       .on('broadcast', { event: 'RESET_GARA_AUTOMATICO' }, () => {
-        // 🚀 Sincronizzazione istantanea del reset pulito su tutti i dispositivi
         setGolCasa(0);
         setGolOspiti(0);
         setTempoGara(1);
@@ -840,14 +832,12 @@ export default function App() {
     setSalvataggioInCorso(false);
 
     if (res.success) {
-      // 🚀 Invio del segnale broadcast Realtime a tutti i dispositivi per azzerare e sincronizzare in tempo reale
       await supabase.channel(`realtime-partita-${partitaId}`).send({
         type: 'broadcast',
         event: 'RESET_GARA_AUTOMATICO',
         payload: { timestamp: Date.now() }
       });
 
-      // 🚀 Reset completo e pulito di tutti gli stati (inclusa la squadra ospite e i dati partita)
       setGolCasa(0);
       setGolOspiti(0);
       setTempoGara(1);
@@ -908,7 +898,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 🚀 MODALE CONTO ALLA ROVESCIA 30 SECONDI A FINE 2° TEMPO */}
       {avvisoFineTempo && (
         <div className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center p-4 animate-in fade-in select-none">
           <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-amber-950">
@@ -929,7 +918,6 @@ export default function App() {
                   setRecupero(nuovoRecupero);
                   setAvvisoFineTempo(false);
 
-                  // 🚀 Riavvio immediato e automatico del cronometro
                   const adessoISO = new Date().toISOString();
                   setInEsecuzione(true);
                   setAvviatoAlle(adessoISO);
@@ -1119,6 +1107,7 @@ export default function App() {
                 type="button"
                 onClick={() => setFaseApp('archivio')}
                 className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                title="Visualizza tutti i referti passati"
               >
                 <Archive className="w-3.5 h-3.5" /> Archivio Referti
               </button>
@@ -1187,6 +1176,7 @@ export default function App() {
                     type="button"
                     onClick={() => setFaseApp('archivio')}
                     className="bg-slate-900 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    title="Vedi referti archiviati"
                   >
                     <Archive className="w-3.5 h-3.5" /> Archivio
                   </button>
@@ -1202,83 +1192,83 @@ export default function App() {
 
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 uppercase">
                 <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live
-            </span>
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center relative">
+            <div className="flex-1 min-w-0 px-1">
+              <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
+                {partitaInfo?.squadraCasa || 'CASA'}
+              </h3>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
+            </div>
+
+            <div className="px-2 flex flex-col items-center justify-center">
+              <span className="text-slate-500 font-black text-xs sm:text-sm tracking-widest">VS</span>
+            </div>
+
+            <div className="flex-1 min-w-0 px-1">
+              <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
+                {partitaInfo?.squadraOspite || 'OSPITE'}
+              </h3>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
+            </div>
+          </div>
+
+          <Cronometro
+            tempo={tempoGara}
+            secondi={secondiGara}
+            setSecondi={setSecondiGara}
+            inEsecuzione={inEsecuzione}
+            avviatoAlle={avviatoAlle}
+            secondiBase={secondiBase}
+            onAvvia={avviaTimer}
+            onPausa={mettiInPausaTimer}
+            onAvanzaTempo={gestisciAvanzamentoTempo}
+            onFinePrimoTempo={() => cambiaFaseGara(2)}
+            onFinePartita={() => cambiaFaseGara('fine')}
+            recupero={recupero}
+            setRecupero={setRecupero}
+            onTick={(min) => setMinutoCorrente(min)}
+            onTriggerScadenzaTempo={(t) => {
+              if (t === 2) {
+                setAvvisoFineTempo(true);
+                setCountdownFine(30);
+              }
+            }}
+          />
+
+          <GestioneEventi
+            giocatori={rosa.filter(g => g.isConvocato)}
+            setGiocatori={handleAggiornaRosa}
+            eventi={eventi}
+            setEventi={setEventi}
+            onNuovoEvento={handleNuovoEvento}
+            minutoCorrente={minutoCorrente}
+            tempoGara={tempoGara}
+            secondiGara={secondiGara}
+            slotUsati={slotUsati}
+            setSlotUsati={setSlotUsati}
+            cambiEffettuati={cambiEffettuati}
+            setCambiEffettuati={setCambiEffettuati}
+            onAggiornaCambiSlot={handleAggiornaCambiSlot}
+            onGolSegnato={handleGolSegnato}
+            inEsecuzione={inEsecuzione}
+          />
+
+          <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => handleTerminaLiveEResetta()}
+              className="w-full py-3 rounded-xl border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" /> Termina Live e Archivia per Prossima Gara
+            </button>
           </div>
         </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center justify-between text-center relative">
-          <div className="flex-1 min-w-0 px-1">
-            <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
-              {partitaInfo?.squadraCasa || 'CASA'}
-            </h3>
-            <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golCasa}</div>
-          </div>
-
-          <div className="px-2 flex flex-col items-center justify-center">
-            <span className="text-slate-500 font-black text-xs sm:text-sm tracking-widest">VS</span>
-          </div>
-
-          <div className="flex-1 min-w-0 px-1">
-            <h3 className="font-bold text-xs sm:text-sm md:text-base text-slate-200 uppercase break-words leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
-              {partitaInfo?.squadraOspite || 'OSPITE'}
-            </h3>
-            <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white mt-1">{golOspiti}</div>
-          </div>
-        </div>
-
-        <Cronometro
-          tempo={tempoGara}
-          secondi={secondiGara}
-          setSecondi={setSecondiGara}
-          inEsecuzione={inEsecuzione}
-          avviatoAlle={avviatoAlle}
-          secondiBase={secondiBase}
-          onAvvia={avviaTimer}
-          onPausa={mettiInPausaTimer}
-          onAvanzaTempo={gestisciAvanzamentoTempo}
-          onFinePrimoTempo={() => cambiaFaseGara(2)}
-          onFinePartita={() => cambiaFaseGara('fine')}
-          recupero={recupero}
-          setRecupero={setRecupero}
-          onTick={(min) => setMinutoCorrente(min)}
-          onTriggerScadenzaTempo={(t) => {
-            if (t === 2) {
-              setAvvisoFineTempo(true);
-              setCountdownFine(30);
-            }
-          }}
-        />
-
-        <GestioneEventi
-          giocatori={rosa.filter(g => g.isConvocato)}
-          setGiocatori={handleAggiornaRosa}
-          eventi={eventi}
-          setEventi={setEventi}
-          onNuovoEvento={handleNuovoEvento}
-          minutoCorrente={minutoCorrente}
-          tempoGara={tempoGara}
-          secondiGara={secondiGara}
-          slotUsati={slotUsati}
-          setSlotUsati={setSlotUsati}
-          cambiEffettuati={cambiEffettuati}
-          setCambiEffettuati={setCambiEffettuati}
-          onAggiornaCambiSlot={handleAggiornaCambiSlot}
-          onGolSegnato={handleGolSegnato}
-          inEsecuzione={inEsecuzione}
-        />
-
-        <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
-
-        <div className="pt-2">
-          <button
-            type="button"
-            onClick={() => handleTerminaLiveEResetta()}
-            className="w-full py-3 rounded-xl border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer"
-          >
-            <RotateCcw className="w-4 h-4" /> Termina Live e Archivia per Prossima Gara
-          </button>
-        </div>
-      </div>
       )}
 
       {faseApp === 'referto' && (
@@ -1355,6 +1345,7 @@ export default function App() {
               >
                 + Aggiungi 1 Minuto di Recupero Extra
               </button>
+            </div>
           </div>
         </div>
       )}
