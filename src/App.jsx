@@ -652,42 +652,45 @@ export default function App() {
     }
 
     if (eventoDaEliminare.tipo === 'SOSTITUZIONE') {
-      const nuoviCambi = Math.max(0, cambiEffettuati - 1);
-      const isIntervallo = eventoDaEliminare.dettagli?.toLowerCase().includes('intervallo');
-      const novosSlot = isIntervallo ? slotUsati : Math.max(0, slotUsati - 1);
+      // 1. Rimuoviamo l'evento e ricalcoliamo quanti cambi e slot rimangono nello storico eventi
+      const eventiRimasti = eventi.filter(e => e.id !== id);
+      
+      const cambiRimanentiTotali = eventiRimasti.filter(e => e.tipo === 'SOSTITUZIONE').length;
+      
+      // Calcoliamo quanti slot unici rimangono attivi (escludendo i cambi avvenuti durante l'intervallo)
+      const slotAttiviUnici = new Set();
+      eventiRimasti.forEach(e => {
+        if (e.tipo === 'SOSTITUZIONE' && e.dettagli) {
+          const dettUpper = e.dettagli.toUpperCase();
+          // Se non è un cambio da intervallo, estraiamo o contiamo lo slot
+          if (!dettUpper.includes('INTERVALLO')) {
+            // Cerchiamo l'indicazione dello slot nel testo (es. SLOT 1/3)
+            const matchSlot = dettUpper.match(/SLOT\s+(\d+)/);
+            if (matchSlot) {
+              slotAttiviUnici.add(matchSlot[1]);
+            } else {
+              // Fallback di sicurezza se la stringa non ha il match esatto
+              slotAttiviUnici.add(Math.random()); 
+            }
+          }
+        }
+      });
 
-      await handleAggiornaCambiSlot(nuoviCambi, isIntervallo ? slotUsati : novosSlot);
+      const nuoviCambi = cambiRimanentiTotali;
+      const nuoviSlot = Math.min(3, slotAttiviUnici.size);
 
+      setCambiEffettuati(nuoviCambi);
+      setSlotUsati(nuoviSlot);
+
+      // Ripristiniamo lo stato dei giocatori coinvolti nel cambio eliminato
       let idEsce = eventoDaEliminare.esceId;
       let idEntra = eventoDaEliminare.entraId;
 
       if ((!idEsce || !idEntra) && eventoDaEliminare.dettagli) {
         const giocatoriCoinvolti = rosa.filter(g => eventoDaEliminare.dettagli.includes(`#${g.numero}`) || eventoDaEliminare.dettagli.includes(g.nome));
         if (giocatoriCoinvolti.length >= 2) {
-          const idxEsce = eventoDaEliminare.dettagli.indexOf('Esce');
-          const idxEntra = eventoDaEliminare.dettagli.indexOf('Entra');
-          
-          let candidatoEsce = null;
-          let candidatoEntra = null;
-          let minDistanzaEsce = 999;
-          let minDistanzaEntra = 999;
-
-          rosa.forEach(g => {
-            const posNome = eventoDaEliminare.dettagli.indexOf(g.nome);
-            if (posNome !== -1) {
-              const distEsce = Math.abs(posNome - idxEsce);
-              const distEntra = Math.abs(posNome - idxEntra);
-              if (distEsce < minDistanzaEsce) {
-                minDistanzaEsce = distEsce;
-                candidatoEsce = g;
-              }
-              if (distEntra < minDistanzaEntra) {
-                minDistanzaEntra = distEntra;
-                candidatoEntra = g;
-              }
-            }
-          });
-
+          const candidatoEsce = giocatoriCoinvolti.find(g => eventoDaEliminare.dettagli.includes(`ESCE #${g.numero}`) || eventoDaEliminare.dettagli.includes(`ESCE ${g.nome}`));
+          const candidatoEntra = giocatoriCoinvolti.find(g => eventoDaEliminare.dettagli.includes(`ENTRA #${g.numero}`) || eventoDaEliminare.dettagli.includes(`ENTRA ${g.nome}`));
           if (candidatoEsce) idEsce = candidatoEsce.id;
           if (candidatoEntra) idEntra = candidatoEntra.id;
         }
@@ -701,12 +704,16 @@ export default function App() {
 
       setRosa(rosaAggiornataPerCambio);
       await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, rosaAggiornataPerCambio, stagioneSelezionata, annataSelezionata);
+      
       await syncStatoLive({
-        slotUsati: novosSlot,
-        cambiEffettuati: novosSlot
+        slotUsati: nuoviSlot,
+        cambiEffettuati: nuoviCambi
       });
-    }
 
+      await eliminaEventoCloud(id, partitaId);
+      setEventi(eventiRimasti);
+      return;
+    }
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
       const giocatoreCoinvolto = rosa.find(g => 
         eventoDaEliminare.giocatoreId === g.id ||
