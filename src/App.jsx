@@ -811,7 +811,7 @@ export default function App() {
     setAvvisoAutoArchiviazione(false);
     setSalvataggioInCorso(true);
 
-    const giocatoriBase = (giocatoriConMinuti && giocatoriConvocati.length > 0) 
+    const giocatoriBase = (giocatoriConMinuti && giocatoriConMinuti.length > 0) 
       ? giocatoriConMinuti 
       : rosa;
 
@@ -828,7 +828,6 @@ export default function App() {
       annataSelezionata
     );
 
-    // 🚀 Invia il segnale di reset globale a tutti i dispositivi in tempo reale
     await syncStatoPartitaSuDb(partitaId, {
       golCasa: 0,
       golOspiti: 0,
