@@ -36,7 +36,6 @@ import {
   ArrowRight 
 } from 'lucide-react';
 
-// Calcola dinamicamente la categoria LND ufficiale in base alla stagione e all'anno di nascita
 const getCategoriaLND = (stagione, annataStr) => {
   if (!annataStr || isNaN(annataStr)) return annataStr;
   const annoNascita = parseInt(annataStr, 10);
@@ -53,7 +52,6 @@ const getCategoriaLND = (stagione, annataStr) => {
   return `Annata ${annataStr}`;
 };
 
-// Funzione per calcolare automaticamente la stagione calcistica corrente in base alla data
 const getStagioneDinamicaCorrente = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -66,7 +64,6 @@ const getStagioneDinamicaCorrente = () => {
   }
 };
 
-// Genera una lista di stagioni attorno a quella corrente
 const getListaStagioniDisponibili = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -84,9 +81,8 @@ const getListaStagioniDisponibili = () => {
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login');
-  const [partitaConclusa, setPartitaConclusa] = useState(false); // 🚀 I bottoni appaiono solo a fine gara
+  const [partitaConclusa, setPartitaConclusa] = useState(false);
   
-  // Stati per il timer di sicurezza di 30 secondi al triplice fischio
   const [avvisoAutoArchiviazione, setAvvisoAutoArchiviazione] = useState(false);
   const [secondiRimanentiAuto, setSecondiRimanentiAuto] = useState(30);
   const timerAutoRef = useRef(null);
@@ -158,7 +154,6 @@ export default function App() {
     const chiaveStaff = `${campionatoPulitoStaff}_${annataPulitaStaff}`;
 
     const staffRaw = socFresca.staff_base || {};
-    
     let staffBase = {};
     if (staffRaw[chiaveStaff] && typeof staffRaw[chiaveStaff] === 'object') {
       staffBase = staffRaw[chiaveStaff];
@@ -182,14 +177,11 @@ export default function App() {
     const preparatorePortieriBase = (staffBase.preparatorePortieri || '').toUpperCase();
     
     const nomeSocietaUfficiale = (socFresca.nome || '').toUpperCase();
-    const squadraCasaBase = nomeSocietaUfficiale;
     const squadraOspiteBase = (staffBase.squadraOspite || '').toUpperCase();
     const isNostraCasaBase = staffBase.isNostraCasa ?? true;
     const dataPartitaBase = staffBase.dataPartita || new Date().toISOString().split('T')[0];
 
     const stato = await caricaStatoPartita(idPartita);
-    setRosa(rosaSalvataNelDb || []);
-    
     const partitaDB = stato?.partita;
 
     const isLiveInCorso = partitaDB && (
@@ -248,7 +240,30 @@ export default function App() {
       setMinutoCorrente(partitaDB.minuto_corrente || 1);
       setSlotUsati(partitaDB.slot_usati || 0);
       setCambiEffettuati(partitaDB.cambi_effettuati || 0);
-      setEventi(stato.eventi || []);
+
+      const eventiCaricati = stato.eventi || [];
+      setEventi(eventiCaricati);
+
+      // Ricalcolo immediato dello stato titolare/panchina in base agli eventi esistenti nel DB
+      if (rosaSalvataNelDb && rosaSalvataNelDb.length > 0) {
+        const rosaAggiornata = rosaSalvataNelDb.map(g => {
+          let isTit = g.isTitolare;
+          eventiCaricati.forEach(e => {
+            if (e.tipo === 'SOSTITUZIONE' && e.dettagli) {
+              if (e.esceId === g.id || e.dettagli.toUpperCase().includes(`ESCE #${g.numero}`) || e.dettagli.toUpperCase().includes(`ESCE ${g.nome}`)) {
+                isTit = false;
+              }
+              if (e.entraId === g.id || e.dettagli.toUpperCase().includes(`ENTRA #${g.numero}`) || e.dettagli.toUpperCase().includes(`ENTRA ${g.nome}`)) {
+                isTit = true;
+              }
+            }
+          });
+          return { ...g, isTitolare: isTit };
+        });
+        setRosa(rosaAggiornata);
+      } else {
+        setRosa([]);
+      }
 
       setSalvataggioInCorso(false);
       setFaseApp('partita');
@@ -282,6 +297,7 @@ export default function App() {
       setSlotUsati(0);
       setCambiEffettuati(0);
       setEventi([]);
+      setRosa(rosaSalvataNelDb || []);
 
       setSalvataggioInCorso(false);
       setFaseApp('distinta');
@@ -344,14 +360,13 @@ export default function App() {
     });
   };
 
-  // 🚀 REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO POTENZIATA (ASCOLTO GLOBALE CAMBIAMENTI)
+  // 🚀 REALTIME SYNCHRONIZATION POTENZIATA E ISTANTANEA
   useEffect(() => {
     if (!partitaId) return;
 
     const channel = supabase
-      .channel(`realtime-partita-${partitaId}`)
+      .channel(`realtime-globale-v2-${partitaId}`)
       .on('postgres_changes', { event: '*', schema: 'public' }, async () => {
-        // Ricarica immediata di tutto lo stato dal DB non appena avviene qualsiasi modifica (eventi, cambi, cartellini, match)
         const stato = await caricaStatoPartita(partitaId);
         if (!stato) return;
 
@@ -389,25 +404,13 @@ export default function App() {
           } else {
             setSecondiGara(p.secondi_gara || 0);
           }
-
-          if (p.squadra_casa && p.squadra_ospite) {
-            setPartitaInfo(prev => ({
-              ...(prev || {}),
-              squadraCasa: p.squadra_casa,
-              squadraOspite: p.squadra_ospite,
-              allenatore: p.allenatore || prev?.allenatore || '',
-              dirigente: p.dirigente || prev?.dirigente || '',
-              dataPartita: p.data_gara || prev?.dataPartita || '',
-              isNostraCasa: p.is_nostra_casa ?? (prev?.isNostraCasa ?? true)
-            }));
-            setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
-          }
         }
 
         if (stato.eventi) {
           const eventiAggiornati = stato.eventi;
           setEventi(eventiAggiornati);
 
+          // Ricarica la rosa base e applica immediatamente lo stato di titolare/panchina basato sugli eventi
           const rosaBaseFresco = await caricaRosaSocieta(societaAttiva?.id, stagioneSelezionata, annataSelezionata);
 
           if (rosaBaseFresco && rosaBaseFresco.length > 0) {
@@ -415,8 +418,7 @@ export default function App() {
               return rosaBaseFresco.map(gOriginale => {
                 let isTit = gOriginale.isTitolare;
 
-                const eventiInOrdine = [...eventiAggiornati].reverse();
-                eventiInOrdine.forEach(e => {
+                eventiAggiornati.forEach(e => {
                   if (e.tipo === 'SOSTITUZIONE' && e.dettagli) {
                     if (e.esceId === gOriginale.id || e.dettagli.toUpperCase().includes(`ESCE #${gOriginale.numero}`) || e.dettagli.toUpperCase().includes(`ESCE ${gOriginale.nome}`)) {
                       isTit = false;
@@ -1113,7 +1115,6 @@ export default function App() {
                 {getCategoriaLND(stagioneSelezionata, annataSelezionata)} ({stagioneSelezionata})
               </span>
 
-              {/* 🚀 I pulsanti Archivio e Referto compaiono SOLO a partita conclusa e archiviata */}
               {partitaConclusa && (
                 <>
                   <button
@@ -1136,7 +1137,7 @@ export default function App() {
 
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 uppercase">
                 <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live
-            </span>
+              </span>
             </div>
           </div>
 
@@ -1236,7 +1237,6 @@ export default function App() {
         />
       )}
 
-      {/* 🚀 Modale di Avviso per Archiviazione Automatica (30 secondi) */}
       {avvisoAutoArchiviazione && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[99999] select-none">
           <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-amber-950">
