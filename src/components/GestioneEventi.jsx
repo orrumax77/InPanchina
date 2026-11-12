@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
   ArrowRightLeft, 
@@ -33,13 +33,16 @@ export default function GestioneEventi({
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
   const [modalSostituzione, setModalSostituzione] = useState(false);
 
-  // 🚀 Forza l'aggiornamento reattivo del modale quando arrivano nuovi eventi o cambiano i giocatori
-  useEffect(() => {
-    // Questo effetto fa sì che il modale recepisca i cambi al volo
-  }, [eventi, giocatori]);
-  
   const [giocatoreEsce, setGiocatoreEsce] = useState('');
   const [giocatoreEntra, setGiocatoreEntra] = useState('');
+
+  // 🚀 Stato di controllo per forzare il re-render istantaneo del modale in tempo reale
+  const [, setForzaAggiornamento] = useState(0);
+
+  useEffect(() => {
+    // Ogni volta che arrivano nuovi eventi o cambia la rosa, forziamo il refresh visivo del modale
+    setForzaAggiornamento(prev => prev + 1);
+  }, [eventi, giocatori]);
 
   // Supporto per cambi multipli nello stesso slot (es. doppio o triplo cambio)
   const [coppieInAttesa, setCoppieInAttesa] = useState([]);
@@ -617,7 +620,6 @@ export default function GestioneEventi({
 
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                   {giocatori.filter(g => !g.isTitolare && !g.espulso).map(g => {
-                    // 🚀 Controllo reattivo istantaneo basato sull'array eventi globale
                     const giaUscito = eventi.some(e => {
                       if (e.tipo !== 'SOSTITUZIONE') return false;
                       if (e.esceId && e.esceId === g.id) return true;
@@ -643,7 +645,7 @@ export default function GestioneEventi({
                             <span className="text-xs font-semibold uppercase truncate line-through">{g.nome}</span>
                           </div>
                           <span className="text-[9px] font-bold text-rose-500 uppercase flex-shrink-0">
-                            Già uscito (Non rientrabile)[cite: 1]
+                            Già uscito (Non rientrabile)
                           </span>
                         </div>
                       );
