@@ -343,19 +343,6 @@ export default function App() {
     });
   };
 
-  // 🚀 Rilevamento automatico fine 2° tempo (al raggiungimento del 45' + recupero) per far partire il countdown di 30 secondi
-  useEffect(() => {
-    if (tempoGara === 2 && inEsecuzione) {
-      const limiteMaxSec = (45 + recupero) * 60;
-      if (secondiGara >= limiteMaxSec && !avvisoFineTempo) {
-        setInEsecuzione(false);
-        setAvviatoAlle(null);
-        setAvvisoFineTempo(true);
-        setCountdownFine(30);
-      }
-    }
-  }, [secondiGara, tempoGara, inEsecuzione, recupero, avvisoFineTempo]);
-
   // 🚀 Gestione del conto alla rovescia di 30 secondi
   useEffect(() => {
     let timer;
@@ -471,6 +458,24 @@ export default function App() {
             });
           }
         }
+      })
+      .on('broadcast', { event: 'RESET_GARA_AUTOMATICO' }, () => {
+        // 🚀 Sincronizzazione istantanea del reset su tutti i dispositivi collegati
+        setGolCasa(0);
+        setGolOspiti(0);
+        setTempoGara(1);
+        setSecondiGara(0);
+        setSecondiBase(0);
+        setAvviatoAlle(null);
+        setInEsecuzione(false);
+        setRecupero(0);
+        setMinutoCorrente(1);
+        setSlotUsati(0);
+        setCambiEffettuati(0);
+        setEventi([]);
+        setPartitaConclusa(true);
+        setAvvisoFineTempo(false);
+        setFaseApp('distinta');
       })
       .subscribe();
 
@@ -816,6 +821,13 @@ export default function App() {
     setSalvataggioInCorso(false);
 
     if (res.success) {
+      // 🚀 Invio del segnale broadcast Realtime a tutti i dispositivi per azzerare e sincronizzare in tempo reale
+      await supabase.channel(`realtime-partita-${partitaId}`).send({
+        type: 'broadcast',
+        event: 'RESET_GARA_AUTOMATICO',
+        payload: { timestamp: Date.now() }
+      });
+
       setGolCasa(0);
       setGolOspiti(0);
       setTempoGara(1);
@@ -1182,7 +1194,12 @@ export default function App() {
           recupero={recupero}
           setRecupero={setRecupero}
           onTick={(min) => setMinutoCorrente(min)}
-          onTriggerScadenzaTempo={null}
+          onTriggerScadenzaTempo={(t) => {
+            if (t === 2) {
+              setAvvisoFineTempo(true);
+              setCountdownFine(30);
+            }
+          }}
         />
 
         <GestioneEventi
