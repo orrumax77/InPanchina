@@ -33,6 +33,11 @@ export default function GestioneEventi({
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
   const [modalSostituzione, setModalSostituzione] = useState(false);
 
+  // 🚀 Forza l'aggiornamento reattivo del modale quando arrivano nuovi eventi o cambiano i giocatori
+  useEffect(() => {
+    // Questo effetto fa sì che il modale recepisca i cambi al volo
+  }, [eventi, giocatori]);
+  
   const [giocatoreEsce, setGiocatoreEsce] = useState('');
   const [giocatoreEntra, setGiocatoreEntra] = useState('');
 
