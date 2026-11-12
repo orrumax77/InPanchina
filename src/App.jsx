@@ -470,20 +470,26 @@ export default function App() {
 
         setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
 
+        const campionatoPulitoStaff = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
+        const annataPulitaStaff = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
+        const chiaveStaff = `${campionatoPulitoStaff}_${annataPulitaStaff}`;
+        const staffRaw = societaAttiva?.staff_base || {};
+        const staffSpecificoAnnata = staffRaw[chiaveStaff] || {};
+
         setPartitaInfo({
-          squadraCasa: societaAttiva?.nome || '',
+          squadraCasa: (societaAttiva?.nome || '').toUpperCase(),
           squadraOspite: '',
-          allenatore: societaAttiva?.allenatore_predefinito || '',
-          allenatoreSeconda: societaAttiva?.allenatore_seconda_predefinito || '',
-          dirigente: societaAttiva?.dirigente_predefinito || '',
-          dirigenteUfficiali: societaAttiva?.dirigente_ufficiali_predefinito || '',
-          assistenteArbitro: societaAttiva?.assistente_arbitro_predefinito || '',
-          medicoSociale: societaAttiva?.medico_sociale_predefinito || '',
-          massaggiatore: societaAttiva?.massaggiatore_predefinito || '',
-          preparatoreAtletico: societaAttiva?.preparatore_atletico_predefinito || '',
-          preparatorePortieri: societaAttiva?.preparatore_portieri_predefinito || '',
-          dataPartita: new Date().toISOString().split('T')[0],
-          isNostraCasa: true
+          allenatore: (staffSpecificoAnnata.allenatore || societaAttiva?.allenatore_predefinito || '').toUpperCase(),
+          allenatoreSeconda: (staffSpecificoAnnata.allenatoreSeconda || societaAttiva?.allenatore_seconda_predefinito || '').toUpperCase(),
+          dirigente: (staffSpecificoAnnata.dirigente || societaAttiva?.dirigente_predefinito || '').toUpperCase(),
+          dirigenteUfficiali: (staffSpecificoAnnata.dirigenteUfficiali || societaAttiva?.dirigente_ufficiali_predefinito || '').toUpperCase(),
+          assistenteArbitro: (staffSpecificoAnnata.assistenteArbitro || societaAttiva?.assistente_arbitro_predefinito || '').toUpperCase(),
+          medicoSociale: (staffSpecificoAnnata.medicoSociale || societaAttiva?.medico_sociale_predefinito || '').toUpperCase(),
+          massaggiatore: (staffSpecificoAnnata.massaggiatore || societaAttiva?.massaggiatore_predefinito || '').toUpperCase(),
+          preparatoreAtletico: (staffSpecificoAnnata.preparatoreAtletico || societaAttiva?.preparatore_atletico_predefinito || '').toUpperCase(),
+          preparatorePortieri: (staffSpecificoAnnata.preparatorePortieri || societaAttiva?.preparatore_portieri_predefinito || '').toUpperCase(),
+          dataPartita: staffSpecificoAnnata.dataPartita || new Date().toISOString().split('T')[0],
+          isNostraCasa: staffSpecificoAnnata.isNostraCasa ?? true
         });
 
         setFaseApp('distinta');
@@ -854,20 +860,26 @@ export default function App() {
 
       setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
 
+      const campionatoPulitoStaff = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
+      const annataPulitaStaff = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
+      const chiaveStaff = `${campionatoPulitoStaff}_${annataPulitaStaff}`;
+      const staffRaw = societaAttiva?.staff_base || {};
+      const staffSpecificoAnnata = staffRaw[chiaveStaff] || {};
+
       setPartitaInfo({
-        squadraCasa: societaAttiva?.nome || '',
+        squadraCasa: (societaAttiva?.nome || '').toUpperCase(),
         squadraOspite: '',
-        allenatore: societaAttiva?.allenatore_predefinito || '',
-        allenatoreSeconda: societaAttiva?.allenatore_seconda_predefinito || '',
-        dirigente: societaAttiva?.dirigente_predefinito || '',
-        dirigenteUfficiali: societaAttiva?.dirigente_ufficiali_predefinito || '',
-        assistenteArbitro: societaAttiva?.assistente_arbitro_predefinito || '',
-        medicoSociale: societaAttiva?.medico_sociale_predefinito || '',
-        massaggiatore: societaAttiva?.massaggiatore_predefinito || '',
-        preparatoreAtletico: societaAttiva?.preparatore_atletico_predefinito || '',
-        preparatorePortieri: societaAttiva?.preparatore_portieri_predefinito || '',
-        dataPartita: new Date().toISOString().split('T')[0],
-        isNostraCasa: true
+        allenatore: (staffSpecificoAnnata.allenatore || societaAttiva?.allenatore_predefinito || '').toUpperCase(),
+        allenatoreSeconda: (staffSpecificoAnnata.allenatoreSeconda || societaAttiva?.allenatore_seconda_predefinito || '').toUpperCase(),
+        dirigente: (staffSpecificoAnnata.dirigente || societaAttiva?.dirigente_predefinito || '').toUpperCase(),
+        dirigenteUfficiali: (staffSpecificoAnnata.dirigenteUfficiali || societaAttiva?.dirigente_ufficiali_predefinito || '').toUpperCase(),
+        assistenteArbitro: (staffSpecificoAnnata.assistenteArbitro || societaAttiva?.assistente_arbitro_predefinito || '').toUpperCase(),
+        medicoSociale: (staffSpecificoAnnata.medicoSociale || societaAttiva?.medico_sociale_predefinito || '').toUpperCase(),
+        massaggiatore: (staffSpecificoAnnata.massaggiatore || societaAttiva?.massaggiatore_predefinito || '').toUpperCase(),
+        preparatoreAtletico: (staffSpecificoAnnata.preparatoreAtletico || societaAttiva?.preparatore_atletico_predefinito || '').toUpperCase(),
+        preparatorePortieri: (staffSpecificoAnnata.preparatorePortieri || societaAttiva?.preparatore_portieri_predefinito || '').toUpperCase(),
+        dataPartita: staffSpecificoAnnata.dataPartita || new Date().toISOString().split('T')[0],
+        isNostraCasa: staffSpecificoAnnata.isNostraCasa ?? true
       });
 
       setFaseApp('distinta');
