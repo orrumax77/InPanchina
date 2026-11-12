@@ -428,7 +428,17 @@ export default function GestioneEventi({
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
             <h4 className="text-sm font-bold text-white uppercase">Seleziona Giocatore Sanzionato</h4>
             <div className="max-h-60 overflow-y-auto space-y-1.5">
-              {giocatori.filter(g => g.isTitolare || g.espulso).map(g => {
+              {giocatori.filter(g => {
+                // Verifichiamo se il giocatore è attualmente in campo
+                const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
+                const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
+                
+                // È in campo se: (era titolare e non è uscito) oppure (era in panchina ed è entrato)
+                const attualmenteInCampo = (g.isTitolare && (!eUscito || eEntrato)) || (!g.isTitolare && eEntrato);
+                
+                // Un giocatore è sanzionabile se è attualmente in campo OPPURE se è già stato espulso in precedenza
+                return (attualmenteInCampo || g.espulso);
+              }).map(g => {
                 if (g.espulso) {
                   return (
                     <div key={g.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/40 border border-slate-900 opacity-50 select-none">
