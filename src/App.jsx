@@ -86,6 +86,11 @@ export default function App() {
   const [faseApp, setFaseApp] = useState('login');
   const [partitaConclusa, setPartitaConclusa] = useState(false); // 🚀 Stato per mostrare i bottoni solo a fine gara
   
+  // Stati per il timer di sicurezza di 30 secondi al triplice fischio
+  const [avvisoAutoArchiviazione, setAvvisoAutoArchiviazione] = useState(false);
+  const [secondiRimanentiAuto, setSecondiRimanentiAuto] = useState(30);
+  const timerAutoRef = useRef(null);
+
   const [utenteConnesso, setUtenteConnesso] = useState(null);
   const [societaAttiva, setSocietaAttiva] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -340,7 +345,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CARTELLINI + CAMBI A CATENA)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CARTELLINI + CAMBI + RESET ARCHIVIAZIONE)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -349,6 +354,21 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'partite', filter: `id=eq.${partitaId}` }, async (payload) => {
         const p = payload.new;
         if (!p) return;
+
+        // 🚀 Se un dispositivo ha archiviato, tutti i dispositivi tornano alla distinta
+        if (p.archiviato_il) {
+          if (timerAutoRef.current) clearInterval(timerAutoRef.current);
+          setAvvisoAutoArchiviazione(false);
+          setFaseApp('distinta');
+          setGolCasa(0);
+          setGolOspiti(0);
+          setTempoGara(1);
+          setSecondiGara(0);
+          setInEsecuzione(false);
+          setEventi([]);
+          setPartitaConclusa(true);
+          return;
+        }
 
         setGolCasa(p.gol_casa || 0);
         setGolOspiti(p.gol_ospite || 0);
@@ -531,6 +551,31 @@ export default function App() {
       });
     }
   };
+
+  // 🚀 Funzioni per il timer automatico di sicurezza di 30 secondi a fine gara
+  const avviaContoRovesciatoChiusura = () => {
+    setSecondiRimanentiAuto(30);
+    setAvvisoAutoArchiviazione(true);
+    
+    if (timerAutoRef.current) clearInterval(timerAutoRef.current);
+    
+    timerAutoRef.current = setInterval(() => {
+      setSecondiRimanentiAuto(prev => {
+        if (prev <= 1) {
+          clearInterval(timerAutoRef.current);
+          setAvvisoAutoArchiviazione(false);
+          handleTerminaLiveEResetta();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const annullaChiusuraAuto = () => {
+    if (timerAutoRef.current) clearInterval(timerAutoRef.current);
+    setAvvisoAutoArchiviazione(false);
+  };
   
   const cambiaFaseGara = (nuovoTempo) => {
     setModaleBloccoTempo(null);
@@ -560,7 +605,8 @@ export default function App() {
       alert("Fine 1° Tempo! Il cronometro del 2° Tempo è azzerato a 00:00 e sincronizzato.");
     } else if (nuovoTempo === 'fine') {
       mettiInPausaTimer();
-      setFaseApp('referto');
+      // 🚀 Avvia il timer di 30 secondi prima dell'archiviazione automatica
+      avviaContoRovesciatoChiusura();
     }
   };
 
@@ -768,6 +814,9 @@ export default function App() {
   };
 
   const handleTerminaLiveEResetta = async (giocatoriConMinuti) => {
+    // 🚀 Stoppa il timer automatico se attivo
+    if (timerAutoRef.current) clearInterval(timerAutoRef.current);
+    setAvvisoAutoArchiviazione(false);
     setSalvataggioInCorso(true);
 
     const giocatoriBase = (giocatoriConMinuti && giocatoriConMinuti.length > 0) 
@@ -787,6 +836,16 @@ export default function App() {
       stagioneSelezionata,
       annataSelezionata
     );
+
+    // 🚀 Invia il segnale di reset globale a tutti i dispositivi collegati in tempo reale
+    await syncStatoPartitaSuDb(partitaId, {
+      golCasa: 0,
+      golOspiti: 0,
+      tempoGara: 1,
+      secondiGara: 0,
+      inEsecuzione: false,
+      archiviato_il: new Date().toISOString()
+    });
 
     setSalvataggioInCorso(false);
 
@@ -824,6 +883,7 @@ export default function App() {
   };
 
   const disconnetti = () => {
+    if (timerAutoRef.current) clearInterval(timerAutoRef.current);
     setUtenteConnesso(null);
     setSocietaAttiva(null);
     setIsSuperAdmin(false);
@@ -1186,6 +1246,63 @@ export default function App() {
         />
       )}
 
+      {/* 🚀 Modale di Avviso per Archiviazione Automatica (30 secondi) */}
+      {avvisoAutoArchiviazione && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[99999] select-none">
+          <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-amber-950">
+            <div className="w-20 h-20 mx-auto rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-amber-400 font-mono font-black text-2xl animate-pulse">
+              {secondiRimanentiAuto}s
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-xs font-bold font-mono text-amber-400 bg-amber-950/60 border border-amber-500/40 px-3 py-1 rounded-full uppercase inline-flex items-center gap-1.5">
+                Triplice Fischio Rilevato
+              </span>
+
+              <h2 className="text-xl font-black text-white uppercase tracking-tight">
+                Archiviazione Automatica in Corso
+              </h2>
+
+              <p className="text-xs text-slate-300 leading-relaxed uppercase font-medium">
+                Se non effettui alcuna azione, la partita verrà <strong className="text-white">archiviata automaticamente</strong> e il live azzerato tra {secondiRimanentiAuto} secondi.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  annullaChiusuraAuto();
+                  setFaseApp('referto');
+                }}
+                className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition cursor-pointer shadow-lg shadow-emerald-950"
+              >
+                Gestisci Referto Ufficiale
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  annullaChiusuraAuto();
+                  handleTerminaLiveEResetta();
+                }}
+                className="w-full py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider transition cursor-pointer shadow-lg shadow-rose-950"
+              >
+                Termina e Archivia Subito
+              </button>
+
+              <button
+                type="button"
+                onClick={annullaChiusuraAuto}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-bold uppercase transition cursor-pointer"
+              >
+                Annulla e Torna al Live
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modaleBloccoTempo && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[9999] select-none">
           <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-rose-950">
@@ -1234,7 +1351,6 @@ export default function App() {
               >
                 + Aggiungi 1 Minuto di Recupero Extra
               </button>
-            </div>
           </div>
         </div>
       )}
