@@ -67,6 +67,8 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
   const generaTestoReferto = (p) => {
     const dataFormatted = p.data_gara ? p.data_gara.split('-').reverse().join('/') : '';
+    const nomeSocietaTesto = societa?.nome ? societa.nome.toUpperCase() : 'REFERTO GARA';
+    let t = `🛡️ *${nomeSocietaTesto}*\n`;
     let t = `📋 *REFERTO GARA*\n`;
     t += `📅 *Data:* ${dataFormatted}\n`;
     if (campionato) t += `🏆 *Campionato:* ${campionato}\n`;
