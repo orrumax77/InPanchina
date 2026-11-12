@@ -34,7 +34,7 @@ export default function GestioneEventi({
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
   const [modalSostituzione, setModalSostituzione] = useState(false);
 
-  // Stati di selezione per la nuova logica intuitiva "Click & Swap"
+  // Stati di selezione per la logica intuitiva "Click & Swap"
   const [selezionatoEsce, setSelezionatoEsce] = useState(null);
   const [selezionatoEntra, setSelezionatoEntra] = useState(null);
   const [coppieInAttesa, setCoppieInAttesa] = useState([]);
@@ -173,7 +173,7 @@ export default function GestioneEventi({
     setModalAmmonizione(false);
   };
 
-  // 4. Sostituzioni - Apertura modale pulita
+  // 4. Sostituzioni - Apertura modale
   const apriModalCambio = () => {
     if (!isIntervalloEffettivo && !verificaTimerAvviato()) return;
      
@@ -269,7 +269,7 @@ export default function GestioneEventi({
     setCoppieInAttesa([]);
   };
 
-  // Filtro rigoroso titolari in campo
+  // Titolari attualmente in campo
   const titolariInCampo = giocatori.filter(g => {
     const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
     const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
@@ -476,7 +476,7 @@ export default function GestioneEventi({
         </div>
       )}
       
-      {/* 🚀 NUOVO MODALE SOSTITUZIONE FLUIDO E MODERNO */}
+      {/* MODALE SOSTITUZIONE AGGIORNATO */}
       {modalSostituzione && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 max-w-3xl w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -527,7 +527,7 @@ export default function GestioneEventi({
               </button>
             </div>
 
-            {/* Griglie Interattive Click & Swap */}
+            {/* Griglie Interattive */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
               {/* Colonna 1: Titolari in Campo */}
@@ -577,7 +577,7 @@ export default function GestioneEventi({
                 </div>
               </div>
 
-              {/* Colonna 2: Panchina */}
+              {/* Colonna 2: Panchina (con chi è già uscito riportato correttamente e sbarrato) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2.5 rounded-xl">
                   <span className="flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5" /> 2. Chi ENTRA (Panchina)</span>
@@ -585,28 +585,25 @@ export default function GestioneEventi({
                 </div>
 
                 <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
-                  {giocatori.filter(g => {
+                  {giocatori.filter(g => !g.espulso).map(g => {
+                    const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
                     const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
-                    return (!g.isTitolare && !eEntrato) && !g.espulso;
-                  }).map(g => {
-                    const giaUscito = eventi.some(e => {
-                      if (e.tipo !== 'SOSTITUZIONE') return false;
-                      if (e.esceId && e.esceId === g.id) return true;
-                      if (e.dettagli) {
-                        const dett = e.dettagli.toUpperCase();
-                        return dett.includes(`#${g.numero}`) || dett.includes(g.nome.toUpperCase());
-                      }
-                      return false;
-                    });
+                    
+                    // Condizione corretta: è già uscito se era titolare ed è uscito (senza rientrare) oppure se non era titolare ma risulta comunque uscito nello storico
+                    const giaUscito = (g.isTitolare && eUscito && !eEntrato) || (!g.isTitolare && eUscito);
+                    
+                    // Se il giocatore è attualmente in campo, non deve apparire nella lista della panchina
+                    const eInCampoAttr = (g.isTitolare && !eUscito) || (!g.isTitolare && eEntrato);
+                    if (eInCampoAttr) return null;
 
-                    const giaNelCarrello = coppieInAttesa.some(c => c.entra.id === g.id);
+                    const giaNelCarrello = coppieInAttesa.some(c => c.entra.id === g.id || c.esce.id === g.id);
                     const isSelezionato = selezionatoEntra?.id === g.id;
 
                     if (giaUscito) {
                       return (
                         <div key={g.id} className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-900 text-slate-600 flex items-center justify-between opacity-40 select-none text-xs">
                           <span className="line-through">#{g.numero} {g.nome}</span>
-                          <span className="text-[9px] uppercase font-bold text-rose-500">Già uscito</span>
+                          <span className="text-[9px] uppercase font-bold text-rose-500">Già uscito (Non rientrabile)</span>
                         </div>
                       );
                     }
@@ -666,7 +663,7 @@ export default function GestioneEventi({
               </div>
             )}
 
-            {/* Lista cambi multipli in attesa di conferma nello stesso slot */}
+            {/* Lista cambi multipli in attesa */}
             {coppieInAttesa.length > 0 && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
                 <span className="text-[11px] font-bold text-slate-400 uppercase block">
