@@ -84,11 +84,12 @@ const getListaStagioniDisponibili = () => {
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login');
-   
+  const [partitaConclusa, setPartitaConclusa] = useState(false); // 🚀 Stato per mostrare i bottoni solo a fine gara
+  
   const [utenteConnesso, setUtenteConnesso] = useState(null);
   const [societaAttiva, setSocietaAttiva] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-   
+  
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
   
@@ -104,7 +105,7 @@ export default function App() {
   const [partitaInfo, setPartitaInfo] = useState(null);
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
-   
+  
   const [tempoGara, setTempoGara] = useState(1);
   const [secondiGara, setSecondiGara] = useState(0);
   const [secondiBase, setSecondiBase] = useState(0);
@@ -141,7 +142,7 @@ export default function App() {
     const campionatoPulito = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const idPartita = socFresca ? `${socFresca.id}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE` : null;
-     
+    
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
 
     // 🚀 Filtriamo solo i convocati effettivi
@@ -223,15 +224,15 @@ export default function App() {
       setGolCasa(partitaDB.gol_casa || 0);
       setGolOspiti(partitaDB.gol_ospite || 0);
       setTempoGara(partitaDB.tempo || 1);
-       
+      
       const inEsec = partitaDB.in_esecuzione || false;
       const secGara = partitaDB.secondi_gara || 0;
       const avvAlle = partitaDB.avviato_alle || null;
-       
+      
       setInEsecuzione(inEsec);
       setAvviatoAlle(avvAlle);
       setSecondiBase(secGara);
-       
+      
       if (inEsec && avvAlle) {
         const trascorsi = Math.max(0, Math.floor((Date.now() - new Date(avvAlle).getTime()) / 1000));
         setSecondiGara(secGara + trascorsi);
@@ -579,6 +580,7 @@ export default function App() {
   const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
+    setPartitaConclusa(false); // 🚀 Inizia la partita: azzeriamo il flag di fine gara
 
     // 🚀 FILTRO CORRETTO: Teniamo solo i giocatori con isConvocato a true
     const giocatoriConvocati = giocatori.filter(g => g.isConvocato === true);
@@ -664,7 +666,7 @@ export default function App() {
         if (giocatoriCoinvolti.length >= 2) {
           const idxEsce = eventoDaEliminare.dettagli.indexOf('Esce');
           const idxEntra = eventoDaEliminare.dettagli.indexOf('Entra');
-           
+          
           let candidatoEsce = null;
           let candidatoEntra = null;
           let minDistanzaEsce = 999;
@@ -759,7 +761,7 @@ export default function App() {
     await eliminaEventoCloud(id, partitaId);
     setEventi(eventiRimasti);
   };
-    
+  
   const handleAggiornaRosa = async (nuovaRosa) => {
     setRosa(nuovaRosa);
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa, stagioneSelezionata, annataSelezionata);
@@ -775,10 +777,6 @@ export default function App() {
     // 🚀 FILTRO: Archiviamo solo i giocatori convocati per la gara
     const giocatoriDaArchiviare = giocatoriBase.filter(g => g.isConvocato === true);
     
-    /*const giocatoriDaArchiviare = (giocatoriConMinuti && giocatoriConMinuti.length > 0) 
-      ? giocatoriConMinuti 
-      : rosa;*/
-
     const res = await archiviaPartitaEResettaLive(
       societaAttiva.id,
       partitaId,
@@ -807,6 +805,7 @@ export default function App() {
       setSlotUsati(0);
       setCambiEffettuati(0);
       setEventi([]);
+      setPartitaConclusa(true); // 🚀 Partita archiviata: ora i bottoni Archivio e Referto ricompaiono
 
       setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })))
 
@@ -832,6 +831,7 @@ export default function App() {
     setPartitaInfo(null);
     setRosa([]);
     setEventi([]);
+    setPartitaConclusa(false);
     setFaseApp('login');
   };
 
@@ -1063,25 +1063,30 @@ export default function App() {
                 {getCategoriaLND(stagioneSelezionata, annataSelezionata)} ({stagioneSelezionata})
               </span>
 
-              <button
-                type="button"
-                onClick={() => setFaseApp('archivio')}
-                className="bg-slate-900 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
-                title="Vedi referti archiviati"
-              >
-                <Archive className="w-3.5 h-3.5" /> Archivio
-              </button>
+              {/* 🚀 I pulsanti Archivio e Referto compaiono SOLO a partita conclusa e archiviata */}
+              {partitaConclusa && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setFaseApp('archivio')}
+                    className="bg-slate-900 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    title="Vedi referti archiviati"
+                  >
+                    <Archive className="w-3.5 h-3.5" /> Archivio
+                  </button>
+
+                  <button
+                    onClick={() => setFaseApp('referto')}
+                    className="px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 uppercase transition cursor-pointer bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Referto
+                  </button>
+                </>
+              )}
 
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 uppercase">
                 <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live
-              </span>
-
-              <button
-                onClick={() => setFaseApp('referto')}
-                className="px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 uppercase transition cursor-pointer bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700"
-              >
-                <FileText className="w-3.5 h-3.5" /> Referto
-              </button>
+            </span>
             </div>
           </div>
 
