@@ -14,6 +14,21 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
   const [partitaInVotazione, setPartitaInVotazione] = useState(null);
   const [votiTemp, setVotiTemp] = useState({});
 
+  // Stati per la gestione della modale modulo di gioco a posteriori
+  const [partitaInModulo, setPartitaInModulo] = useState(null);
+  const [moduloTemp, setModuloTemp] = useState('4-3-3');
+
+  const moduliDisponibili = [
+    '4-3-3',
+    '4-2-3-1',
+    '4-4-2',
+    '3-5-2',
+    '3-4-3',
+    '4-3-1-2',
+    '5-3-2',
+    '5-4-1'
+  ];
+
   const ricaricaStorico = async () => {
     if (!societa?.id) return;
     setCaricamento(true);
@@ -57,7 +72,12 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     if (campionato) t += `🏆 *Campionato:* ${campionato}\n`;
     if (annata) t += `👤 *Annata:* ${annata}\n`;
     t += `\n`;
-    t += `⚽ *${(p.squadra_casa || 'CASA').toUpperCase()} ${p.gol_casa} - ${p.gol_ospite} ${(p.squadra_ospite || 'OSPITE').toUpperCase()}*\n\n`;
+    t += `⚽ *${(p.squadra_casa || 'CASA').toUpperCase()} ${p.gol_casa} - ${p.gol_ospite} ${(p.squadra_ospite || 'OSPITE').toUpperCase()}*\n`;
+    
+    if (p.modulo_gioco) {
+      t += `📋 *Modulo:* ${p.modulo_gioco}\n`;
+    }
+    t += `\n`;
 
     t += `👔 *STAFF TECNICO & DIRIGENZIALE UFFICIALE:*\n`;
     if (p.allenatore) t += `• Allenatore: ${p.allenatore.toUpperCase()}\n`;
@@ -142,7 +162,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     setPartitaInVotazione(p);
     const iniziali = {};
     (p.referto_giocatori || []).forEach(g => {
-      // Se non ha un voto salvato, impostiamo di default '6' o stringa vuota
       iniziali[g.id] = g.voto !== undefined && g.voto !== '' ? g.voto : '6';
     });
     setVotiTemp(iniziali);
@@ -157,7 +176,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       voto: votiTemp[g.id] !== undefined ? votiTemp[g.id] : ''
     }));
 
-    // Puliamo l'ID rimuovendo eventuali suffissi anomali (es. ":1") se presenti
     const idPulito = String(partitaInVotazione.id).split(':')[0];
 
     const { error } = await supabase
@@ -171,6 +189,32 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     }
 
     setPartitaInVotazione(null);
+    await ricaricaStorico();
+  };
+
+  // Apertura modale Modulo di Gioco
+  const apriModaleModulo = (p) => {
+    setPartitaInModulo(p);
+    setModuloTemp(p.modulo_gioco || '4-3-3');
+  };
+
+  // Salvataggio del modulo nel database su Supabase
+  const salvaModuloStorico = async () => {
+    if (!partitaInModulo) return;
+
+    const idPulito = String(partitaInModulo.id).split(':')[0];
+
+    const { error } = await supabase
+      .from('partite')
+      .update({ modulo_gioco: moduloTemp })
+      .eq('id', idPulito);
+
+    if (error) {
+      alert("Errore durante il salvataggio del modulo: " + error.message);
+      return;
+    }
+
+    setPartitaInModulo(null);
     await ricaricaStorico();
   };
 
@@ -268,6 +312,14 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
+                          onClick={() => apriModaleModulo(p)}
+                          className="px-3.5 py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-1.5 transition border border-indigo-500/40 cursor-pointer"
+                        >
+                          <Trophy className="w-4 h-4" /> {p.modulo_gioco ? `Modulo (${p.modulo_gioco})` : 'Assegna Modulo'}
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => apriModaleVoti(p)}
                           className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition border border-amber-500/40 cursor-pointer"
                         >
@@ -297,6 +349,68 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modale Assegnazione Modulo di Gioco a Posteriori */}
+      {partitaInModulo && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl text-slate-100 flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-base font-bold uppercase text-white">Modulo di Gioco</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPartitaInModulo(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 uppercase">
+              Partita del {partitaInModulo.data_gara} vs {partitaInModulo.squadra_ospite}
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 py-2">
+              {moduliDisponibili.map((mod) => {
+                const isSelezionato = moduloTemp === mod;
+                return (
+                  <button
+                    key={mod}
+                    type="button"
+                    onClick={() => setModuloTemp(mod)}
+                    className={`py-3 rounded-xl font-mono font-bold text-sm transition cursor-pointer border ${
+                      isSelezionato
+                        ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg scale-105'
+                        : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-800'
+                    }`}
+                  >
+                    {mod}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPartitaInModulo(null)}
+                className="w-1/2 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase transition cursor-pointer"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={salvaModuloStorico}
+                className="w-1/2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase transition cursor-pointer shadow-lg shadow-emerald-950 flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" /> Salva Modulo
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
