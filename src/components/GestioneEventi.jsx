@@ -115,7 +115,7 @@ export default function GestioneEventi({
     const nuoveAmm = (target.ammonizioni || 0) + 1;
     const espulso = nuoveAmm >= 2;
 
-    const nuovaRosa = giocatori.map(g => {
+    const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
         return {
           ...g,
@@ -127,7 +127,7 @@ export default function GestioneEventi({
       return g;
     });
 
-    setGiocatori(nuovaRosa);
+    setGiocatori(nuevaRosa);
 
     onNuovoEvento({
       id: Date.now().toString(),
@@ -147,14 +147,14 @@ export default function GestioneEventi({
     const target = giocatori.find(g => g.id === giocatoreId);
     if (!target) return;
 
-    const nuovaRosa = giocatori.map(g => {
+    const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
         return { ...g, espulso: true, isTitolare: false };
       }
       return g;
     });
 
-    setGiocatori(nuovaRosa);
+    setGiocatori(nuevaRosa);
 
     onNuovoEvento({
       id: Date.now().toString(),
@@ -612,13 +612,18 @@ export default function GestioneEventi({
 
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                   {giocatori.filter(g => !g.isTitolare && !g.espulso).map(g => {
-                    // 🚀 Controllo robusto in tempo reale sia basato sugli eventi sia sullo stato del giocatore
-                    const giaUscito = !g.isTitolare && eventi.some(e => 
-                      e.tipo === 'SOSTITUZIONE' && (
-                        e.esceId === g.id || 
-                        (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-                      )
-                    );
+                    // 🚀 Controllo reattivo istantaneo basato sull'array eventi globale
+                    const giaUscito = eventi.some(e => {
+                      if (e.tipo !== 'SOSTITUZIONE') return false;
+                      if (e.esceId && e.esceId === g.id) return true;
+                      if (e.dettagli) {
+                        const dett = e.dettagli.toUpperCase();
+                        const nomeUscito = g.nome.toUpperCase();
+                        const numUscito = `#${g.numero}`;
+                        return dett.includes(numUscito) || dett.includes(nomeUscito);
+                      }
+                      return false;
+                    });
 
                     const giaInseritoInAttesa = coppieInAttesa.some(c => c.entra.id === g.id);
                     const isSel = giocatoreEntra === g.id;
@@ -633,7 +638,7 @@ export default function GestioneEventi({
                             <span className="text-xs font-semibold uppercase truncate line-through">{g.nome}</span>
                           </div>
                           <span className="text-[9px] font-bold text-rose-500 uppercase flex-shrink-0">
-                            Già uscito (Non rientrabile)
+                            Già uscito (Non rientrabile)[cite: 1]
                           </span>
                         </div>
                       );
