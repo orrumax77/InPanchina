@@ -620,7 +620,8 @@ export default function GestioneEventi({
 
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                   {giocatori.filter(g => !g.isTitolare && !g.espulso).map(g => {
-                    const giaUscito = eventi.some(e => {
+                    // 🚀 Controllo combinato dinamico (stato booleano rosa + storico eventi in tempo reale)
+                    const giaUscito = !g.isTitolare || eventi.some(e => {
                       if (e.tipo !== 'SOSTITUZIONE') return false;
                       if (e.esceId && e.esceId === g.id) return true;
                       if (e.dettagli) {
