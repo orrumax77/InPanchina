@@ -84,12 +84,17 @@ const getListaStagioniDisponibili = () => {
 
 export default function App() {
   const [faseApp, setFaseApp] = useState('login');
-  const [partitaConclusa, setPartitaConclusa] = useState(false); // 🚀 Stato per mostrare i bottoni solo a fine gara
+  const [partitaConclusa, setPartitaConclusa] = useState(false); // 🚀 I bottoni appaiono solo a fine gara
   
+  // Stati per il timer di sicurezza di 30 secondi al triplice fischio
+  const [avvisoAutoArchiviazione, setAvvisoAutoArchiviazione] = useState(false);
+  const [secondiRimanentiAuto, setSecondiRimanentiAuto] = useState(30);
+  const timerAutoRef = useRef(null);
+   
   const [utenteConnesso, setUtenteConnesso] = useState(null);
   const [societaAttiva, setSocietaAttiva] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  
+   
   const [loginUser, setLoginUser] = useState(() => localStorage.getItem('inpanchina_username') || '');
   const [loginPassword, setLoginPassword] = useState('');
   
@@ -105,7 +110,7 @@ export default function App() {
   const [partitaInfo, setPartitaInfo] = useState(null);
   const [rosa, setRosa] = useState([]);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
-  
+   
   const [tempoGara, setTempoGara] = useState(1);
   const [secondiGara, setSecondiGara] = useState(0);
   const [secondiBase, setSecondiBase] = useState(0);
@@ -142,10 +147,9 @@ export default function App() {
     const campionatoPulito = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const idPartita = socFresca ? `${socFresca.id}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE` : null;
-    
+     
     let rosaSalvataNelDb = await caricaRosaSocieta(socFresca.id, stagioneSelezionata, annataSelezionata);
 
-    // 🚀 Filtriamo solo i convocati effettivi
     const rosaConvocati = (rosaSalvataNelDb || []).filter(g => g.isConvocato === true);
     setRosa(rosaConvocati);
 
@@ -224,15 +228,15 @@ export default function App() {
       setGolCasa(partitaDB.gol_casa || 0);
       setGolOspiti(partitaDB.gol_ospite || 0);
       setTempoGara(partitaDB.tempo || 1);
-      
+       
       const inEsec = partitaDB.in_esecuzione || false;
       const secGara = partitaDB.secondi_gara || 0;
       const avvAlle = partitaDB.avviato_alle || null;
-      
+       
       setInEsecuzione(inEsec);
       setAvviatoAlle(avvAlle);
       setSecondiBase(secGara);
-      
+       
       if (inEsec && avvAlle) {
         const trascorsi = Math.max(0, Math.floor((Date.now() - new Date(avvAlle).getTime()) / 1000));
         setSecondiGara(secGara + trascorsi);
@@ -340,7 +344,7 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CARTELLINI + CAMBI A CATENA)
+  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CAMBI A CATENA + CARTELLINI + RESET)
   useEffect(() => {
     if (!partitaId) return;
 
@@ -349,6 +353,21 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'partite', filter: `id=eq.${partitaId}` }, async (payload) => {
         const p = payload.new;
         if (!p) return;
+
+        // 🚀 Se un dispositivo ha archiviato, tutti i dispositivi tornano alla distinta
+        if (p.archiviato_il) {
+          if (timerAutoRef.current) clearInterval(timerAutoRef.current);
+          setAvvisoAutoArchiviazione(false);
+          setFaseApp('distinta');
+          setGolCasa(0);
+          setGolOspiti(0);
+          setTempoGara(1);
+          setSecondiGara(0);
+          setInEsecuzione(false);
+          setEventi([]);
+          setPartitaConclusa(true);
+          return;
+        }
 
         setGolCasa(p.gol_casa || 0);
         setGolOspiti(p.gol_ospite || 0);
@@ -383,21 +402,19 @@ export default function App() {
           setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
         }
 
-        // Ricarica immediata di eventi e ricalcolo completo di cartellini e sostituzioni sulla rosa
+        // Ricarica immediata di eventi e ricalcolo completo dei cambi a catena e cartellini sulla rosa
         const stato = await caricaStatoPartita(partitaId);
         if (stato && stato.eventi) {
           const eventiAggiornati = stato.eventi;
           setEventi(eventiAggiornati);
 
-          // Ricarichiamo la rosa base pulita dal DB per partire dai titolari iniziali della distinta
           const rosaBaseFresco = await caricaRosaSocieta(societaAttiva?.id, stagioneSelezionata, annataSelezionata);
 
           if (rosaBaseFresco && rosaBaseFresco.length > 0) {
-            setRosa(prevRosa => {
+            setRosa(() => {
               return rosaBaseFresco.map(gOriginale => {
                 let isTit = gOriginale.isTitolare;
 
-                // Analizziamo tutti gli eventi di sostituzione in ordine cronologico corretto (dal più vecchio al più recente)
                 const eventiInOrdine = [...eventiAggiornati].reverse();
                 eventiInOrdine.forEach(e => {
                   if (e.tipo === 'SOSTITUZIONE' && e.dettagli) {
@@ -532,6 +549,30 @@ export default function App() {
     }
   };
   
+  const avviaContoRovesciatoChiusura = () => {
+    setSecondiRimanentiAuto(30);
+    setAvvisoAutoArchiviazione(true);
+    
+    if (timerAutoRef.current) clearInterval(timerAutoRef.current);
+    
+    timerAutoRef.current = setInterval(() => {
+      setSecondiRimanentiAuto(prev => {
+        if (prev <= 1) {
+          clearInterval(timerAutoRef.current);
+          setAvvisoAutoArchiviazione(false);
+          handleTerminaLiveEResetta();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const annullaChiusuraAuto = () => {
+    if (timerAutoRef.current) clearInterval(timerAutoRef.current);
+    setAvvisoAutoArchiviazione(false);
+  };
+
   const cambiaFaseGara = (nuovoTempo) => {
     setModaleBloccoTempo(null);
 
@@ -560,7 +601,7 @@ export default function App() {
       alert("Fine 1° Tempo! Il cronometro del 2° Tempo è azzerato a 00:00 e sincronizzato.");
     } else if (nuovoTempo === 'fine') {
       mettiInPausaTimer();
-      setFaseApp('referto');
+      avviaContoRovesciatoChiusura();
     }
   };
 
@@ -580,15 +621,13 @@ export default function App() {
   const handleConfermaDistinta = async ({ partitaInfo: pInfo, giocatori }) => {
     setSalvataggioInCorso(true);
     setPartitaInfo(pInfo);
-    setPartitaConclusa(false); // 🚀 Inizia la partita: azzeriamo il flag di fine gara
+    setPartitaConclusa(false);
 
-    // 🚀 FILTRO CORRETTO: Teniamo solo i giocatori con isConvocato a true
     const giocatoriConvocati = giocatori.filter(g => g.isConvocato === true);
 
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatoriConvocati, stagioneSelezionata, annataSelezionata);
     await salvaBozzaPartitaSuDb(societaAttiva.id, partitaId, pInfo, stagioneSelezionata, annataSelezionata);
 
-    // Aggiorniamo la rosa locale solo con i convocati effettivi
     setRosa(giocatoriConvocati);
 
     setSalvataggioInCorso(false);
@@ -768,13 +807,14 @@ export default function App() {
   };
 
   const handleTerminaLiveEResetta = async (giocatoriConMinuti) => {
+    if (timerAutoRef.current) clearInterval(timerAutoRef.current);
+    setAvvisoAutoArchiviazione(false);
     setSalvataggioInCorso(true);
 
-    const giocatoriBase = (giocatoriConMinuti && giocatoriConMinuti.length > 0) 
+    const giocatoriBase = (giocatoriConMinuti && giocatoriConvocati.length > 0) 
       ? giocatoriConMinuti 
       : rosa;
 
-    // 🚀 FILTRO: Archiviamo solo i giocatori convocati per la gara
     const giocatoriDaArchiviare = giocatoriBase.filter(g => g.isConvocato === true);
     
     const res = await archiviaPartitaEResettaLive(
@@ -787,6 +827,16 @@ export default function App() {
       stagioneSelezionata,
       annataSelezionata
     );
+
+    // 🚀 Invia il segnale di reset globale a tutti i dispositivi in tempo reale
+    await syncStatoPartitaSuDb(partitaId, {
+      golCasa: 0,
+      golOspiti: 0,
+      tempoGara: 1,
+      secondiGara: 0,
+      inEsecuzione: false,
+      archiviato_il: new Date().toISOString()
+    });
 
     setSalvataggioInCorso(false);
 
@@ -805,7 +855,7 @@ export default function App() {
       setSlotUsati(0);
       setCambiEffettuati(0);
       setEventi([]);
-      setPartitaConclusa(true); // 🚀 Partita archiviata: ora i bottoni Archivio e Referto ricompaiono
+      setPartitaConclusa(true);
 
       setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })))
 
@@ -824,6 +874,7 @@ export default function App() {
   };
 
   const disconnetti = () => {
+    if (timerAutoRef.current) clearInterval(timerAutoRef.current);
     setUtenteConnesso(null);
     setSocietaAttiva(null);
     setIsSuperAdmin(false);
@@ -1057,7 +1108,7 @@ export default function App() {
                 <ArrowLeft className="w-4 h-4" /> Distinta
               </button>
             ) : <div />}
-             
+              
             <div className="flex items-center gap-2">
               <span className="bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider shadow">
                 {getCategoriaLND(stagioneSelezionata, annataSelezionata)} ({stagioneSelezionata})
@@ -1086,7 +1137,7 @@ export default function App() {
 
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 uppercase">
                 <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live
-            </span>
+              </span>
             </div>
           </div>
 
@@ -1184,6 +1235,63 @@ export default function App() {
           annata={annataSelezionata}
           onTornaIndietro={() => setFaseApp(partitaInfo ? 'distinta' : 'distinta')}
         />
+      )}
+
+      {/* 🚀 Modale di Avviso per Archiviazione Automatica (30 secondi) */}
+      {avvisoAutoArchiviazione && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[99999] select-none">
+          <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 md:p-8 max-w-md w-full text-center space-y-6 shadow-2xl shadow-amber-950">
+            <div className="w-20 h-20 mx-auto rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-amber-400 font-mono font-black text-2xl animate-pulse">
+              {secondiRimanentiAuto}s
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-xs font-bold font-mono text-amber-400 bg-amber-950/60 border border-amber-500/40 px-3 py-1 rounded-full uppercase inline-flex items-center gap-1.5">
+                Triplice Fischio Rilevato
+              </span>
+
+              <h2 className="text-xl font-black text-white uppercase tracking-tight">
+                Archiviazione Automatica in Corso
+              </h2>
+
+              <p className="text-xs text-slate-300 leading-relaxed uppercase font-medium">
+                Se non effettui alcuna azione, la partita verrà <strong className="text-white">archiviata automaticamente</strong> e il live azzerato tra {secondiRimanentiAuto} secondi.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  annullaChiusuraAuto();
+                  setFaseApp('referto');
+                }}
+                className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition cursor-pointer shadow-lg shadow-emerald-950"
+              >
+                Gestisci Referto Ufficiale
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  annullaChiusuraAuto();
+                  handleTerminaLiveEResetta();
+                }}
+                className="w-full py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider transition cursor-pointer shadow-lg shadow-rose-950"
+              >
+                Termina e Archivia Subito
+              </button>
+
+              <button
+                type="button"
+                onClick={annullaChiusuraAuto}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-bold uppercase transition cursor-pointer"
+              >
+                Annulla e Torna al Live
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {modaleBloccoTempo && (
