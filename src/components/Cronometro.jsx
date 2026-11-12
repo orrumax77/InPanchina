@@ -126,7 +126,6 @@ export default function Cronometro({
         const nowMs = Date.now();
         const diffSecondiReali = Math.max(0, Math.floor((nowMs - startMs) / 1000));
 
-        // ARROTONDAMENTO A NUMERO INTERO CON Math.floor PER EVITARE MILLISECONDI
         const tempoCalcolato = Math.min(
           LIMITE_MASSIMO_CON_RECUPERO,
           Math.floor((secondiBase || 0) + diffSecondiReali)
@@ -142,14 +141,14 @@ export default function Cronometro({
           if (!fischioGiaEseguito.current) {
             fischioGiaEseguito.current = true;
             riproduciFischioArbitro(tempo === 1 ? 'primo_tempo' : 'fine_gara');
-            if (onTriggerScadenzaRef.current) onTriggerScadenzaRef.current(tempo);
+            if (onTriggerScadenzaRef.current) {
+              onTriggerScadenzaRef.current(tempo);
+            }
           }
         }
       };
 
       aggiornaTimerSincronizzato();
-
-      // Intervallo fisso al secondo intero esatto
       timer = setInterval(aggiornaTimerSincronizzato, 1000);
     }
 
@@ -160,12 +159,10 @@ export default function Cronometro({
 
   const formatNumero = (num) => String(Math.floor(num)).padStart(2, '0');
 
-  // Avanza il timer SENZA fermare l'esecuzione (con calcolo esatto del delta in secondi)
   const avanzaSecondi = (secAggiuntivi) => {
     const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, Math.floor(secondiTrascorsi + secAggiuntivi));
     setSecondi(nuovo);
 
-    // Notifica ad App.jsx per aggiornare secondiBase e sincronizzare il DB senza stoppare
     if (onAvanzaTempoRef.current) {
       onAvanzaTempoRef.current(secAggiuntivi, nuovo);
     }
@@ -178,7 +175,9 @@ export default function Cronometro({
       if (!fischioGiaEseguito.current) {
         fischioGiaEseguito.current = true;
         riproduciFischioArbitro(tempo === 1 ? 'primo_tempo' : 'fine_gara');
-        if (onTriggerScadenzaRef.current) onTriggerScadenzaRef.current(tempo);
+        if (onTriggerScadenzaRef.current) {
+          onTriggerScadenzaRef.current(tempo);
+        }
       }
     }
   };
@@ -193,7 +192,6 @@ export default function Cronometro({
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl text-center space-y-3 sm:space-y-4 relative w-full overflow-hidden">
-      {/* Intestazione Cronometro */}
       <div className="flex flex-wrap justify-between items-center gap-2 text-xs sm:text-sm font-semibold tracking-wider uppercase text-slate-400">
         <span className="flex items-center gap-1.5 text-emerald-400 font-bold truncate">
           <Clock className="w-4 h-4 flex-shrink-0" />
@@ -209,7 +207,6 @@ export default function Cronometro({
         </div>
       </div>
 
-      {/* Cifre del Timer (Intere, senza millisecondi) */}
       <div className="py-1 select-none">
         <div className={`font-mono text-5xl sm:text-6xl md:text-7xl font-black tracking-tight ${
           tempoScaduto ? 'text-rose-400' : 'text-white'
@@ -222,7 +219,6 @@ export default function Cronometro({
         </p>
       </div>
 
-      {/* Controlli Principali */}
       <div className="grid grid-cols-3 gap-2">
         {inEsecuzione ? (
           <button
@@ -257,7 +253,6 @@ export default function Cronometro({
         </button>
       </div>
 
-      {/* Avanzamento Rapido Manuale (senza stop) */}
       <div className="grid grid-cols-2 gap-2 pt-1">
         <button
           type="button"
@@ -278,7 +273,6 @@ export default function Cronometro({
         </button>
       </div>
 
-      {/* Pulsante Termina Gara / Passa a 2° Tempo */}
       <div className="pt-1">
         <button
           type="button"
