@@ -621,18 +621,18 @@ export default function GestioneEventi({
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                   {giocatori.filter(g => !g.isTitolare && !g.espulso).map(g => {
                     // 🚀 Controllo combinato dinamico (stato booleano rosa + storico eventi in tempo reale)
-                    const giaUscito = !g.isTitolare || eventi.some(e => {
+                    const giaUscito = eventi.some(e => {
                       if (e.tipo !== 'SOSTITUZIONE') return false;
+                      // Controllo rigoroso tramite ID se presente, oppure riscontro mirato
                       if (e.esceId && e.esceId === g.id) return true;
                       if (e.dettagli) {
                         const dett = e.dettagli.toUpperCase();
-                        const nomeUscito = g.nome.toUpperCase();
-                        const numUscito = `#${g.numero}`;
-                        return dett.includes(numUscito) || dett.includes(nomeUscito);
+                        // Verifichiamo che il nome compaia specificamente dopo la parola "ESCE"
+                        return dett.includes(`ESCE #${g.numero} `) || dett.includes(`ESCE ${g.nome.toUpperCase()}`);
                       }
                       return false;
                     });
-
+          
                     const giaInseritoInAttesa = coppieInAttesa.some(c => c.entra.id === g.id);
                     const isSel = giocatoreEntra === g.id;
 
