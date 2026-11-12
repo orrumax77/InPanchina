@@ -9,7 +9,8 @@ import {
   UserPlus, 
   Sparkles, 
   X, 
-  AlertCircle 
+  AlertCircle,
+  Check
 } from 'lucide-react';
 
 export default function GestioneEventi({
@@ -33,18 +34,16 @@ export default function GestioneEventi({
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
   const [modalSostituzione, setModalSostituzione] = useState(false);
 
-  const [giocatoreEsce, setGiocatoreEsce] = useState('');
-  const [giocatoreEntra, setGiocatoreEntra] = useState('');
+  // Stati di selezione per la nuova logica intuitiva "Click & Swap"
+  const [selezionatoEsce, setSelezionatoEsce] = useState(null);
+  const [selezionatoEntra, setSelezionatoEntra] = useState(null);
+  const [coppieInAttesa, setCoppieInAttesa] = useState([]);
 
-  // 🚀 Stato di controllo per forzare il re-render istantaneo del modale in tempo reale
   const [, setForzaAggiornamento] = useState(0);
 
   useEffect(() => {
     setForzaAggiornamento(prev => prev + 1);
   }, [eventi, giocatori]);
-
-  // Supporto per cambi multipli nello stesso slot (es. doppio o triplo cambio)
-  const [coppieInAttesa, setCoppieInAttesa] = useState([]);
 
   // Riconoscimento automatico intervallo: 2° tempo prima dell'avvio del cronometro a 00:00
   const isIntervalloAutomatico = tempoGara === 2 && !inEsecuzione && secondiGara === 0;
@@ -59,7 +58,6 @@ export default function GestioneEventi({
   const cambiEsauriti = cambiRimanenti <= 0;
   const slotEsauriti = slotRimanenti <= 0 && !isIntervalloEffettivo;
 
-  // Controllo timer avviato
   const verificaTimerAvviato = () => {
     if (!inEsecuzione) {
       setAvvisoTimerFermo(true);
@@ -109,7 +107,7 @@ export default function GestioneEventi({
     if (onGolSegnato) onGolSegnato(false);
   };
 
-  // 3. Cartellino
+  // 3. Cartellini
   const apriModalCartellino = () => {
     if (!verificaTimerAvviato()) return;
     setModalAmmonizione(true);
@@ -175,7 +173,7 @@ export default function GestioneEventi({
     setModalAmmonizione(false);
   };
 
-  // 4. Sostituzioni (regola 7 cambi in 3 slot + intervallo)
+  // 4. Sostituzioni - Apertura modale pulita
   const apriModalCambio = () => {
     if (!isIntervalloEffettivo && !verificaTimerAvviato()) return;
      
@@ -189,52 +187,39 @@ export default function GestioneEventi({
       return;
     }
 
-    setGiocatoreEsce('');
-    setGiocatoreEntra('');
+    setSelezionatoEsce(null);
+    setSelezionatoEntra(null);
     setCoppieInAttesa([]);
     setModalSostituzione(true);
   };
 
-  const aggiungiAltraCoppia = () => {
-    if (!giocatoreEsce || !giocatoreEntra) return;
-
-    const esce = giocatori.find(g => g.id === giocatoreEsce);
-    const entra = giocatori.find(g => g.id === giocatoreEntra);
-    if (!esce || !entra) return;
+  const aggiungiCoppiaAlCarrello = () => {
+    if (!selezionatoEsce || !selezionatoEntra) return;
 
     if (cambiEffettuati + coppieInAttesa.length + 1 > 7) {
       alert("Non puoi superare il limite massimo di 7 cambi complessivi!");
       return;
     }
 
-    setCoppieInAttesa(prev => [...prev, { esce, entra }]);
-    setGiocatoreEsce('');
-    setGiocatoreEntra('');
+    setCoppieInAttesa(prev => [...prev, { esce: selezionatoEsce, entra: selezionatoEntra }]);
+    setSelezionatoEsce(null);
+    setSelezionatoEntra(null);
   };
 
   const rimuoviCoppiaInAttesa = (idx) => {
     setCoppieInAttesa(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleConfermaTuttiICambi = async () => {
+  const handleConfermaDefinitivaCambi = async () => {
     let listaCambi = [...coppieInAttesa];
-    if (giocatoreEsce && giocatoreEntra) {
-      const esce = giocatori.find(g => g.id === giocatoreEsce);
-      const entra = giocatori.find(g => g.id === giocatoreEntra);
-      if (esce && entra) {
-        listaCambi.push({ esce, entra });
-      }
+    if (selezionatoEsce && selezionatoEntra) {
+      listaCambi.push({ esce: selezionatoEsce, entra: selezionatoEntra });
     }
 
     if (listaCambi.length === 0) return;
 
     if (cambiEffettuati + listaCambi.length > 7) {
       alert(`Puoi effettuare al massimo altri ${cambiRimanenti} cambi!`);
-      return;
-    }
-
-    if (!isIntervalloEffettivo && slotUsati >= 3) {
-      alert("Tutti i 3 slot di gioco sono già stati esauriti!");
       return;
     }
 
@@ -279,12 +264,12 @@ export default function GestioneEventi({
     }
      
     setModalSostituzione(false);
-    setGiocatoreEsce('');
-    setGiocatoreEntra('');
+    setSelezionatoEsce(null);
+    setSelezionatoEntra(null);
     setCoppieInAttesa([]);
   };
-  
-  // 🚀 Chi è attualmente titolare in campo (filtrato rigorosamente anche tramite gli eventi registrati)
+
+  // Filtro rigoroso titolari in campo
   const titolariInCampo = giocatori.filter(g => {
     const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
     const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
@@ -292,9 +277,6 @@ export default function GestioneEventi({
     if (eUscito && !eEntrato) return false;
     return (g.isTitolare || eEntrato) && !g.espulso;
   }).sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
-
-  const targetEsce = giocatori.find(g => g.id === giocatoreEsce);
-  const targetEntra = giocatori.find(g => g.id === giocatoreEntra);
 
   const cambioDisabilitato = cambiEsauriti || (slotEsauriti && !isIntervalloEffettivo);
 
@@ -316,7 +298,7 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* RIEPILOGO REGOLAMENTARE RAPIDO: CAMBI & SLOT */}
+      {/* RIEPILOGO REGOLAMENTARE RAPIDO */}
       <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 flex items-center justify-between text-xs">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold text-slate-400 uppercase">Cambi:</span>
@@ -340,7 +322,6 @@ export default function GestioneEventi({
                       ? 'bg-rose-600 border-rose-500 text-white'
                       : 'bg-slate-900 border-slate-800 text-slate-500'
                   }`}
-                  title={`Slot ${num} ${attivo ? 'usato' : 'disponibile'}`}
                 >
                   {num}
                 </span>
@@ -454,9 +435,7 @@ export default function GestioneEventi({
                       <span className="text-xs uppercase font-semibold text-slate-600 line-through">
                         #{g.numero} {g.nome} (ESPULSO)
                       </span>
-                      <span className="text-[9px] font-bold text-rose-500 uppercase">
-                        Non sanzionabile
-                      </span>
+                      <span className="text-[9px] font-bold text-rose-500 uppercase">Non sanzionabile</span>
                     </div>
                   );
                 }
@@ -497,16 +476,18 @@ export default function GestioneEventi({
         </div>
       )}
       
-      {/* MODAL SOSTITUZIONE */}
+      {/* 🚀 NUOVO MODALE SOSTITUZIONE FLUIDO E MODERNO */}
       {modalSostituzione && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 max-w-2xl w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-2.5 gap-2">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 max-w-3xl w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-3 gap-2">
               <div>
                 <h4 className="text-sm font-black text-white uppercase flex items-center gap-2">
-                  <ArrowRightLeft className="w-4 h-4 text-blue-400" /> Sostituzioni di Gara (Minuto {isIntervalloEffettivo ? "45' (Int.)" : `${minutoCorrente}'`})
+                  <ArrowRightLeft className="w-4 h-4 text-blue-400" /> Gestione Sostituzioni ({minutoCorrente}')
                 </h4>
-                <p className="text-[11px] text-slate-400">Regola ufficiale: Max 7 cambi in 3 interruzioni di gioco (slot).</p>
+                <p className="text-[11px] text-slate-400">Tocca prima chi <strong className="text-rose-400">Esce</strong> dal campo, poi chi <strong className="text-emerald-400">Entra</strong> dalla panchina.</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -523,7 +504,8 @@ export default function GestioneEventi({
               </div>
             </div>
 
-            <div className="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
+            {/* Toggle Intervallo Smart */}
+            <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                 <div>
@@ -535,93 +517,74 @@ export default function GestioneEventi({
               <button
                 type="button"
                 onClick={() => setForzaIntervallo(!forzaIntervallo)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition border cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase transition border cursor-pointer ${
                   isIntervalloEffettivo
                     ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
                 }`}
               >
-                {isIntervalloEffettivo ? '✓ Attivo (0 Slot)' : 'Attiva per Intervallo'}
+                {isIntervalloEffettivo ? '✓ Intervallo Attivo (0 Slot)' : 'Attiva per Intervallo'}
               </button>
             </div>
 
-            {slotEsauriti && !isIntervalloEffettivo && (
-              <div className="bg-amber-950/50 border border-amber-500/40 p-2.5 rounded-xl text-xs font-bold text-amber-300 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                Attenzione: tutti i 3 slot di gioco a tempo attivo sono stati utilizzati!
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Colonna 1: Chi ESCE */}
+            {/* Griglie Interattive Click & Swap */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Colonna 1: Titolari in Campo */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold uppercase text-rose-400 bg-rose-950/30 border border-rose-900/40 p-2 rounded-lg">
-                  <span className="flex items-center gap-1.5"><UserMinus className="w-3.5 h-3.5" /> 1. Chi ESCE (In campo)</span>
-                  <span className="text-[10px] font-mono text-slate-400">({titolariInCampo.length})</span>
+                <div className="flex items-center justify-between text-xs font-bold uppercase text-rose-400 bg-rose-950/30 border border-rose-900/40 p-2.5 rounded-xl">
+                  <span className="flex items-center gap-1.5"><UserMinus className="w-3.5 h-3.5" /> 1. Chi ESCE (Campo)</span>
+                  <span className="text-[10px] font-mono">{titolariInCampo.length} in campo</span>
                 </div>
 
-                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
-                  {titolariInCampo.length === 0 ? (
-                    <p className="text-[11px] text-slate-500 uppercase text-center py-6">Nessun titolare disponibile</p>
-                  ) : (
-                    titolariInCampo.map(g => {
-                      const giaInseritoInAttesa = coppieInAttesa.some(c => c.esce.id === g.id);
-                      const isSel = giocatoreEsce === g.id;
+                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+                  {titolariInCampo.map(g => {
+                    const isSelezionato = selezionatoEsce?.id === g.id;
+                    const giaNelCarrello = coppieInAttesa.some(c => c.esce.id === g.id);
 
-                      if (giaInseritoInAttesa) {
-                        return (
-                          <div key={g.id} className="w-full text-left p-2.5 rounded-xl border bg-slate-950/40 border-slate-900 text-slate-600 flex items-center justify-between opacity-50 select-none">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 bg-slate-900 text-slate-600 border border-slate-800">
-                                {g.numero}
-                              </span>
-                              <span className="text-xs font-semibold uppercase truncate line-through">{g.nome}</span>
-                            </div>
-                            <span className="text-[9px] font-bold text-amber-500 uppercase flex-shrink-0">
-                              Selezionato per questo slot
-                            </span>
-                          </div>
-                        );
-                      }
-
+                    if (giaNelCarrello) {
                       return (
-                        <button
-                          key={g.id}
-                          type="button"
-                          onClick={() => setGiocatoreEsce(isSel ? '' : g.id)}
-                          className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer ${
-                            isSel
-                              ? 'bg-rose-950/70 border-rose-500 text-white shadow-md shadow-rose-950/50'
-                              : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800 text-slate-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 ${
-                              isSel ? 'bg-rose-600 text-white' : 'bg-slate-900 text-rose-400 border border-rose-900/40'
-                            }`}>
-                              {g.numero}
-                            </span>
-                            <span className="text-xs font-semibold uppercase truncate">{g.nome}</span>
-                          </div>
-                          {isSel && (
-                            <span className="text-[10px] font-bold text-rose-300 bg-rose-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
-                              ESCE
-                            </span>
-                          )}
-                        </button>
+                        <div key={g.id} className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-900 text-slate-600 flex items-center justify-between opacity-40 select-none text-xs">
+                          <span>#{g.numero} {g.nome}</span>
+                          <span className="text-[9px] uppercase font-bold text-amber-500">Selezionato</span>
+                        </div>
                       );
-                    })
-                  )}
+                    }
+
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setSelezionatoEsce(isSelezionato ? null : g)}
+                        className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer text-xs ${
+                          isSelezionato
+                            ? 'bg-rose-600 text-white border-rose-400 shadow-lg shadow-rose-950 font-bold'
+                            : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className={`w-6 h-6 rounded-md flex items-center justify-center font-mono font-bold text-[11px] ${
+                            isSelezionato ? 'bg-white text-rose-600' : 'bg-slate-900 text-rose-400 border border-rose-900/40'
+                          }`}>
+                            {g.numero}
+                          </span>
+                          <span className="uppercase truncate">{g.nome}</span>
+                        </div>
+                        {isSelezionato && <Check className="w-4 h-4 text-white" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Colonna 2: Chi ENTRA */}
+              {/* Colonna 2: Panchina */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2 rounded-lg">
+                <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2.5 rounded-xl">
                   <span className="flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5" /> 2. Chi ENTRA (Panchina)</span>
+                  <span className="text-[10px] font-mono">Disponibili</span>
                 </div>
 
-                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
                   {giocatori.filter(g => {
                     const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
                     return (!g.isTitolare && !eEntrato) && !g.espulso;
@@ -631,44 +594,28 @@ export default function GestioneEventi({
                       if (e.esceId && e.esceId === g.id) return true;
                       if (e.dettagli) {
                         const dett = e.dettagli.toUpperCase();
-                        const nomeUscito = g.nome.toUpperCase();
-                        const numUscito = `#${g.numero}`;
-                        return dett.includes(numUscito) || dett.includes(nomeUscito);
+                        return dett.includes(`#${g.numero}`) || dett.includes(g.nome.toUpperCase());
                       }
                       return false;
                     });
 
-                    const giaInseritoInAttesa = coppieInAttesa.some(c => c.entra.id === g.id);
-                    const isSel = giocatoreEntra === g.id;
+                    const giaNelCarrello = coppieInAttesa.some(c => c.entra.id === g.id);
+                    const isSelezionato = selezionatoEntra?.id === g.id;
 
                     if (giaUscito) {
                       return (
-                        <div key={g.id} className="w-full text-left p-2.5 rounded-xl border bg-slate-950/40 border-slate-900 text-slate-600 flex items-center justify-between opacity-50 select-none">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 bg-slate-900 text-slate-600 border border-slate-800">
-                              {g.numero}
-                            </span>
-                            <span className="text-xs font-semibold uppercase truncate line-through">{g.nome}</span>
-                          </div>
-                          <span className="text-[9px] font-bold text-rose-500 uppercase flex-shrink-0">
-                            Già uscito (Non rientrabile)[cite: 1]
-                          </span>
+                        <div key={g.id} className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-900 text-slate-600 flex items-center justify-between opacity-40 select-none text-xs">
+                          <span className="line-through">#{g.numero} {g.nome}</span>
+                          <span className="text-[9px] uppercase font-bold text-rose-500">Già uscito</span>
                         </div>
                       );
                     }
 
-                    if (giaInseritoInAttesa) {
+                    if (giaNelCarrello) {
                       return (
-                        <div key={g.id} className="w-full text-left p-2.5 rounded-xl border bg-slate-950/40 border-slate-900 text-slate-600 flex items-center justify-between opacity-50 select-none">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 bg-slate-900 text-slate-600 border border-slate-800">
-                              {g.numero}
-                            </span>
-                            <span className="text-xs font-semibold uppercase truncate line-through">{g.nome}</span>
-                          </div>
-                          <span className="text-[9px] font-bold text-amber-500 uppercase flex-shrink-0">
-                            Selezionato per questo slot
-                          </span>
+                        <div key={g.id} className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-900 text-slate-600 flex items-center justify-between opacity-40 select-none text-xs">
+                          <span>#{g.numero} {g.nome}</span>
+                          <span className="text-[9px] uppercase font-bold text-amber-500">Selezionato</span>
                         </div>
                       );
                     }
@@ -677,26 +624,22 @@ export default function GestioneEventi({
                       <button
                         key={g.id}
                         type="button"
-                        onClick={() => setGiocatoreEntra(isSel ? '' : g.id)}
-                        className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer ${
-                          isSel
-                            ? 'bg-emerald-950/70 border-emerald-500 text-white shadow-md shadow-emerald-950/50'
-                            : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800 text-slate-300'
+                        onClick={() => setSelezionatoEntra(isSelezionato ? null : g)}
+                        className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer text-xs ${
+                          isSelezionato
+                            ? 'bg-emerald-600 text-white border-emerald-400 shadow-lg shadow-emerald-950 font-bold'
+                            : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono flex-shrink-0 ${
-                            isSel ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-emerald-400 border border-emerald-900/40'
+                        <div className="flex items-center gap-2.5">
+                          <span className={`w-6 h-6 rounded-md flex items-center justify-center font-mono font-bold text-[11px] ${
+                            isSelezionato ? 'bg-white text-emerald-600' : 'bg-slate-900 text-emerald-400 border border-emerald-900/40'
                           }`}>
                             {g.numero}
                           </span>
-                          <span className="text-xs font-semibold uppercase truncate">{g.nome}</span>
+                          <span className="uppercase truncate">{g.nome}</span>
                         </div>
-                        {isSel && (
-                          <span className="text-[10px] font-bold text-emerald-300 bg-emerald-900/50 px-2 py-0.5 rounded uppercase flex-shrink-0">
-                            ENTRA
-                          </span>
-                        )}
+                        {isSelezionato && <Check className="w-4 h-4 text-white" />}
                       </button>
                     );
                   })}
@@ -704,46 +647,30 @@ export default function GestioneEventi({
               </div>
             </div>
 
-            {giocatoreEsce && giocatoreEntra && (
-              <div className="space-y-2">
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs">
-                  <div className="flex-1 truncate">
-                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Esce:</span>
-                    <span className="font-bold uppercase text-rose-400 truncate block">
-                      {targetEsce ? `#${targetEsce.numero} ${targetEsce.nome}` : ''}
-                    </span>
-                  </div>
-
-                  <div className="px-3 text-slate-600">
-                    <ArrowRight className="w-4 h-4" />
-                  </div>
-
-                  <div className="flex-1 text-right truncate">
-                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Entra:</span>
-                    <span className="font-bold uppercase text-emerald-400 truncate block">
-                      {targetEntra ? `#${targetEntra.numero} ${targetEntra.nome}` : ''}
-                    </span>
-                  </div>
+            {/* Box di accoppiamento attivo */}
+            {selezionatoEsce && selezionatoEntra && (
+              <div className="bg-slate-950 border border-blue-500/40 rounded-xl p-3 flex items-center justify-between text-xs animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <span className="text-rose-400 font-bold uppercase">Esce: #{selezionatoEsce.numero} {selezionatoEsce.nome}</span>
+                  <ArrowRight className="w-4 h-4 text-slate-500" />
+                  <span className="text-emerald-400 font-bold uppercase">Entra: #{selezionatoEntra.numero} {selezionatoEntra.nome}</span>
                 </div>
 
-                {cambiEffettuati + coppieInAttesa.length + 1 < 7 && (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={aggiungiAltraCoppia}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-emerald-400" /> Prepara un altro cambio in questo stesso slot
-                    </button>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={aggiungiCoppiaAlCarrello}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase text-[11px] transition shadow cursor-pointer"
+                >
+                  + Aggiungi Cambio
+                </button>
               </div>
             )}
 
+            {/* Lista cambi multipli in attesa di conferma nello stesso slot */}
             {coppieInAttesa.length > 0 && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
                 <span className="text-[11px] font-bold text-slate-400 uppercase block">
-                  Cambi raggruppati in questa interruzione ({coppieInAttesa.length}):
+                  Cambi pronti per questa interruzione ({coppieInAttesa.length}):
                 </span>
                 <div className="space-y-1.5">
                   {coppieInAttesa.map((coppia, idx) => (
@@ -757,7 +684,6 @@ export default function GestioneEventi({
                         type="button"
                         onClick={() => rimuoviCoppiaInAttesa(idx)}
                         className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
-                        title="Rimuovi questo cambio dal gruppo"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -767,14 +693,15 @@ export default function GestioneEventi({
               </div>
             )}
 
-            <div className="flex gap-2.5 pt-1">
+            {/* Footer Azioni */}
+            <div className="flex gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setModalSostituzione(false);
                   setCoppieInAttesa([]);
-                  setGiocatoreEsce('');
-                  setGiocatoreEntra('');
+                  setSelezionatoEsce(null);
+                  setSelezionatoEntra(null);
                 }}
                 className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase transition cursor-pointer"
               >
@@ -783,8 +710,8 @@ export default function GestioneEventi({
 
               <button
                 type="button"
-                onClick={handleConfermaTuttiICambi}
-                disabled={(!giocatoreEsce || !giocatoreEntra) && coppieInAttesa.length === 0}
+                onClick={handleConfermaDefinitivaCambi}
+                disabled={(!selezionatoEsce || !selezionatoEntra) && coppieInAttesa.length === 0}
                 className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-black uppercase transition shadow-lg shadow-blue-950 cursor-pointer disabled:cursor-not-allowed"
               >
                 {isIntervalloEffettivo
@@ -792,6 +719,7 @@ export default function GestioneEventi({
                   : `Conferma Sostituzione (Consuma Slot ${slotUsati + 1} di 3)`}
               </button>
             </div>
+
           </div>
         </div>
       )}
