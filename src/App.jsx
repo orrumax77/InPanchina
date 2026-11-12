@@ -344,67 +344,67 @@ export default function App() {
     });
   };
 
-  // REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO (EVENTI + CAMBI A CATENA + CARTELLINI + RESET)
+  // 🚀 REALTIME SYNCHRONIZATION MULTI-DISPOSITIVO POTENZIATA (ASCOLTO GLOBALE CAMBIAMENTI)
   useEffect(() => {
     if (!partitaId) return;
 
     const channel = supabase
       .channel(`realtime-partita-${partitaId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'partite', filter: `id=eq.${partitaId}` }, async (payload) => {
-        const p = payload.new;
-        if (!p) return;
-
-        // 🚀 Se un dispositivo ha archiviato, tutti i dispositivi tornano alla distinta
-        if (p.archiviato_il) {
-          if (timerAutoRef.current) clearInterval(timerAutoRef.current);
-          setAvvisoAutoArchiviazione(false);
-          setFaseApp('distinta');
-          setGolCasa(0);
-          setGolOspiti(0);
-          setTempoGara(1);
-          setSecondiGara(0);
-          setInEsecuzione(false);
-          setEventi([]);
-          setPartitaConclusa(true);
-          return;
-        }
-
-        setGolCasa(p.gol_casa || 0);
-        setGolOspiti(p.gol_ospite || 0);
-        setTempoGara(p.tempo || 1);
-        setRecupero(p.recupero || 0);
-        setMinutoCorrente(p.minuto_corrente || 1);
-        setSlotUsati(p.slot_usati || 0);
-        setCambiEffettuati(p.cambi_effettuati || 0);
-
-        setInEsecuzione(p.in_esecuzione || false);
-        setAvviatoAlle(p.avviato_alle || null);
-        setSecondiBase(p.secondi_gara || 0);
-
-        if (p.in_esecuzione && p.avviato_alle) {
-          const trascorsi = Math.max(0, Math.floor((Date.now() - new Date(p.avviato_alle).getTime()) / 1000));
-          setSecondiGara((p.secondi_gara || 0) + trascorsi);
-        } else {
-          setSecondiGara(p.secondi_gara || 0);
-        }
-
-        if (p.squadra_casa && p.squadra_ospite) {
-          setPartitaInfo(prev => ({
-            ...(prev || {}),
-            squadraCasa: p.squadra_casa,
-            squadraOspite: p.squadra_ospite,
-            allenatore: p.allenatore || prev?.allenatore || '',
-            dirigente: p.dirigente || prev?.dirigente || '',
-            dataPartita: p.data_gara || prev?.dataPartita || '',
-            isNostraCasa: p.is_nostra_casa ?? (prev?.isNostraCasa ?? true)
-          }));
-
-          setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
-        }
-
-        // Ricarica immediata di eventi e ricalcolo completo dei cambi a catena e cartellini sulla rosa
+      .on('postgres_changes', { event: '*', schema: 'public' }, async () => {
+        // Ricarica immediata di tutto lo stato dal DB non appena avviene qualsiasi modifica (eventi, cambi, cartellini, match)
         const stato = await caricaStatoPartita(partitaId);
-        if (stato && stato.eventi) {
+        if (!stato) return;
+
+        const p = stato.partita;
+        if (p) {
+          if (p.archiviato_il) {
+            if (timerAutoRef.current) clearInterval(timerAutoRef.current);
+            setAvvisoAutoArchiviazione(false);
+            setFaseApp('distinta');
+            setGolCasa(0);
+            setGolOspiti(0);
+            setTempoGara(1);
+            setSecondiGara(0);
+            setInEsecuzione(false);
+            setEventi([]);
+            setPartitaConclusa(true);
+            return;
+          }
+
+          setGolCasa(p.gol_casa || 0);
+          setGolOspiti(p.gol_ospite || 0);
+          setTempoGara(p.tempo || 1);
+          setRecupero(p.recupero || 0);
+          setMinutoCorrente(p.minuto_corrente || 1);
+          setSlotUsati(p.slot_usati || 0);
+          setCambiEffettuati(p.cambi_effettuati || 0);
+
+          setInEsecuzione(p.in_esecuzione || false);
+          setAvviatoAlle(p.avviato_alle || null);
+          setSecondiBase(p.secondi_gara || 0);
+
+          if (p.in_esecuzione && p.avviato_alle) {
+            const trascorsi = Math.max(0, Math.floor((Date.now() - new Date(p.avviato_alle).getTime()) / 1000));
+            setSecondiGara((p.secondi_gara || 0) + trascorsi);
+          } else {
+            setSecondiGara(p.secondi_gara || 0);
+          }
+
+          if (p.squadra_casa && p.squadra_ospite) {
+            setPartitaInfo(prev => ({
+              ...(prev || {}),
+              squadraCasa: p.squadra_casa,
+              squadraOspite: p.squadra_ospite,
+              allenatore: p.allenatore || prev?.allenatore || '',
+              dirigente: p.dirigente || prev?.dirigente || '',
+              dataPartita: p.data_gara || prev?.dataPartita || '',
+              isNostraCasa: p.is_nostra_casa ?? (prev?.isNostraCasa ?? true)
+            }));
+            setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
+          }
+        }
+
+        if (stato.eventi) {
           const eventiAggiornati = stato.eventi;
           setEventi(eventiAggiornati);
 
@@ -1136,7 +1136,7 @@ export default function App() {
 
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 uppercase">
                 <Radio className="w-3 h-3 animate-pulse text-emerald-400" /> Live
-              </span>
+            </span>
             </div>
           </div>
 
