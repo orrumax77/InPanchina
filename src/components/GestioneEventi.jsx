@@ -40,7 +40,6 @@ export default function GestioneEventi({
   const [, setForzaAggiornamento] = useState(0);
 
   useEffect(() => {
-    // Ogni volta che arrivano nuovi eventi o cambia la rosa, forziamo il refresh visivo del modale
     setForzaAggiornamento(prev => prev + 1);
   }, [eventi, giocatori]);
 
@@ -285,10 +284,14 @@ export default function GestioneEventi({
     setCoppieInAttesa([]);
   };
   
-  // Chi è attualmente titolare in campo (e non espulso)
-  const titolariInCampo = giocatori
-    .filter(g => g.isTitolare && !g.espulso)
-    .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+  // 🚀 Chi è attualmente titolare in campo (filtrato rigorosamente anche tramite gli eventi registrati)
+  const titolariInCampo = giocatori.filter(g => {
+    const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
+    const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
+    
+    if (eUscito && !eEntrato) return false;
+    return (g.isTitolare || eEntrato) && !g.espulso;
+  }).sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
 
   const targetEsce = giocatori.find(g => g.id === giocatoreEsce);
   const targetEntra = giocatori.find(g => g.id === giocatoreEntra);
@@ -619,20 +622,22 @@ export default function GestioneEventi({
                 </div>
 
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
-                  {giocatori.filter(g => !g.isTitolare && !g.espulso).map(g => {
-                    // 🚀 Controllo combinato dinamico (stato booleano rosa + storico eventi in tempo reale)
+                  {giocatori.filter(g => {
+                    const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
+                    return (!g.isTitolare && !eEntrato) && !g.espulso;
+                  }).map(g => {
                     const giaUscito = eventi.some(e => {
                       if (e.tipo !== 'SOSTITUZIONE') return false;
-                      // Controllo rigoroso tramite ID se presente, oppure riscontro mirato
                       if (e.esceId && e.esceId === g.id) return true;
                       if (e.dettagli) {
                         const dett = e.dettagli.toUpperCase();
-                        // Verifichiamo che il nome compaia specificamente dopo la parola "ESCE"
-                        return dett.includes(`ESCE #${g.numero} `) || dett.includes(`ESCE ${g.nome.toUpperCase()}`);
+                        const nomeUscito = g.nome.toUpperCase();
+                        const numUscito = `#${g.numero}`;
+                        return dett.includes(numUscito) || dett.includes(nomeUscito);
                       }
                       return false;
                     });
-          
+
                     const giaInseritoInAttesa = coppieInAttesa.some(c => c.entra.id === g.id);
                     const isSel = giocatoreEntra === g.id;
 
@@ -646,7 +651,7 @@ export default function GestioneEventi({
                             <span className="text-xs font-semibold uppercase truncate line-through">{g.nome}</span>
                           </div>
                           <span className="text-[9px] font-bold text-rose-500 uppercase flex-shrink-0">
-                            Già uscito (Non rientrabile)
+                            Già uscito (Non rientrabile)[cite: 1]
                           </span>
                         </div>
                       );
