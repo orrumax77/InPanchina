@@ -171,10 +171,10 @@ export default function App() {
     const dirigenteBase = (staffBase.dirigente || socFresca.dirigente_predefinito || '').toUpperCase();
     const dirigenteUfficialiBase = (staffBase.dirigenteUfficiali || socFresca.dirigente_ufficiali_predefinito || '').toUpperCase();
     const assistenteArbitroBase = (staffBase.assistenteArbitro || socFresca.assistente_arbitro_predefinito || '').toUpperCase();
-    const medicoSocialeBase = (staffBase.medicoSociale || '').toUpperCase();
-    const massaggiatoreBase = (staffBase.massaggiatore || '').toUpperCase();
-    const preparatoreAtleticoBase = (staffBase.preparatoreAtletico || '').toUpperCase();
-    const preparatorePortieriBase = (staffBase.preparatorePortieri || '').toUpperCase();
+    const medicoSocialeBase = (staffBase.medicoSociale || socFresca.medico_sociale_predefinito || '').toUpperCase();
+    const massaggiatoreBase = (staffBase.massaggiatore || socFresca.massaggiatore_predefinito || '').toUpperCase();
+    const preparatoreAtleticoBase = (staffBase.preparatoreAtletico || socFresca.preparatore_atletico_predefinito || '').toUpperCase();
+    const preparatorePortieriBase = (staffBase.preparatorePortieri || socFresca.preparatore_portieri_predefinito || '').toUpperCase();
     
     const nomeSocietaUfficiale = (socFresca.nome || '').toUpperCase();
     const squadraCasaBase = nomeSocietaUfficiale;
@@ -478,10 +478,10 @@ export default function App() {
           dirigente: societaAttiva?.dirigente_predefinito || '',
           dirigenteUfficiali: societaAttiva?.dirigente_ufficiali_predefinito || '',
           assistenteArbitro: societaAttiva?.assistente_arbitro_predefinito || '',
-          medicoSociale: '',
-          massaggiatore: '',
-          preparatoreAtletico: '',
-          preparatorePortieri: '',
+          medicoSociale: societaAttiva?.medico_sociale_predefinito || '',
+          massaggiatore: societaAttiva?.massaggiatore_predefinito || '',
+          preparatoreAtletico: societaAttiva?.preparatore_atletico_predefinito || '',
+          preparatorePortieri: societaAttiva?.preparatore_portieri_predefinito || '',
           dataPartita: new Date().toISOString().split('T')[0],
           isNostraCasa: true
         });
@@ -857,7 +857,6 @@ export default function App() {
       setPartitaInfo({
         squadraCasa: societaAttiva?.nome || '',
         squadraOspite: '',
-        // Manteniamo o ricarichiamo i valori predefiniti dello staff registrati nella società
         allenatore: societaAttiva?.allenatore_predefinito || '',
         allenatoreSeconda: societaAttiva?.allenatore_seconda_predefinito || '',
         dirigente: societaAttiva?.dirigente_predefinito || '',
