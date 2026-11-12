@@ -857,15 +857,16 @@ export default function App() {
       setPartitaInfo({
         squadraCasa: societaAttiva?.nome || '',
         squadraOspite: '',
+        // Manteniamo o ricarichiamo i valori predefiniti dello staff registrati nella società
         allenatore: societaAttiva?.allenatore_predefinito || '',
         allenatoreSeconda: societaAttiva?.allenatore_seconda_predefinito || '',
         dirigente: societaAttiva?.dirigente_predefinito || '',
         dirigenteUfficiali: societaAttiva?.dirigente_ufficiali_predefinito || '',
         assistenteArbitro: societaAttiva?.assistente_arbitro_predefinito || '',
-        medicoSociale: '',
-        massaggiatore: '',
-        preparatoreAtletico: '',
-        preparatorePortieri: '',
+        medicoSociale: societaAttiva?.medico_sociale_predefinito || '',
+        massaggiatore: societaAttiva?.massaggiatore_predefinito || '',
+        preparatoreAtletico: societaAttiva?.preparatore_atletico_predefinito || '',
+        preparatorePortieri: societaAttiva?.preparatore_portieri_predefinito || '',
         dataPartita: new Date().toISOString().split('T')[0],
         isNostraCasa: true
       });
