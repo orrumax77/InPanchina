@@ -95,8 +95,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
     const reti = eventi.filter(e => e.tipo === 'GOL');
-    const amm = (p.referto_giocatori || []).filter(g => g.ammonizioni > 0 && !g.espulso);
-    const esp = (p.referto_giocatori || []).filter(g => g.espulso);
     const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
 
     if (reti.length > 0) {
@@ -105,15 +103,34 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       t += `\n`;
     }
 
-    if (amm.length > 0) {
+    // Filtraggio ammonizioni ed espulsioni con indicazione del minuto preso dagli eventi
+    const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
+    const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
+
+    const amm = (p.referto_giocatori || []).filter(g => g.ammonizioni > 0 && !g.espulso);
+    const esp = (p.referto_giocatori || []).filter(g => g.espulso);
+
+    if (amm.length > 0 || ammonizioniEventi.length > 0) {
       t += `🟨 *AMMONITI:*\n`;
-      amm.forEach(a => { t += `• #${a.numero} ${a.nome.toUpperCase()} (${a.ammonizioni} amm.)\n`; });
+      if (ammonizioniEventi.length > 0) {
+        ammonizioniEventi.forEach(a => {
+          t += `• ${a.minuto}' #${a.giocatoreNumero || ''} ${(a.giocatoreNome || a.dettagli).toUpperCase()}\n`;
+        });
+      } else {
+        amm.forEach(a => { t += `• #${a.numero} ${a.nome.toUpperCase()} (${a.ammonizioni} amm.)\n`; });
+      }
       t += `\n`;
     }
 
-    if (esp.length > 0) {
+    if (esp.length > 0 || espulsioniEventi.length > 0) {
       t += `🟥 *ESPULSI:*\n`;
-      esp.forEach(e => { t += `• #${e.numero} ${e.nome.toUpperCase()}\n`; });
+      if (espulsioniEventi.length > 0) {
+        espulsioniEventi.forEach(e => {
+          t += `• ${e.minuto}' #${e.giocatoreNumero || ''} ${(e.giocatoreNome || e.dettagli).toUpperCase()}\n`;
+        });
+      } else {
+        esp.forEach(e => { t += `• #${e.numero} ${e.nome.toUpperCase()}\n`; });
+      }
       t += `\n`;
     }
 
@@ -159,7 +176,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     await ricaricaStorico();
   };
 
-  // Apertura modale voti per una partita specifica
   const apriModaleVoti = (p) => {
     setPartitaInVotazione(p);
     const iniziali = {};
@@ -169,7 +185,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     setVotiTemp(iniziali);
   };
 
-  // Salvataggio dei voti nel database storico su Supabase
   const salvaVotiStorico = async () => {
     if (!partitaInVotazione) return;
 
@@ -194,13 +209,11 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     await ricaricaStorico();
   };
 
-  // Apertura modale Modulo di Gioco
   const apriModaleModulo = (p) => {
     setPartitaInModulo(p);
     setModuloTemp(p.modulo_gioco || '4-3-3');
   };
 
-  // Salvataggio del modulo nel database su Supabase
   const salvaModuloStorico = async () => {
     if (!partitaInModulo) return;
 
