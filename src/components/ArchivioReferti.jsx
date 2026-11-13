@@ -97,46 +97,51 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     const reti = eventi.filter(e => e.tipo === 'GOL');
     const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
 
-    if (reti.length > 0) {
-      t += `⚽ *MARCATURE:*\n`;
-      reti.forEach(r => { t += `• ${r.minuto}' ${r.dettagli.toUpperCase()}\n`; });
-      t += `\n`;
-    }
-
-    // Filtraggio ammonizioni ed espulsioni con indicazione del minuto preso dagli eventi
+    // Estrazione ammoniti ed espulsi sia dagli eventi salvati che direttamente dalla rosa per sicurezza
     const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
     const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
 
     const amm = (p.referto_giocatori || []).filter(g => g.ammonizioni > 0 && !g.espulso);
     const esp = (p.referto_giocatori || []).filter(g => g.espulso);
 
-    if (amm.length > 0 || ammonizioniEventi.length > 0) {
+    if (reti.length > 0) {
+      t += `⚽ *MARCATURE:*\n`;
+      reti.forEach(r => { t += `• ⚽ ${r.minuto}' ${r.dettagli.toUpperCase()}\n`; });
+      t += `\n`;
+    }
+
+    if (ammonizioniEventi.length > 0 || amm.length > 0) {
       t += `🟨 *AMMONITI:*\n`;
       if (ammonizioniEventi.length > 0) {
         ammonizioniEventi.forEach(a => {
-          t += `• ${a.minuto}' #${a.giocatoreNumero || ''} ${(a.giocatoreNome || a.dettagli).toUpperCase()}\n`;
+          t += `• 🟨 ${a.minuto}' #${a.giocatoreNumero || ''} ${(a.giocatoreNome || a.dettagli).toUpperCase()}\n`;
         });
       } else {
-        amm.forEach(a => { t += `• #${a.numero} ${a.nome.toUpperCase()} (${a.ammonizioni} amm.)\n`; });
+        amm.forEach(a => { t += `• 🟨 #${a.numero} ${a.nome.toUpperCase()} (${a.ammonizioni} amm.)\n`; });
       }
       t += `\n`;
     }
 
-    if (esp.length > 0 || espulsioniEventi.length > 0) {
+    if (espulsioniEventi.length > 0 || esp.length > 0) {
       t += `🟥 *ESPULSI:*\n`;
       if (espulsioniEventi.length > 0) {
         espulsioniEventi.forEach(e => {
-          t += `• ${e.minuto}' #${e.giocatoreNumero || ''} ${(e.giocatoreNome || e.dettagli).toUpperCase()}\n`;
+          const isDoppiaAmmonizione = e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE');
+          const iconaEspulsione = isDoppiaAmmonizione ? '🟨🟨🟥' : '🟥';
+          t += `• ${iconaEspulsione} ${e.minuto}' #${e.giocatoreNumero || ''} ${(e.giocatoreNome || e.dettagli).toUpperCase()}\n`;
         });
       } else {
-        esp.forEach(e => { t += `• #${e.numero} ${e.nome.toUpperCase()}\n`; });
+        esp.forEach(e => {
+          const iconaEspulsione = e.ammonizioni >= 2 ? '🟨🟨🟥' : '🟥';
+          t += `• ${iconaEspulsione} #${e.numero} ${e.nome.toUpperCase()}\n`;
+        });
       }
       t += `\n`;
     }
 
     if (cambi.length > 0) {
       t += `🔄 *SOSTITUZIONI:*\n`;
-      cambi.forEach(c => { t += `• ${c.minuto}' ${c.dettagli.toUpperCase()}\n`; });
+      cambi.forEach(c => { t += `• 🔄 ${c.minuto}' ${c.dettagli.toUpperCase()}\n`; });
       t += `\n`;
     }
 
