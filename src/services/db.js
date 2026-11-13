@@ -496,7 +496,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         const det = (ev.dettagli || '').toUpperCase();
         if (nomeG && det.includes(nomeG)) return true;
         if (numG) {
-          if (det.includes(`#${numG}`) || det.includes(` #${numG}`) || det.includes(` # ${numG}`) || det.includes(`-${numG}`)) return true;
+          if (det.includes(`#${numG}`) || det.includes(` #${numG}`) || det.includes(`-#${numG}`) || det.includes(` ${numG} `)) return true;
         }
         return false;
       };
@@ -513,11 +513,23 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         if (tipo.includes('SOSTITUZIONE') || tipo.includes('CAMBIO')) {
           const minEv = e.minuto || 0;
           const det = (e.dettagli || '').toUpperCase();
-          const eUscito = e.esceId === idG || det.includes(`ESCE #${numG}`) || (nomeG && det.includes(`ESCE ${nomeG}`));
-          const eEntrato = e.entraId === idG || det.includes(`ENTRA #${numG}`) || (nomeG && det.includes(`ENTRA ${nomeG}`));
 
-          if (eUscito) minutoUscita = minEv;
-          if (eEntrato) minutoEntrata = minEv;
+          // 🛡️ CONTROLLO CAMBI ULTRA-ROBUSTO (Tramite ID o riscontro flessibile su numero/nome nei dettagli)
+          const escePerId = e.esceId === idG;
+          const entraPerId = e.entraId === idG;
+
+          const escePerTesto = numG && (det.includes(`ESCE #${numG}`) || det.includes(`ESCE ${numG}`) || det.includes(`#${numG} ➔`) || det.includes(`#${numG} ->`));
+          const entraPerTesto = numG && (det.includes(`ENTRA #${numG}`) || det.includes(`ENTRA ${numG}`) || det.includes(`➔ #${numG}`) || det.includes(`-> #${numG}`));
+
+          const escePerNome = nomeG && det.includes(nomeG) && det.includes('ESCE');
+          const entraPerNome = nomeG && det.includes(nomeG) && det.includes('ENTRA');
+
+          if (escePerId || escePerTesto || escePerNome) {
+            minutoUscita = minEv;
+          }
+          if (entraPerId || entraPerTesto || entraPerNome) {
+            minutoEntrata = minEv;
+          }
         }
       });
 
@@ -553,7 +565,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       return {
         ...g,
         isTitolare: isTitolareEffettivo,
-        minuti: minutiCalcolati // 👈 Salviamo i minuti reali nel JSON!
+        minuti: minutiCalcolati // 👈 Minuti reali calcolati al millimetro!
       };
     });
 
@@ -570,7 +582,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       annata: annata,
       stato: 'completata',
       referto_eventi: eventi,
-      referto_giocatori: giocatoriConMinutiCorretti, // JSON arricchito con i minuti
+      referto_giocatori: giocatoriConMinutiCorretti,
       terminata_il: new Date().toISOString(),
       allenatore: partitaInfo.allenatore || '',
       allenatore_seconda: partitaInfo.allenatoreSeconda || '',
