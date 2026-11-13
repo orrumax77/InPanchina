@@ -478,6 +478,7 @@ export async function getSocietaById(societaId) {
 
 // ⏱️ Funzione con LOG DI DEBUG ESTREMO per tracciare ogni calcolo dei minuti
 // ⏱️ Funzione con LOG DI DEBUG ESTREMO per tracciare ogni calcolo dei minuti
+// ⏱️ Funzione Definitiva al Millimetro con Log
 export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePartita) {
   const idG = String(giocatore.id || '').trim();
   const numG = String(giocatore.numero || '').trim();
@@ -485,29 +486,49 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
 
   console.log(`\n========================================`);
   console.log(`[DEBUG CALCOLO] Giocatore: #${numG} ${nomeG} (ID: ${idG})`);
-  console.log(`[DEBUG CALCOLO] Proprietà ricevute -> isTitolare:`, giocatore.isTitolare, `| is_titolare:`, giocatore.is_titolare);
 
-  // Ordiniamo gli eventi in ordine cronologico crescente
   const eventiCronologici = [...(eventiPartita || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
 
-  // 🛡️ CONTROLLO PREVENTIVO: Se il giocatore ha un evento "ENTRA" all'inizio, NON può essere titolare
-  let haSubitoUnIngresso = false;
+  // 1. Verifichiamo se ha subito un ingresso (riserva subentrata)
+  let haSubitoUnIngressoIniziale = false;
+  let haEventiInCampo = false;
+
   for (const ev of eventiCronologici) {
     const tipo = (ev.tipo || '').toUpperCase();
     const entraId = String(ev.entraId || '').trim();
     const dett = (ev.dettagli || '').toUpperCase();
-    if (tipo === 'SOSTITUZIONE' && (entraId === idG || dett.includes(`ENTRA #${numG}`))) {
-      haSubitoUnIngresso = true;
+    
+    const eEntrataSicura = entraId === idG || (numG && (dett.includes(`➔ ENTRA #${numG}`) || dett.includes(`ENTRA #${numG}`)));
+    const eUscitaSicura = String(ev.esceId || '').trim() === idG || (numG && dett.includes(`ESCE #${numG}`));
+
+    if (tipo === 'SOSTITUZIONE' && eEntrataSicura) {
+      haSubitoUnIngressoIniziale = true;
+      break;
+    }
+    if (tipo === 'SOSTITUZIONE' && eUscitaSicura) {
       break;
     }
   }
 
-  // Se è subentrato, parte necessariamente in panchina (false). Altrimenti vale il flag titolare.
-  let inCampo = haSubitoUnIngresso ? false : (giocatore.isTitolare === true || giocatore.is_titolare === true);
+  // Se ha partecipato ad eventi di gioco (gol, ammonizioni, espulsioni), era sicuramente in campo dall'inizio se non ha subìto ingressi
+  for (const ev of eventiCronologici) {
+    const dett = (ev.dettagli || '').toUpperCase();
+    if (String(ev.giocatoreId || '').trim() === idG || (numG && dett.includes(`#${numG}`))) {
+      haEventiInCampo = true;
+      break;
+    }
+  }
+
+  let eraTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
+  if (haEventiInCampo && !haSubitoUnIngressoIniziale) {
+    eraTitolare = true; // Forza a titolare se ha fatto eventi senza essere riserva subentrata
+  }
+
+  let inCampo = haSubitoUnIngressoIniziale ? false : eraTitolare;
   let minutoInizioSpezzone = inCampo ? 0 : null;
   let minutiAccumulati = 0;
 
-  console.log(`[DEBUG CALCOLO] haSubitoUnIngresso: ${haSubitoUnIngresso} | Stato Iniziale -> inCampo: ${inCampo}, minutoInizioSpezzone: ${minutoInizioSpezzone}`);
+  console.log(`[DEBUG CALCOLO] Stato Iniziale -> inCampo: ${inCampo}`);
 
   for (const ev of eventiCronologici) {
     const minEv = Number(ev.minuto || 0);
@@ -524,52 +545,40 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
 
     if (!eMioId && !eMioNumero && !eMioNome) continue;
 
-    console.log(`  -> Trovato evento al min ${minEv} [${tipo}]: "${dett}" | Match ID: ${eMioId}, Num: ${eMioNumero}, Nome: ${eMioNome}`);
-
-    // 1. EVENTO DI INGRESSO (Subentrato)
-    const eChiEntra = entraId === idG || (numG && dett.includes(`ENTRA #${numG}`)) || (nomeG && dett.includes('ENTRA') && dett.includes(nomeG));
+    // 1. ENTRATA
+    const eChiEntra = entraId === idG || (numG && (dett.includes(`➔ ENTRA #${numG}`) || dett.includes(`ENTRA #${numG}`)));
     if (tipo === 'SOSTITUZIONE' && eChiEntra) {
       if (!inCampo) {
         inCampo = true;
         minutoInizioSpezzone = minEv;
-        console.log(`     [ENTRATA] Entrato in campo al min ${minEv}. inCampo = true`);
       }
       continue;
     }
 
-    // 2. EVENTO DI USCITA PER CAMBIO
-    const eChiEsce = esceId === idG || (numG && dett.includes(`ESCE #${numG}`)) || (nomeG && dett.includes('ESCE') && dett.includes(nomeG));
+    // 2. USCITA
+    const eChiEsce = esceId === idG || (numG && dett.includes(`ESCE #${numG}`));
     if (tipo === 'SOSTITUZIONE' && eChiEsce && inCampo) {
       if (minutoInizioSpezzone !== null) {
-        const durataSpezzone = Math.max(0, minEv - minutoInizioSpezzone);
-        minutiAccumulati += durataSpezzone;
-        console.log(`     [USCITA] Uscito al min ${minEv}. Aggiunti ${durataSpezzone} min. Totale provvisorio: ${minutiAccumulati}`);
+        minutiAccumulati += Math.max(0, minEv - minutoInizioSpezzone);
       }
       inCampo = false;
       minutoInizioSpezzone = null;
       continue;
     }
 
-    // 3. EVENTO DI ESPULSIONE
-    const eSanzionatoGenerico = eMioId || eMioNumero || eMioNome;
-    if (tipo === 'ESPULSIONE' && eSanzionatoGenerico && inCampo) {
+    // 3. ESPULSIONE
+    if (tipo === 'ESPULSIONE' && inCampo) {
       if (minutoInizioSpezzone !== null) {
-        const durataSpezzone = Math.max(0, minEv - minutoInizioSpezzone);
-        minutiAccumulati += durataSpezzone;
-        console.log(`     [ESPULSIONE] Espulso al min ${minEv}. Aggiunti ${durataSpezzone} min. Totale provvisorio: ${minutiAccumulati}`);
+        minutiAccumulati += Math.max(0, minEv - minutoInizioSpezzone);
       }
       inCampo = false;
       minutoInizioSpezzone = null;
-      console.log(`     [ESPULSIONE] Partita finita per espulsione.`);
       break; 
     }
   }
 
-  // Se alla fine della partita il giocatore è ancora in campo
   if (inCampo && minutoInizioSpezzone !== null) {
-    const durataFinale = Math.max(0, durataTotalePartita - minutoInizioSpezzone);
-    minutiAccumulati += durataFinale;
-    console.log(`  -> A fine gara era ancora in campo. Aggiunti ${durataFinale} min (dal min ${minutoInizioSpezzone} al min ${durataTotalePartita}).`);
+    minutiAccumulati += Math.max(0, durataTotalePartita - minutoInizioSpezzone);
   }
 
   const risultato = Math.min(durataTotalePartita, Math.max(0, minutiAccumulati));
