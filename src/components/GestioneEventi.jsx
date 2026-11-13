@@ -38,7 +38,6 @@ export default function GestioneEventi({
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
   const [modalSostituzione, setModalSostituzione] = useState(false);
 
-  // Stati di selezione per la logica "Click & Swap"
   const [selezionatoEsce, setSelezionatoEsce] = useState(null);
   const [selezionatoEntra, setSelezionatoEntra] = useState(null);
   const [coppieInAttesa, setCoppieInAttesa] = useState([]);
@@ -49,14 +48,12 @@ export default function GestioneEventi({
     setForzaAggiornamento(prev => prev + 1);
   }, [eventi, giocatori]);
 
-  // Riconoscimento automatico intervallo: 2° tempo prima dell'avvio del cronometro a 00:00
   const isIntervalloAutomatico = tempoGara === 2 && !inEsecuzione && secondiGara === 0;
   const [forzaIntervallo, setForzaIntervallo] = useState(false);
   const isIntervalloEffettivo = isIntervalloAutomatico || forzaIntervallo;
 
   const [avvisoTimerFermo, setAvvisoTimerFermo] = useState(false);
 
-  // Calcoli limiti regolamentari (7 cambi in 3 slot)
   const cambiRimanenti = Math.max(0, 7 - cambiEffettuati);
   const slotRimanenti = Math.max(0, 3 - slotUsati);
   const cambiEsauriti = cambiRimanenti <= 0;
@@ -71,7 +68,6 @@ export default function GestioneEventi({
     return true;
   };
 
-  // 1. Gol Nostro
   const apriModalGol = () => {
     if (!verificaTimerAvviato()) return;
     setModalGol(true);
@@ -95,7 +91,6 @@ export default function GestioneEventi({
     setModalGol(false);
   };
 
-  // 2. Gol Avversari
   const handleGolAvversario = () => {
     if (!verificaTimerAvviato()) return;
 
@@ -111,7 +106,6 @@ export default function GestioneEventi({
     if (onGolSegnato) onGolSegnato(false);
   };
 
-  // 3. Cartellini
   const apriModalCartellino = () => {
     if (!verificaTimerAvviato()) return;
     setModalAmmonizione(true);
@@ -147,7 +141,7 @@ export default function GestioneEventi({
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: espulso ? 'ESPULSIONE' : 'AMMONIZIONE',
-      giocatoreId: giocatoreId,
+      giocatoreId: giocatoreId, // Passaggio esplicito dell'ID
       dettagli: espulso 
         ? `Doppia Ammonizione / Espulsione: #${target.numero} ${target.nome}` 
         : `Ammonizione: #${target.numero} ${target.nome}`
@@ -182,14 +176,13 @@ export default function GestioneEventi({
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: 'ESPULSIONE',
-      giocatoreId: giocatoreId,
+      giocatoreId: giocatoreId, // Passaggio esplicito dell'ID
       dettagli: `Espulsione Diretta: #${target.numero} ${target.nome}`
     });
 
     setModalAmmonizione(false);
   };
 
-  // 4. Sostituzioni - Apertura modale
   const apriModalCambio = () => {
     if (!isIntervalloEffettivo && !verificaTimerAvviato()) return;
      
@@ -245,16 +238,10 @@ export default function GestioneEventi({
     listaCambi.forEach(({ esce, entra }) => {
       nuevaRosa = nuevaRosa.map(g => {
         if (g.id === esce.id) {
-          return {
-            ...g,
-            isTitolare: false
-          };
+          return { ...g, isTitolare: false };
         }
         if (g.id === entra.id) {
-          return {
-            ...g,
-            isTitolare: true
-          };
+          return { ...g, isTitolare: true };
         }
         return g;
       });
@@ -268,8 +255,8 @@ export default function GestioneEventi({
         minuto: minutoDelCambio,
         tempo: isIntervalloEffettivo ? 1 : tempoGara,
         tipo: 'SOSTITUZIONE',
-        esceId: esce.id,
-        entraId: entra.id,
+        esceId: esce.id,   // Passaggio esplicito ID esce
+        entraId: entra.id, // Passaggio esplicito ID entra
         dettagli: `Cambio: Esce #${esce.numero} ${esce.nome} ➔ Entra #${entra.numero} ${entra.nome} ${notaSlot}`
       });
     });
@@ -300,10 +287,9 @@ export default function GestioneEventi({
     setCoppieInAttesa([]);
   };
   
-  // Titolari attualmente in campo
   const titolariInCampo = giocatori.filter(g => {
-    const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
-    const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
+    const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `)));
+    const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `)));
     
     if (eUscito && !eEntrato) return false;
     return (g.isTitolare || eEntrato) && !g.espulso;
@@ -329,7 +315,6 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* RIEPILOGO REGOLAMENTARE RAPIDO */}
       <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 flex items-center justify-between text-xs">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold text-slate-400 uppercase">Cambi:</span>
@@ -362,7 +347,6 @@ export default function GestioneEventi({
         </div>
       </div>
 
-      {/* PULSANTIERA AZIONI RAPIDE */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <button
           type="button"
@@ -416,7 +400,6 @@ export default function GestioneEventi({
         </button>
       </div>
 
-      {/* Modal Gol Nostro */}
       {modalGol && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
@@ -453,18 +436,15 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* Modal Cartellino */}
       {modalAmmonizione && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4">
             <h4 className="text-sm font-bold text-white uppercase">Seleziona Giocatore Sanzionato</h4>
             <div className="max-h-60 overflow-y-auto space-y-1.5">
               {giocatori.filter(g => {
-                const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
-                const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
-                
+                const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `)));
+                const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `)));
                 const attualmenteInCampo = (g.isTitolare && (!eUscito || eEntrato)) || (!g.isTitolare && eEntrato);
-                
                 return (attualmenteInCampo || g.espulso);
               }).map(g => {
                 if (g.espulso) {
@@ -514,12 +494,10 @@ export default function GestioneEventi({
         </div>
       )}
       
-      {/* MODALE SOSTITUZIONE */}
       {modalSostituzione && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 max-w-3xl w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
             
-            {/* Header */}
             <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-3 gap-2">
               <div>
                 <h4 className="text-sm font-black text-white uppercase flex items-center gap-2">
@@ -542,7 +520,6 @@ export default function GestioneEventi({
               </div>
             </div>
 
-            {/* Toggle Intervallo Smart */}
             <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -565,10 +542,7 @@ export default function GestioneEventi({
               </button>
             </div>
 
-            {/* Griglie Interattive */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              {/* Colonna 1: Titolari in Campo */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-rose-400 bg-rose-950/30 border border-rose-900/40 p-2.5 rounded-xl">
                   <span className="flex items-center gap-1.5"><UserMinus className="w-3.5 h-3.5" /> 1. Chi ESCE (Campo)</span>
@@ -615,7 +589,6 @@ export default function GestioneEventi({
                 </div>
               </div>
 
-              {/* Colonna 2: Panchina */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2.5 rounded-xl">
                   <span className="flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5" /> 2. Chi ENTRA (Panchina)</span>
@@ -624,8 +597,8 @@ export default function GestioneEventi({
 
                 <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
                   {giocatori.filter(g => !g.espulso).map(g => {
-                    const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
-                    const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
+                    const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `)));
+                    const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `)));
                     
                     const giaUscito = (g.isTitolare && eUscito && !eEntrato) || (!g.isTitolare && eUscito);
                     const eInCampoAttr = (g.isTitolare && !eUscito) || (!g.isTitolare && eEntrato);
@@ -638,7 +611,7 @@ export default function GestioneEventi({
                       return (
                         <div key={g.id} className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-900 text-slate-600 flex items-center justify-between opacity-40 select-none text-xs">
                           <span className="line-through">#{g.numero} {g.nome}</span>
-                          <span className="text-[9px] uppercase font-bold text-rose-500">Già uscito (Non rientrabile)</span>
+                          <span className="text-[9px] uppercase font-bold text-rose-500">Già uscito</span>
                         </div>
                       );
                     }
@@ -679,7 +652,6 @@ export default function GestioneEventi({
               </div>
             </div>
 
-            {/* Box di accoppiamento attivo */}
             {selezionatoEsce && selezionatoEntra && (
               <div className="bg-slate-950 border border-blue-500/40 rounded-xl p-3 flex items-center justify-between text-xs animate-in fade-in">
                 <div className="flex items-center gap-3">
@@ -698,7 +670,6 @@ export default function GestioneEventi({
               </div>
             )}
 
-            {/* Lista cambi multipli in attesa */}
             {coppieInAttesa.length > 0 && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
                 <span className="text-[11px] font-bold text-slate-400 uppercase block">
@@ -725,7 +696,6 @@ export default function GestioneEventi({
               </div>
             )}
 
-            {/* Footer Azioni */}
             <div className="flex gap-2.5 pt-2">
               <button
                 type="button"
