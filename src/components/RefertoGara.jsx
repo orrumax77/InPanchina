@@ -19,6 +19,7 @@ export default function RefertoGara({
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
   // 🛡️ Usiamo direttamente i minuti calcolati e passati dai componenti genitori / db
+  // e ordiniamo mettendo in fondo i giocatori in panchina (0 minuti e non espulsi)
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
     
@@ -37,7 +38,17 @@ export default function RefertoGara({
       minuti: minutiVal,
       stato
     };
-  }).sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+  }).sort((a, b) => {
+    // 1. Chi ha giocato (o è stato espulso) va sopra
+    const haGiocatoA = a.minuti > 0 || a.espulso;
+    const haGiocatoB = b.minuti > 0 || b.espulso;
+
+    if (haGiocatoA && !haGiocatoB) return -1;
+    if (!haGiocatoA && haGiocatoB) return 1;
+
+    // 2. A parità di categoria (es. tutti in campo o tutti in panchina), ordina per numero di maglia
+    return parseInt(a.numero, 10) - parseInt(b.numero, 10);
+  });
 
   const golEventi = (eventi || []).filter(e => e.tipo === 'GOL');
   const ammoniti = (giocatori || []).filter(g => g.ammonizioni > 0 && !g.espulso);
@@ -140,7 +151,7 @@ export default function RefertoGara({
         >
           <ArrowLeft className="w-4 h-4" /> Torna al Live
         </button>
-        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20 uppercase">
           Referto Ufficiale
         </span>
       </div>
