@@ -245,14 +245,18 @@ export default function GestioneEventi({
 
     let nuevaRosa = [...giocatori];
     const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
+    const giocatoriModificatiIds = new Set();
 
     listaCambi.forEach(({ esce, entra }) => {
+      giocatoriModificatiIds.add(esce.id);
+      giocatoriModificatiIds.add(entra.id);
+
       nuevaRosa = nuevaRosa.map(g => {
         if (g.id === esce.id) {
           const minutiPrecedenti = Number(g.minuti || 0);
           const minutoInizioEffettivo = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
           const minutiQuestoSegmento = Math.max(0, minutoDelCambio - minutoInizioEffettivo);
-           
+          
           return {
             ...g,
             isTitolare: false,
@@ -265,7 +269,8 @@ export default function GestioneEventi({
           return {
             ...g,
             isTitolare: true,
-            minutoUltimoIngresso: minutoDelCambio
+            minutoUltimoIngresso: minutoDelCambio,
+            minuti: Number(g.minuti || 0) // Mantiene i minuti accumulati se rientra/entra
           };
         }
 
@@ -287,12 +292,17 @@ export default function GestioneEventi({
       });
     });
 
-    // Aggiorniamo lo stato locale
+    // 1. Aggiorniamo lo stato locale
     setGiocatori(nuevaRosa);
 
-    // 🚀 Sincronizziamo immediatamente tutti i minuti aggiornati sul Database Cloud
+    // 🚀 2. SALVATAGGIO CHIRURGICO NEL DB: Aggiorniamo singolarmente ogni giocatore toccato dal cambio
     if (societaId && campionato && annata) {
-      await aggiornaGiocatoriCloud(partitaId, societaId, nuevaRosa, campionato, annata);
+      for (const idG of giocatoriModificatiIds) {
+        const giocatoreAggiornato = nuevaRosa.find(g => g.id === idG);
+        if (giocatoreAggiornato) {
+          await dbModificaGiocatore(societaId, giocatoreAggiornato, campionato, annata);
+        }
+      }
     }
       
     const nuoviCambi = cambiEffettuati + listaCambi.length;
@@ -302,7 +312,7 @@ export default function GestioneEventi({
       if (onAggiornaCambiSlot) {
         await onAggiornaCambiSlot(nuoviCambi, novosSlot);
       } else {
-        setCampiEffettuati(nuoviCambi);
+        setCambiEffettuati(nuoviCambi);
         setSlotUsati(novosSlot);
       }
     } catch (error) {
