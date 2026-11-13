@@ -100,41 +100,27 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
     const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
 
-    const amm = (p.referto_giocatori || []).filter(g => g.ammonizioni > 0 && !g.espulso);
-    const esp = (p.referto_giocatori || []).filter(g => g.espulso);
-
     if (reti.length > 0) {
       t += `⚽ *MARCATURE:*\n`;
       reti.forEach(r => { t += `• ⚽ ${r.minuto}' ${r.dettagli.toUpperCase()}\n`; });
       t += `\n`;
     }
 
-    if (ammonizioniEventi.length > 0 || amm.length > 0) {
+    if (ammonizioniEventi.length > 0) {
       t += `🟨 *AMMONITI:*\n`;
-      if (ammonizioniEventi.length > 0) {
-        ammonizioniEventi.forEach(a => {
-          t += `• 🟨 ${a.minuto}' #${a.giocatoreNumero || ''} ${(a.giocatoreNome || a.dettagli).toUpperCase()}\n`;
-        });
-      } else {
-        amm.forEach(a => { t += `• 🟨 #${a.numero} ${a.nome.toUpperCase()} (${a.ammonizioni} amm.)\n`; });
-      }
+      ammonizioniEventi.forEach(a => {
+        t += `• 🟨 ${a.minuto}' #${a.giocatoreNumero || ''} ${(a.giocatoreNome || a.dettagli).toUpperCase()}\n`;
+      });
       t += `\n`;
     }
 
-    if (espulsioniEventi.length > 0 || esp.length > 0) {
+    if (espulsioniEventi.length > 0) {
       t += `🟥 *ESPULSI:*\n`;
-      if (espulsioniEventi.length > 0) {
-        espulsioniEventi.forEach(e => {
-          const isDoppiaAmmonizione = e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE');
-          const iconaEspulsione = isDoppiaAmmonizione ? '🟨🟨🟥' : '🟥';
-          t += `• ${iconaEspulsione} ${e.minuto}' #${e.giocatoreNumero || ''} ${(e.giocatoreNome || e.dettagli).toUpperCase()}\n`;
-        });
-      } else {
-        esp.forEach(e => {
-          const iconaEspulsione = e.ammonizioni >= 2 ? '🟨🟨🟥' : '🟥';
-          t += `• ${iconaEspulsione} #${e.numero} ${e.nome.toUpperCase()}\n`;
-        });
-      }
+      espulsioniEventi.forEach(e => {
+        const isDoppiaAmmonizione = e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE');
+        const iconaEspulsione = isDoppiaAmmonizione ? '🟨🟨🟥' : '🟥';
+        t += `• ${iconaEspulsione} ${e.minuto}' #${e.giocatoreNumero || ''} ${(e.giocatoreNome || e.dettagli).toUpperCase()}\n`;
+      });
       t += `\n`;
     }
 
@@ -157,10 +143,8 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const eventoEspulsione = espulsioniEventi.find(e => e.giocatoreId === g.id || (e.dettagli && e.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
         const eEspulso = !!eventoEspulsione || g.espulso;
         
-        const haCambiato = cambi.some(c => 
-          c.esceId === g.id || c.entraId === g.id || 
-          (c.dettagli && (c.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || c.dettagli.includes(`#${g.numero} `)))
-        );
+        const cambioUscita = cambi.find(c => c.esceId === g.id || (c.dettagli && (c.dettagli.toUpperCase().includes(`ESCE #${g.numero}`) || c.dettagli.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`))));
+        const cambioEntrata = cambi.find(c => c.entraId === g.id || (c.dettagli && (c.dettagli.toUpperCase().includes(`ENTRA #${g.numero}`) || c.dettagli.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`))));
 
         if (haSegnato) iconeGiocatore += ' ⚽';
         if (eAmmonito) iconeGiocatore += ' 🟨';
@@ -168,11 +152,21 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
           const isDoppia = eventoEspulsione?.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') || g.ammonizioni >= 2;
           iconeGiocatore += isDoppia ? ' 🟨🟨🟥' : ' 🟥';
         }
-        if (haCambiato) iconeGiocatore += ' 🔄';
+        if (cambioUscita || cambioEntrata) iconeGiocatore += ' 🔄';
 
-        // Usa direttamente il minutaggio calcolato a monte dall'app (senza sovrascriverlo)
-        const minStr = g.minuti !== undefined ? `${g.minuti}'` : `${g.isTitolare ? "90'" : "0'"}`;
+        // Calcolo preciso dei minuti effettivi
+        let minutiCalcolati = g.minuti;
+        if (minutiCalcolati === undefined || minutiCalcolati === null) {
+          if (eEspulso && eventoEspulsione?.minuto) {
+            minutiCalcolati = eventoEspulsione.minuto;
+          } else if (g.isTitolare) {
+            minutiCalcolati = cambioUscita ? cambioUscita.minuto : 90;
+          } else {
+            minutiCalcolati = cambioEntrata ? Math.max(0, 90 - cambioEntrata.minuto) : 0;
+          }
+        }
 
+        const minStr = `${minutiCalcolati}'`;
         const statoStr = g.stato ? ` (${g.stato})` : '';
         const votoStr = g.voto && g.voto !== 'S.V.' ? ` ⭐ Voto: *${g.voto}*` : g.voto === 'S.V.' ? ` ⭐ Voto: *S.V.*` : '';
         
@@ -182,7 +176,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     return t;
   };
-
+  
   const handleCopia = (p) => {
     const testo = generaTestoReferto(p);
     navigator.clipboard.writeText(testo);
