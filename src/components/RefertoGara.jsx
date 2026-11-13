@@ -18,34 +18,28 @@ export default function RefertoGara({
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  // 1. Analisi precisa degli eventi per ogni giocatore
+  // 1. Analisi basata unicamente sugli ID univoci degli eventi (ZERO errori di testo)
   const eventiPerGiocatore = {};
   (eventi || []).forEach(e => {
-    const dett = (e.dettagli || '').toUpperCase();
     (giocatori || []).forEach(g => {
       const matchId = e.giocatoreId === g.id || e.esceId === g.id || e.entraId === g.id;
-      const matchNum = g.numero && (dett.includes(`#${g.numero} `) || dett.includes(` #${g.numero}`) || dett.includes(`#${g.numero}-`));
       
-      if (matchId || matchNum) {
+      if (matchId) {
         if (!eventiPerGiocatore[g.id]) {
           eventiPerGiocatore[g.id] = { haGol: false, haAmm: false, haEsp: false, haCambioEsce: false, haCambioEntra: false };
         }
-        if (e.tipo === 'GOL') eventiPerGiocatore[g.id].haGol = true;
-        if (e.tipo === 'AMMONIZIONE') eventiPerGiocatore[g.id].haAmm = true;
-        if (e.tipo === 'ESPULSIONE') eventiPerGiocatore[g.id].haEsp = true;
+        if (e.tipo === 'GOL' && e.giocatoreId === g.id) eventiPerGiocatore[g.id].haGol = true;
+        if (e.tipo === 'AMMONIZIONE' && e.giocatoreId === g.id) eventiPerGiocatore[g.id].haAmm = true;
+        if (e.tipo === 'ESPULSIONE' && e.giocatoreId === g.id) eventiPerGiocatore[g.id].haEsp = true;
         if (e.tipo === 'SOSTITUZIONE') {
-          if (e.esceId === g.id || (e.esceId === null && dett.includes(`ESCE #${g.numero}`))) {
-            eventiPerGiocatore[g.id].haCambioEsce = true;
-          }
-          if (e.entraId === g.id || (e.entraId === null && dett.includes(`ENTRA #${g.numero}`))) {
-            eventiPerGiocatore[g.id].haCambioEntra = true;
-          }
+          if (e.esceId === g.id) eventiPerGiocatore[g.id].haCambioEsce = true;
+          if (e.entraId === g.id) eventiPerGiocatore[g.id].haCambioEntra = true;
         }
       }
     });
   });
 
-  // 2. Mappatura e ordinamento matematico rigoroso in due blocchi separati per numero di maglia
+  // 2. Ordinamento e mappatura rigorosa in due blocchi separati per numero di maglia
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
     const evs = eventiPerGiocatore[g.id] || { haGol: false, haAmm: false, haEsp: false, haCambioEsce: false, haCambioEntra: false };
