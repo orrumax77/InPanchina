@@ -3,6 +3,7 @@ import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
 import { supabase } from '../supabaseClient';
 import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X } from 'lucide-react';
 
+
 export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
   const [caricamento, setCaricamento] = useState(true);
