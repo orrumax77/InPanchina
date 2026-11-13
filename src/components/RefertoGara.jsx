@@ -18,7 +18,7 @@ export default function RefertoGara({
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  // 1. Analisi basata unicamente sugli ID univoci degli eventi (ZERO errori di testo)
+  // 1. Analisi basata sugli ID univoci degli eventi
   const eventiPerGiocatore = {};
   (eventi || []).forEach(e => {
     (giocatori || []).forEach(g => {
@@ -39,13 +39,15 @@ export default function RefertoGara({
     });
   });
 
-  // 2. Ordinamento e mappatura rigorosa in due blocchi separati per numero di maglia
+  // 2. Mappatura e ordinamento matematico rigoroso e blindato
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
     const evs = eventiPerGiocatore[g.id] || { haGol: false, haAmm: false, haEsp: false, haCambioEsce: false, haCambioEntra: false };
     
     const isEspulsoFinale = g.espulso || evs.haEsp;
-    const haGiocato = minutiVal > 0 || isEspulsoFinale || evs.haCambioEntra;
+    
+    // Regola blindata: minuti > 0, espulso, oppure coinvolto in un cambio (entra o esce)
+    const haGiocato = minutiVal > 0 || isEspulsoFinale || evs.haCambioEntra || evs.haCambioEsce;
 
     return {
       ...g,
