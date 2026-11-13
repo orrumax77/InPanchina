@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
@@ -125,38 +124,36 @@ export default function GestioneEventi({
 
     const nuoveAmm = (target.ammonizioni || 0) + 1;
     const espulso = nuoveAmm >= 2;
-    const minutoEspulsione = isIntervalloEffettivo ? 45 : minutoCorrente;
+    const minutoEvento = isIntervalloEffettivo ? 45 : minutoCorrente;
 
-    let giocatoreModificato = null;
     const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
         let minutiFinali = Number(g.minuti || 0);
         
-        // Se la doppia ammonizione porta all'espulsione, calcoliamo i minuti esatti fatti fino a questo momento
         if (espulso) {
-          const minutoInizio = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
-          const segmentMin = Math.max(0, minutoEspulsione - minutoInizio);
-          minutiFinali = minutiFinali + segmentMin;
+          const minutoInizio = g._minutoIngressoCorrente !== undefined && g._minutoIngressoCorrente !== null ? Number(g._minutoIngressoCorrente) : (g.isTitolare ? 0 : 0);
+          const segmentMin = Math.max(0, minutoEvento - minutoInizio);
+          minutiFinali += segmentMin;
         }
 
-        giocatoreModificato = {
+        return {
           ...g,
           ammonizioni: nuoveAmm,
           espulso: espulso ? true : g.espulso,
           isTitolare: espulso ? false : g.isTitolare,
           minuti: minutiFinali,
-          minutoUscita: espulso ? minutoEspulsione : g.minutoUscita
+          _minutoIngressoCorrente: espulso ? null : g._minutoIngressoCorrente,
+          minutoUscita: espulso ? minutoEvento : g.minutoUscita
         };
-        return giocatoreModificato;
       }
       return g;
     });
 
     setGiocatori(nuevaRosa);
     
-    // Sincronizzazione immediata sul DB per il giocatore sanzionato
-    if (giocatoreModificato && societaId && campionato && annata) {
-      await dbModificaGiocatore(societaId, giocatoreModificato, campionato, annata);
+    // Sincronizzazione immediata sul DB dell'intera rosa
+    if (partitaId && societaId && campionato && annata) {
+      await aggiornaGiocatoriCloud(partitaId, societaId, nuevaRosa, campionato, annata);
     }
 
     onNuovoEvento({
@@ -177,32 +174,31 @@ export default function GestioneEventi({
     const target = giocatori.find(g => g.id === giocatoreId);
     if (!target) return;
 
-    const minutoEspulsione = isIntervalloEffettivo ? 45 : minutoCorrente;
+    const minutoEvento = isIntervalloEffettivo ? 45 : minutoCorrente;
 
-    let giocatoreModificato = null;
     const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
         const minutiPrecedenti = Number(g.minuti || 0);
-        const minutoInizio = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
-        const segmentMin = Math.max(0, minutoEspulsione - minutoInizio);
+        const minutoInizio = g._minutoIngressoCorrente !== undefined && g._minutoIngressoCorrente !== null ? Number(g._minutoIngressoCorrente) : (g.isTitolare ? 0 : 0);
+        const segmentMin = Math.max(0, minutoEvento - minutoInizio);
 
-        giocatoreModificato = { 
+        return { 
           ...g, 
           espulso: true, 
           isTitolare: false,
           minuti: minutiPrecedenti + segmentMin,
-          minutoUscita: minutoEspulsione
+          _minutoIngressoCorrente: null,
+          minutoUscita: minutoEvento
         };
-        return giocatoreModificato;
       }
       return g;
     });
 
     setGiocatori(nuevaRosa);
 
-    // Sincronizzazione immediata sul DB dell'espulso
-    if (giocatoreModificato && societaId && campionato && annata) {
-      await dbModificaGiocatore(societaId, giocatoreModificato, campionato, annata);
+    // Sincronizzazione immediata sul DB dell'intera rosa
+    if (partitaId && societaId && campionato && annata) {
+      await aggiornaGiocatoriCloud(partitaId, societaId, nuevaRosa, campionato, annata);
     }
 
     onNuovoEvento({
@@ -270,13 +266,13 @@ export default function GestioneEventi({
     let nuevaRosa = [...giocatori];
     const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
 
-    // 🔄 Calcoliamo i minuti in modo pulito e sequenziale per ogni coppia
+    // 🔄 Aggiorniamo sequenzialmente la rosa per ogni coppia di cambio
     listaCambi.forEach(({ esce, entra }) => {
       nuevaRosa = nuevaRosa.map(g => {
-        // Se è il giocatore che esce
+        // Chi esce
         if (g.id === esce.id) {
           const minutiPrecedenti = Number(g.minuti || 0);
-          const minutoInizio = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
+          const minutoInizio = g._minutoIngressoCorrente !== undefined && g._minutoIngressoCorrente !== null ? Number(g._minutoIngressoCorrente) : 0;
           const minutiSegmento = Math.max(0, minutoDelCambio - minutoInizio);
           
           return {
@@ -284,16 +280,16 @@ export default function GestioneEventi({
             isTitolare: false,
             minuti: minutiPrecedenti + minutiSegmento,
             minutoUscita: minutoDelCambio,
-            minutoUltimoIngresso: undefined
+            _minutoIngressoCorrente: null
           };
         }
 
-        // Se è il giocatore che entra
+        // Chi entra
         if (g.id === entra.id) {
           return {
             ...g,
             isTitolare: true,
-            minutoUltimoIngresso: minutoDelCambio,
+            _minutoIngressoCorrente: minutoDelCambio,
             minuti: Number(g.minuti || 0)
           };
         }
@@ -319,7 +315,7 @@ export default function GestioneEventi({
     // 1. Aggiorniamo lo stato locale
     setGiocatori(nuevaRosa);
 
-    // 🚀 2. SALVATAGGIO UNITARIO: Inviamo l'INTERA ROSA aggiornata in un sol colpo al DB, evitando sovrascrizioni dell'ultimo minuto
+    // 🚀 2. SALVATAGGIO CLOUD UNITARIO: Inviamo l'intera rosa aggiornata in blocco
     if (partitaId && societaId && campionato && annata) {
       await aggiornaGiocatoriCloud(partitaId, societaId, nuevaRosa, campionato, annata);
     }
@@ -343,7 +339,6 @@ export default function GestioneEventi({
     setSelezionatoEntra(null);
     setCoppieInAttesa([]);
   };
-  
   
   // Titolari attualmente in campo
   const titolariInCampo = giocatori.filter(g => {
