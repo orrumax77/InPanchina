@@ -134,14 +134,11 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     if (rosa.length > 0) {
       t += `⏱️ *MINUTAGGIO & PAGELLE ROSA:*\n`;
 
-      // 1. Determiniamo la durata totale reale della partita (90' o eventuale recupero)
-      let durataTotalePartita = 90;
-      if (eventi.length > 0) {
-        const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
-        if (ultimoMinutoEvento > 90) {
-          durataTotalePartita = ultimoMinutoEvento;
-        }
-      }
+      const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
+      const reti = eventi.filter(e => e.tipo === 'GOL');
+      const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
+      const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
+      const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE' || e.tipo === 'CAMBIO');
 
       rosa.forEach(g => {
         const fascia = g.isCapitano ? ' Ⓒ' : g.isVice ? ' 🅥' : '';
@@ -151,7 +148,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const idG = g.id;
         const nomeG = (g.nome || '').toUpperCase().trim();
 
-        // Helper rigoroso per abbinare un evento al giocatore (per ID, nome o numero di maglia)
         const matchGiocatore = (ev) => {
           if (!ev) return false;
           if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
@@ -167,24 +163,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const eAmmonito = ammonizioniEventi.some(a => matchGiocatore(a));
         const eventoEspulsione = espulsioniEventi.find(e => matchGiocatore(e));
         const eEspulso = !!eventoEspulsione || g.espulso;
-
-        // 2. Cerchiamo se e quando il giocatore è uscito o entrato (gestendo sia 'CAMBIO' che 'SOSTITUZIONE')
-        let minutoUscita = null;
-        let minutoEntrata = null;
-
-        eventi.forEach(e => {
-          const tipo = (e.tipo || '').toUpperCase();
-          if (tipo.includes('SOSTITUZIONE') || tipo.includes('CAMBIO')) {
-            const det = (e.dettagli || '').toUpperCase();
-            const minEv = e.minuto || 0;
-
-            const eUscito = e.esceId === idG || det.includes(`ESCE #${numG}`) || (nomeG && det.includes(`ESCE ${nomeG}`));
-            const eEntrato = e.entraId === idG || det.includes(`ENTRA #${numG}`) || (nomeG && det.includes(`ENTRA ${nomeG}`));
-
-            if (eUscito) minutoUscita = minEv;
-            if (eEntrato) minutoEntrata = minEv;
-          }
-        });
+        const haSubitoCambio = cambi.some(c => matchGiocatore(c));
 
         if (haSegnato) iconeGiocatore += ' ⚽';
         if (eAmmonito) iconeGiocatore += ' 🟨';
@@ -192,47 +171,12 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
           const isDoppia = (eventoEspulsione?.dettagli || '').toUpperCase().includes('DOPPIA AMMONIZIONE') || g.ammonizioni >= 2;
           iconeGiocatore += isDoppia ? ' 🟨🟨🟥' : ' 🟥';
         }
-        if (minutoUscita !== null || minutoEntrata !== null) iconeGiocatore += ' 🔄';
+        if (haSubitoCambio) iconeGiocatore += ' 🔄';
 
-        // 3. 🚀 CALCOLO MATEMATICO PULITO DEI MINUTI REALI
-        let minutiCalcolati = 0;
-        const eTitolare = !!g.isTitolare;
+        // 🚀 PRENDIAMO DIRETTAMENTE I MINUTI SALVATI NEL DATABASE AL MOMENTO DELL'ARCHIVIAZIONE
+        const minutiValore = g.minuti !== undefined && g.minuti !== null ? g.minuti : (g.isTitolare ? 90 : 0);
+        const minStr = `${minutiValore}'`;
 
-        if (eTitolare) {
-          // I titolari partono dal minuto 0
-          let tempoFine = durataTotalePartita;
-
-          // Se esce per cambio, il tempo si blocca al minuto dell'uscita
-          if (minutoUscita !== null) {
-            tempoFine = Math.min(tempoFine, minutoUscita);
-          }
-          // Se viene espulso, il tempo si blocca al minuto del rosso (ha la priorità assoluta se avviene prima)
-          if (eEspulso && eventoEspulsione?.minuto !== undefined) {
-            tempoFine = Math.min(tempoFine, eventoEspulsione.minuto);
-          }
-
-          minutiCalcolati = Math.max(0, tempoFine);
-        } else {
-          // Le riserve partono da 0 minuti, a meno che non entrino in campo
-          if (minutoEntrata !== null) {
-            let tempoInizio = minutoEntrata;
-            let tempoFine = durataTotalePartita;
-
-            // Se la riserva subentrata esce successivamente o viene espulsa
-            if (minutoUscita !== null && minutoUscita > tempoInizio) {
-              tempoFine = Math.min(tempoFine, minutoUscita);
-            }
-            if (eEspulso && eventoEspulsione?.minuto !== undefined && eventoEspulsione.minuto > tempoInizio) {
-              tempoFine = Math.min(tempoFine, eventoEspulsione.minuto);
-            }
-
-            minutiCalcolati = Math.max(0, tempoFine - tempoInizio);
-          } else {
-            minutiCalcolati = 0;
-          }
-        }
-
-        const minStr = `${minutiCalcolati}'`;
         const statoStr = g.stato ? ` (${g.stato})` : '';
         const votoStr = g.voto && g.voto !== 'S.V.' ? ` ⭐ Voto: *${g.voto}*` : g.voto === 'S.V.' ? ` ⭐ Voto: *S.V.*` : '';
         
