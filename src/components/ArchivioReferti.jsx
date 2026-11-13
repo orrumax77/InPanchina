@@ -133,6 +133,16 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     const rosa = p.referto_giocatori || [];
     if (rosa.length > 0) {
       t += `⏱️ *MINUTAGGIO & PAGELLE ROSA:*\n`;
+
+      // Determiniamo la durata effettiva della partita basandoci sull'ultimo evento registrato o su 90' di default
+      let durataTotalePartita = 90;
+      if (eventi.length > 0) {
+        const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
+        if (ultimoMinutoEvento > 90) {
+          durataTotalePartita = ultimoMinutoEvento;
+        }
+      }
+
       rosa.forEach(g => {
         const fascia = g.isCapitano ? ' Ⓒ' : g.isVice ? ' 🅥' : '';
         
@@ -143,8 +153,14 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const eventoEspulsione = espulsioniEventi.find(e => e.giocatoreId === g.id || (e.dettagli && e.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
         const eEspulso = !!eventoEspulsione || g.espulso;
         
-        const cambioUscita = cambi.find(c => c.esceId === g.id || (c.dettagli && (c.dettagli.toUpperCase().includes(`ESCE #${g.numero}`) || c.dettagli.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`))));
-        const cambioEntrata = cambi.find(c => c.entraId === g.id || (c.dettagli && (c.dettagli.toUpperCase().includes(`ENTRA #${g.numero}`) || c.dettagli.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`))));
+        const cambioUscita = cambi.find(c => 
+          c.esceId === g.id || 
+          (c.dettagli && (c.dettagli.toUpperCase().includes(`ESCE #${g.numero}`) || c.dettagli.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)))
+        );
+        const cambioEntrata = cambi.find(c => 
+          c.entraId === g.id || 
+          (c.dettagli && (c.dettagli.toUpperCase().includes(`ENTRA #${g.numero}`) || c.dettagli.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)))
+        );
 
         if (haSegnato) iconeGiocatore += ' ⚽';
         if (eAmmonito) iconeGiocatore += ' 🟨';
@@ -154,21 +170,29 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         }
         if (cambioUscita || cambioEntrata) iconeGiocatore += ' 🔄';
 
-        // 🚀 USHIAMO DIRETTAMENTE IL MINUTAGGIO GIA' SALVATO E CALCOLATO A MONTE DALL'APP
-        let minutiValore = g.minuti !== undefined && g.minuti !== null 
-          ? g.minuti 
-          : (g.isTitolare ? 90 : 0);
+        // 🚀 CALCOLO DINAMICO BASATO SULLA DURATA REALE DELLA GARA
+        let minutiCalcolati = g.minuti;
 
-        const minStr = `${minutiValore}'`;
+        if (minutiCalcolati === undefined || minutiCalcolati === null || (g.isTitolare && minutiCalcolati >= 90 && cambioUscita)) {
+          if (eEspulso && eventoEspulsione?.minuto) {
+            // Espulso: si ferma al minuto dell'espulsione
+            minutiCalcolati = eventoEspulsione.minuto;
+          } else if (g.isTitolare) {
+            // Titolare: fa tutta la gara (durata reale, es. 93'), a meno che non esca prima
+            minutiCalcolati = cambioUscita ? cambioUscita.minuto : durataTotalePartita;
+          } else {
+            // Riserva: entra e gioca dal minuto d'ingresso fino alla fine
+            minutiCalcolati = cambioEntrata ? Math.max(0, durataTotalePartita - cambioEntrata.minuto) : 0;
+          }
+        }
+
+        const minStr = `${minutiCalcolati}'`;
         const statoStr = g.stato ? ` (${g.stato})` : '';
         const votoStr = g.voto && g.voto !== 'S.V.' ? ` ⭐ Voto: *${g.voto}*` : g.voto === 'S.V.' ? ` ⭐ Voto: *S.V.*` : '';
         
         t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}${iconeGiocatore}: ${minStr}${statoStr}${votoStr}\n`;
       });
     }
-
-    return t;
-  };
   
   const handleCopia = (p) => {
     const testo = generaTestoReferto(p);
