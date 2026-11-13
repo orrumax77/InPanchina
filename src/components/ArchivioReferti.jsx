@@ -150,9 +150,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       rosa.forEach(g => {
         const fascia = g.isCapitano ? ' Ⓒ' : g.isVice ? ' 🅥' : '';
         
-        // Controllo icone richieste per singolo giocatore
         let iconeGiocatore = '';
-        
         const haSegnato = reti.some(r => r.giocatoreId === g.id || (r.dettagli && r.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
         const eAmmonito = ammonizioniEventi.some(a => a.giocatoreId === g.id || (a.dettagli && a.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
         
@@ -172,9 +170,8 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         }
         if (haCambiato) iconeGiocatore += ' 🔄';
 
-        // Minutaggio pulito senza diciture superflue
-        let minutiValore = g.minuti !== undefined ? g.minuti : (g.isTitolare ? 90 : 0);
-        const minStr = `${minutiValore}'`;
+        // Usa direttamente il minutaggio calcolato a monte dall'app (senza sovrascriverlo)
+        const minStr = g.minuti !== undefined ? `${g.minuti}'` : `${g.isTitolare ? "90'" : "0'"}`;
 
         const statoStr = g.stato ? ` (${g.stato})` : '';
         const votoStr = g.voto && g.voto !== 'S.V.' ? ` ⭐ Voto: *${g.voto}*` : g.voto === 'S.V.' ? ` ⭐ Voto: *S.V.*` : '';
