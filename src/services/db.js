@@ -170,7 +170,7 @@ export async function dbModificaGiocatore(societaId, giocatore, campionato, anna
       is_vice: giocatore.isVice ?? false,
       ammonizioni: giocatore.ammonizioni || 0,
       espulso: giocatore.espulso || false,
-      minuti: giocatore.minuti || 0
+      minuti: giocatore.minuti !== undefined ? Number(giocatore.minuti) : 0
     };
 
     const { error } = await supabase
@@ -233,7 +233,7 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
       is_vice: g.isVice ?? false,
       ammonizioni: g.ammonizioni || 0,
       espulso: g.espulso || false,
-      minuti: g.minuti !== undefined ? g.minuti : (g.isTitolare ? 90 : 0)
+      minuti: g.minuti !== undefined ? Number(g.minuti) : 0
     }));
 
     await supabase.from('giocatori').upsert(righeGiocatori);
@@ -395,7 +395,7 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, ca
     is_vice: g.isVice ?? false,
     ammonizioni: g.ammonizioni || 0,
     espulso: g.espulso || false,
-    minuti: g.minuti !== undefined ? g.minuti : 0
+    minuti: g.minuti !== undefined ? Number(g.minuti) : 0
   }));
 
   await supabase.from('giocatori').upsert(righe);
@@ -493,20 +493,24 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       durataTotalePartita = datiGara.minutoCorrente;
     }
 
-    // 🚀 2. Lettura dei minuti con rete di sicurezza per i titolari intoccabili
+    // 🚀 2. Chiusura finale dei minuti per chi è rimasto in campo fino alla fine
     const giocatoriDaArchiviare = giocatori.map(g => {
       const eraTitolare = g.isTitolare === true || g.is_titolare === true;
-      let minutiFinali = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : null;
+      let minutiAttuali = Number(g.minuti || 0);
 
-      if (eraTitolare && (minutiFinali === null || minutiFinali === 0 || minutiFinali === 90) && !g.minutoUscita) {
-        minutiFinali = durataTotalePartita;
-      } else if (!eraTitolare && minutiFinali === null) {
-        minutiFinali = 0;
+      // Se il giocatore non è espulso e ha completato la partita (es. titolare mai uscito o riserva entrata e mai uscita)
+      if (!g.espulso) {
+        if (eraTitolare && minutiAttuali === 0 && !g.minutoUscita) {
+          minutiAttuali = durataTotalePartita;
+        } else if (g._minutoIngressoCorrente !== undefined && g._minutoIngressoCorrente !== null) {
+          const minutiFinaliSpezzone = Math.max(0, durataTotalePartita - Number(g._minutoIngressoCorrente));
+          minutiAttuali += minutiFinaliSpezzone;
+        }
       }
 
       return {
         ...g,
-        minuti: minutiFinali,
+        minuti: Math.min(durataTotalePartita, minutiAttuali),
         isTitolare: eraTitolare,
         is_titolare: eraTitolare
       };
