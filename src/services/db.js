@@ -477,12 +477,14 @@ export async function getSocietaById(societaId) {
 }
 
 // ⏱️ Funzione deterministica ibrida (ID + Fallback Testo) per il calcolo preciso dei minuti
+// ⏱️ Funzione deterministica di calcolo minuti blindata
 export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePartita) {
   const eraTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
   const idG = String(giocatore.id || '').trim();
   const numG = String(giocatore.numero || '').trim();
   const nomeG = (giocatore.nome || '').toUpperCase().trim();
 
+  // Ordiniamo gli eventi in ordine cronologico crescente
   const eventiCronologici = [...(eventiPartita || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
 
   let inCampo = eraTitolare;
@@ -498,28 +500,25 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     const giocatoreIdEv = String(ev.giocatoreId || ev.giocatore_id || '').trim();
     const dett = (ev.dettagli || '').toUpperCase();
 
-    // Matching basato su ID o fallback su nome/numero
-    const appartieneAlGiocatore = 
-      giocatoreIdEv === idG || 
-      esceId === idG || 
-      entraId === idG || 
-      (numG && (dett.includes(`#${numG} `) || dett.includes(`#${numG}-`) || dett.includes(` #${numG}`))) ||
-      (nomeG && dett.includes(nomeG));
+    // Verifichiamo se l'evento riguarda questo giocatore (tramite ID o stringa)
+    const eIlMioId = giocatoreIdEv === idG || esceId === idG || entraId === idG;
+    const eIlMioTesto = (numG && (dett.includes(`#${numG} `) || dett.includes(`#${numG}-`) || dett.includes(` #${numG}`))) || (nomeG && dett.includes(nomeG));
 
-    if (!appartieneAlGiocatore) continue;
+    if (!eIlMioId && !eIlMioTesto) continue;
 
-    // Ingresso
-    const eIngresso = tipo === 'SOSTITUZIONE' && (entraId === idG || dett.includes(`ENTRA #${numG}`) || (nomeG && dett.includes(nomeG)));
-    if (eIngresso) {
+    // 1. EVENTO DI INGRESSO (Subentrato)
+    const eEntrata = tipo === 'SOSTITUZIONE' && (entraId === idG || dett.includes(`ENTRA #${numG}`) || (nomeG && dett.includes('ENTRA') && dett.includes(nomeG)));
+    if (eEntrata) {
       if (!inCampo) {
         inCampo = true;
         minutoIngresso = minEv;
       }
+      continue;
     }
 
-    // Uscita o Espulsione
-    const eUscitaCambio = tipo === 'SOSTITUZIONE' && (esceId === idG || dett.includes(`ESCE #${numG}`) || (nomeG && dett.includes(nomeG)));
-    const eEspulsione = tipo === 'ESPULSIONE' && (giocatoreIdEv === idG || esceId === idG || (nomeG && dett.includes(nomeG)));
+    // 2. EVENTO DI USCITA O ESPULSIONE
+    const eUscitaCambio = tipo === 'SOSTITUZIONE' && (esceId === idG || dett.includes(`ESCE #${numG}`) || (nomeG && dett.includes('ESCE') && dett.includes(nomeG)));
+    const eEspulsione = tipo === 'ESPULSIONE';
 
     if ((eUscitaCambio || eEspulsione) && inCampo) {
       if (minutoIngresso !== null) {
@@ -529,11 +528,12 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
       minutoIngresso = null;
 
       if (eEspulsione) {
-        break;
+        break; // Espulso: la sua partita finisce qui
       }
     }
   }
 
+  // Se alla fine della partita (o della durata calcolata) il giocatore è ancora in campo
   if (inCampo && minutoIngresso !== null) {
     minutiAccumulati += Math.max(0, durataTotalePartita - minutoIngresso);
   }
