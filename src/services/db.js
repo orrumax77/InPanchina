@@ -479,56 +479,51 @@ export async function getSocietaById(societaId) {
 // ⏱️ Funzione con LOG DI DEBUG ESTREMO per tracciare ogni calcolo dei minuti
 // ⏱️ Funzione con LOG DI DEBUG ESTREMO per tracciare ogni calcolo dei minuti
 // ⏱️ Funzione Definitiva al Millimetro con Log
+// ⏱️ Funzione Definitiva basata sugli ID e sulla cronologia reale degli eventi
 export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePartita) {
   const idG = String(giocatore.id || '').trim();
   const numG = String(giocatore.numero || '').trim();
   const nomeG = (giocatore.nome || '').toUpperCase().trim();
 
-  console.log(`\n========================================`);
-  console.log(`[DEBUG CALCOLO] Giocatore: #${numG} ${nomeG} (ID: ${idG})`);
-
+  // Ordiniamo gli eventi in ordine cronologico crescente
   const eventiCronologici = [...(eventiPartita || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
 
-  // 1. Verifichiamo se ha subito un ingresso (riserva subentrata)
-  let haSubitoUnIngressoIniziale = false;
-  let haEventiInCampo = false;
+  let haSubitoIngresso = false;
+  let eraCertamenteTitolare = false;
 
   for (const ev of eventiCronologici) {
-    const tipo = (ev.tipo || '').toUpperCase();
     const entraId = String(ev.entraId || '').trim();
+    const esceId = String(ev.esceId || '').trim();
+    const giocatoreIdEv = String(ev.giocatoreId || ev.giocatore_id || '').trim();
+    const tipo = (ev.tipo || '').toUpperCase();
     const dett = (ev.dettagli || '').toUpperCase();
-    
-    const eEntrataSicura = entraId === idG || (numG && (dett.includes(`➔ ENTRA #${numG}`) || dett.includes(`ENTRA #${numG}`)));
-    const eUscitaSicura = String(ev.esceId || '').trim() === idG || (numG && dett.includes(`ESCE #${numG}`));
 
-    if (tipo === 'SOSTITUZIONE' && eEntrataSicura) {
-      haSubitoUnIngressoIniziale = true;
-      break;
-    }
-    if (tipo === 'SOSTITUZIONE' && eUscitaSicura) {
-      break;
-    }
-  }
+    const eMioEntrata = entraId === idG;
+    const eMioUscitaOEventi = esceId === idG || giocatoreIdEv === idG;
+    const eMioTesto = (numG && dett.includes(`#${numG}`)) || (nomeG && dett.includes(nomeG));
 
-  // Se ha partecipato ad eventi di gioco (gol, ammonizioni, espulsioni), era sicuramente in campo dall'inizio se non ha subìto ingressi
-  for (const ev of eventiCronologici) {
-    const dett = (ev.dettagli || '').toUpperCase();
-    if (String(ev.giocatoreId || '').trim() === idG || (numG && dett.includes(`#${numG}`))) {
-      haEventiInCampo = true;
-      break;
+    if (eMioEntrata || (entraId === '' && tipo === 'SOSTITUZIONE' && eMioTesto && dett.includes('ENTRA'))) {
+      haSubitoIngresso = true;
+    }
+    if (eMioUscitaOEventi || (esceId === '' && giocatoreIdEv === '' && eMioTesto)) {
+      if (!haSubitoIngresso) {
+        eraCertamenteTitolare = true;
+      }
     }
   }
 
-  let eraTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
-  if (haEventiInCampo && !haSubitoUnIngressoIniziale) {
-    eraTitolare = true; // Forza a titolare se ha fatto eventi senza essere riserva subentrata
+  const flagDbTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
+  let inCampo = haSubitoIngresso ? false : (eraCertamenteTitolare || flagDbTitolare);
+  
+  if (!haSubitoIngresso && !eraCertamenteTitolare && !flagDbTitolare && giocatore.isTitolare !== false && giocatore.is_titolare !== false) {
+    inCampo = true; 
+  }
+  if (haSubitoIngresso) {
+    inCampo = false;
   }
 
-  let inCampo = haSubitoUnIngressoIniziale ? false : eraTitolare;
   let minutoInizioSpezzone = inCampo ? 0 : null;
   let minutiAccumulati = 0;
-
-  console.log(`[DEBUG CALCOLO] Stato Iniziale -> inCampo: ${inCampo}`);
 
   for (const ev of eventiCronologici) {
     const minEv = Number(ev.minuto || 0);
@@ -539,15 +534,13 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     const giocatoreIdEv = String(ev.giocatoreId || ev.giocatore_id || '').trim();
     const dett = (ev.dettagli || '').toUpperCase();
 
-    const eMioId = giocatoreIdEv === idG || esceId === idG || entraId === idG;
-    const eMioNumero = numG && (dett.includes(`#${numG}`) || dett.includes(` #${numG}`));
-    const eMioNome = nomeG && dett.includes(nomeG);
+    const eMioIdEntrata = entraId === idG;
+    const eMioIdUscita = esceId === idG;
+    const eMioIdEvento = giocatoreIdEv === idG;
+    const eMioTesto = (numG && (dett.includes(`#${numG} `) || dett.includes(` #${numG}`) || dett.includes(`#${numG}-`))) || (nomeG && dett.includes(nomeG));
 
-    if (!eMioId && !eMioNumero && !eMioNome) continue;
-
-    // 1. ENTRATA
-    const eChiEntra = entraId === idG || (numG && (dett.includes(`➔ ENTRA #${numG}`) || dett.includes(`ENTRA #${numG}`)));
-    if (tipo === 'SOSTITUZIONE' && eChiEntra) {
+    // A. ENTRATA IN CAMPO
+    if (tipo === 'SOSTITUZIONE' && (eMioIdEntrata || (entraId === '' && eMioTesto && dett.includes('ENTRA')))) {
       if (!inCampo) {
         inCampo = true;
         minutoInizioSpezzone = minEv;
@@ -555,9 +548,8 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
       continue;
     }
 
-    // 2. USCITA
-    const eChiEsce = esceId === idG || (numG && dett.includes(`ESCE #${numG}`));
-    if (tipo === 'SOSTITUZIONE' && eChiEsce && inCampo) {
+    // B. USCITA DAL CAMPO (Cambio)
+    if (tipo === 'SOSTITUZIONE' && (eMioIdUscita || (esceId === '' && eMioTesto && dett.includes('ESCE'))) && inCampo) {
       if (minutoInizioSpezzone !== null) {
         minutiAccumulati += Math.max(0, minEv - minutoInizioSpezzone);
       }
@@ -566,8 +558,8 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
       continue;
     }
 
-    // 3. ESPULSIONE
-    if (tipo === 'ESPULSIONE' && inCampo) {
+    // C. ESPULSIONE
+    if (tipo === 'ESPULSIONE' && (eMioIdEvento || eMioTesto) && inCampo) {
       if (minutoInizioSpezzone !== null) {
         minutiAccumulati += Math.max(0, minEv - minutoInizioSpezzone);
       }
@@ -581,10 +573,7 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     minutiAccumulati += Math.max(0, durataTotalePartita - minutoInizioSpezzone);
   }
 
-  const risultato = Math.min(durataTotalePartita, Math.max(0, minutiAccumulati));
-  console.log(`[RISULTATO FINALE] #${numG} ${nomeG} = ${risultato} minuti\n========================================\n`);
-
-  return risultato;
+  return Math.min(durataTotalePartita, Math.max(0, minutiAccumulati));
 }
 
 export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato, annata) {
