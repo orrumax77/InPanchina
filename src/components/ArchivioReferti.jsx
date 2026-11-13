@@ -163,13 +163,28 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const nomeG = (g.nome || '').toUpperCase().trim();
 
         // Match rigoroso solo per associare le icone visive degli eventi
+        // 🛡️ MATCHING RIGOROSO E SICURO (Nessun falso positivo sui numeri singoli come l'1 nello SLOT 1/3)
         const matchGiocatore = (ev) => {
           if (!ev) return false;
+          // 1. Controllo infallibile tramite gli ID univoci registrati nell'evento
           if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
+          
           const det = (ev.dettagli || '').toUpperCase();
+          
+          // 2. Controllo sul nome (se presente e univoco nei dettagli)
           if (nomeG && det.includes(nomeG)) return true;
+          
+          // 3. Controllo sul numero di maglia (SOLO se rigorosamente preceduto da cancelletto o delimitato da trattini/parentesi, MAI spazi ambigui)
           if (numG) {
-            if (det.includes(`#${numG}`) || det.includes(` #${numG}`) || det.includes(`-#${numG}`) || det.includes(` ${numG} `)) return true;
+            if (
+              det.includes(`#${numG}`) || 
+              det.includes(` #${numG}`) || 
+              det.includes(`-#${numG}`) || 
+              det.includes(`(${numG})`) ||
+              det.includes(`[${numG}]`)
+            ) {
+              return true;
+            }
           }
           return false;
         };
