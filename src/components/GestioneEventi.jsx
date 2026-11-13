@@ -12,8 +12,13 @@ import {
   AlertCircle,
   Check
 } from 'lucide-react';
+import { dbModificaGiocatore, aggiornaGiocatoriCloud } from '../db'; // 👈 Importiamo le funzioni del DB
 
 export default function GestioneEventi({
+  societaId,
+  campionato,
+  annata,
+  partitaId,
   giocatori,
   setGiocatori,
   eventi,
@@ -113,26 +118,33 @@ export default function GestioneEventi({
     setModalAmmonizione(true);
   };
 
-  const handleAmmonizione = (giocatoreId) => {
+  const handleAmmonizione = async (giocatoreId) => {
     const target = giocatori.find(g => g.id === giocatoreId);
     if (!target) return;
 
     const nuoveAmm = (target.ammonizioni || 0) + 1;
     const espulso = nuoveAmm >= 2;
 
+    let giocatoreModificato = null;
     const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
-        return {
+        giocatoreModificato = {
           ...g,
           ammonizioni: nuoveAmm,
           espulso: espulso ? true : g.espulso,
           isTitolare: espulso ? false : g.isTitolare
         };
+        return giocatoreModificato;
       }
       return g;
     });
 
     setGiocatori(nuevaRosa);
+    
+    // 🚀 Sincronizzazione immediata sul DB
+    if (giocatoreModificato && societaId && campionato && annata) {
+      await dbModificaGiocatore(societaId, giocatoreModificato, campionato, annata);
+    }
 
     onNuovoEvento({
       id: Date.now().toString(),
@@ -148,18 +160,25 @@ export default function GestioneEventi({
     setModalAmmonizione(false);
   };
 
-  const handleEspulsione = (giocatoreId) => {
+  const handleEspulsione = async (giocatoreId) => {
     const target = giocatori.find(g => g.id === giocatoreId);
     if (!target) return;
 
+    let giocatoreModificato = null;
     const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
-        return { ...g, espulso: true, isTitolare: false };
+        giocatoreModificato = { ...g, espulso: true, isTitolare: false };
+        return giocatoreModificato;
       }
       return g;
     });
 
     setGiocatori(nuevaRosa);
+
+    // 🚀 Sincronizzazione immediata sul DB
+    if (giocatoreModificato && societaId && campionato && annata) {
+      await dbModificaGiocatore(societaId, giocatoreModificato, campionato, annata);
+    }
 
     onNuovoEvento({
       id: Date.now().toString(),
@@ -227,14 +246,12 @@ export default function GestioneEventi({
     const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
 
     listaCambi.forEach(({ esce, entra }) => {
-      // 🚀 IL JSON COMANDA: Calcoliamo e aggiorniamo in tempo reale i minuti esatti nel JSON
       nuevaRosa = nuevaRosa.map(g => {
         if (g.id === esce.id) {
-          // Chi esce: calcoliamo i minuti trascorsi dall'ultimo ingresso (o dall'inizio se titolare)
-          const minutiPrecedenti = g.minuti || 0;
-          const minutoInizioEffettivo = g.minutoUltimoIngresso !== undefined ? g.minutoUltimoIngresso : 0;
+          const minutiPrecedenti = Number(g.minuti || 0);
+          const minutoInizioEffettivo = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
           const minutiQuestoSegmento = Math.max(0, minutoDelCambio - minutoInizioEffettivo);
-          
+           
           return {
             ...g,
             isTitolare: false,
@@ -244,7 +261,6 @@ export default function GestioneEventi({
         }
 
         if (g.id === entra.id) {
-          // Chi entra: registriamo il minuto in cui mette piede in campo per far partire il conteggio
           return {
             ...g,
             isTitolare: true,
@@ -270,8 +286,13 @@ export default function GestioneEventi({
       });
     });
 
-    // Aggiorniamo lo stato locale con il JSON arricchito
+    // Aggiorniamo lo stato locale
     setGiocatori(nuevaRosa);
+
+    // 🚀 Sincronizziamo immediatamente tutti i minuti aggiornati sul Database Cloud
+    if (societaId && campionato && annata) {
+      await aggiornaGiocatoriCloud(partitaId, societaId, nuevaRosa, campionato, annata);
+    }
       
     const nuoviCambi = cambiEffettuati + listaCambi.length;
     const novosSlot = isIntervalloEffettivo ? slotUsati : Math.min(3, slotUsati + 1);
@@ -280,7 +301,7 @@ export default function GestioneEventi({
       if (onAggiornaCambiSlot) {
         await onAggiornaCambiSlot(nuoviCambi, novosSlot);
       } else {
-        setCambiEffettuati(nuoviCambi);
+        setCampiEffettuati(nuoviCambi);
         setSlotUsati(novosSlot);
       }
     } catch (error) {
@@ -453,14 +474,11 @@ export default function GestioneEventi({
             <h4 className="text-sm font-bold text-white uppercase">Seleziona Giocatore Sanzionato</h4>
             <div className="max-h-60 overflow-y-auto space-y-1.5">
               {giocatori.filter(g => {
-                // Verifichiamo se il giocatore è attualmente in campo
                 const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
                 const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
                 
-                // È in campo se: (era titolare e non è uscito) oppure (era in panchina ed è entrato)
                 const attualmenteInCampo = (g.isTitolare && (!eUscito || eEntrato)) || (!g.isTitolare && eEntrato);
                 
-                // Un giocatore è sanzionabile se è attualmente in campo OPPURE se è già stato espulso in precedenza
                 return (attualmenteInCampo || g.espulso);
               }).map(g => {
                 if (g.espulso) {
@@ -611,7 +629,7 @@ export default function GestioneEventi({
                 </div>
               </div>
 
-              {/* Colonna 2: Panchina (con chi è già uscito riportato correttamente e sbarrato) */}
+              {/* Colonna 2: Panchina */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold uppercase text-emerald-400 bg-emerald-950/30 border border-emerald-900/40 p-2.5 rounded-xl">
                   <span className="flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5" /> 2. Chi ENTRA (Panchina)</span>
@@ -623,10 +641,7 @@ export default function GestioneEventi({
                     const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
                     const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)));
                     
-                    // Condizione corretta: è già uscito se era titolare ed è uscito (senza rientrare) oppure se non era titolare ma risulta comunque uscito nello storico
                     const giaUscito = (g.isTitolare && eUscito && !eEntrato) || (!g.isTitolare && eUscito);
-                    
-                    // Se il giocatore è attualmente in campo, non deve apparire nella lista della panchina
                     const eInCampoAttr = (g.isTitolare && !eUscito) || (!g.isTitolare && eEntrato);
                     if (eInCampoAttr) return null;
 
