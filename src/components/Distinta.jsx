@@ -238,7 +238,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
     const nuovoStatoConvocato = !target.isConvocato;
 
-    // BLOCCO RIGIDO: Se sta tentando di convocare e ha già 20 giocatori, blocca e avvisa
     if (nuovoStatoConvocato && convocatiCount >= 20) {
       alert("Non puoi convocare più di 20 giocatori! Il limite massimo consentito è 20.");
       return;
@@ -353,7 +352,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       numero: numeroScelto,
       nome: nuovoNome.trim().toUpperCase(),
       ruolo: '',
-      isConvocato: convocatiCount < 20, // Convocato solo se non abbiamo già raggiunto il limite di 20
+      isConvocato: convocatiCount < 20,
       isTitolare: false,
       isCapitano: false,
       isVice: false
@@ -452,9 +451,19 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       alert("Devi selezionare esattamente 11 titolari!");
       return;
     }
+
+    // 🛡️ Normalizzazione fondamentale per sincronizzare isTitolare e is_titolare per il database
+    const giocatoriNormalizzati = giocatori
+      .filter(g => g.isConvocato)
+      .map(g => ({
+        ...g,
+        isTitolare: g.isTitolare === true,
+        is_titolare: g.isTitolare === true
+      }));
+
     onConfermaDistinta({ 
       partitaInfo, 
-      giocatori: ordinaPerNumeroMaglia(giocatori.filter(g => g.isConvocato)) 
+      giocatori: ordinaPerNumeroMaglia(giocatoriNormalizzati) 
     });
   };
 
@@ -463,7 +472,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
   return (
     <div className="max-w-4xl mx-auto p-3 sm:p-4 space-y-5 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
-      {/* Banner Intestazione */}
       <div className="flex items-center gap-3 sm:gap-4 bg-slate-950 p-3 sm:p-4 rounded-xl border border-slate-800">
         {societa?.logo_url ? (
           <img
@@ -491,7 +499,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         )}
       </div>
 
-      {/* Configurazione Partita di Oggi */}
       <div className="bg-slate-800 p-4 sm:p-5 rounded-xl border border-slate-700 shadow-md space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
           <div className="flex items-center gap-2">
@@ -525,7 +532,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
           </span>
         </div>
 
-        {/* Squadre */}
         <div className="grid grid-cols-1 md:grid-cols-9 gap-3 items-end">
           <div className="md:col-span-4">
             <label className="text-xs uppercase text-slate-400 font-semibold block mb-1">
@@ -581,7 +587,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
           </div>
         </div>
 
-        {/* Staff Tecnico & Dirigenziale Completo */}
         <div className="pt-3 border-t border-slate-700/70 space-y-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase">
             <UserCog className="w-4 h-4 text-emerald-400" /> Staff Tecnico & Dirigenziale Ufficiale
@@ -690,7 +695,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         </div>
       </div>
 
-      {/* Form Aggiunta Rapida Giocatore */}
       <form onSubmit={aggiungiGiocatore} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap gap-3 items-end">
         <div className="w-20 sm:w-24">
           <label className="text-[11px] sm:text-xs text-slate-400 uppercase font-semibold">N° Maglia</label>
@@ -720,7 +724,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         </button>
       </form>
 
-      {/* Elenco Rosa Giocatori */}
       <div className="bg-slate-800 p-3 sm:p-5 rounded-xl border border-slate-700 shadow-md">
         <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
           <div>
