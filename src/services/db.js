@@ -68,7 +68,7 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
           nome: (g.nome || '').toUpperCase(),
           ruolo: g.ruolo || '',
           isConvocato: g.isConvocato ?? (index < 20),
-          isTitolare: g.isTitolare ?? g.is_titolare ?? false,
+          isTitolare: g.isTitolare ?? g.is_titolare ?? (index < 11),
           isCapitano: g.isCapitano ?? g.is_capitano ?? false,
           isVice: g.isVice ?? g.is_vice ?? false,
           ammonizioni: g.ammonizioni || 0,
@@ -93,7 +93,7 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
         nome: (g.nome || '').toUpperCase(),
         ruolo: g.ruolo || '',
         isConvocato: g.isConvocato ?? (index < 20),
-        isTitolare: g.is_titolare ?? false,
+        isTitolare: g.is_titolare ?? (index < 11),
         isCapitano: g.is_capitano ?? false,
         isVice: g.is_vice ?? false,
         ammonizioni: g.ammonizioni || 0,
@@ -394,7 +394,6 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, ca
 
   await supabase.from('giocatori').upsert(righe);
 
-  // 🚀 Forza anche l'aggiornamento del timestamp partita per sincronizzare i cambi rosa in tempo reale
   if (partitaId) {
     await supabase.from('partite').update({ updated_at: new Date().toISOString() }).eq('id', partitaId);
   }
@@ -485,8 +484,8 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       }
     }
 
-    // 🚀 CALCOLO MATEMATICO PRECISO E GERARCHICO DEI MINUTI
-    const giocatoriConMinutiCorretti = giocatori.map((g) => {
+    // 🚀 CALCOLO MATEMATICO PRECISO DEI MINUTI CON SUPPORTO ROBUSTO PER TITOLARI E RISERVE
+    const giocatoriConMinutiCorretti = giocatori.map((g, index) => {
       const numG = String(g.numero || '').trim();
       const idG = g.id;
       const nomeG = (g.nome || '').toUpperCase().trim();
@@ -521,8 +520,9 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         }
       });
 
-      // 🛡️ DEFINIZIONE CHIARA: Chi ha un minuto di entrata è riserva, gli altri partono titolari (salvo diversa indicazione nel DB)
-      const eTitolare = minutoEntrata === null && (g.isTitolare !== false);
+      // 🛡️ LOGICA TITOLARE VS RISERVA:
+      // È titolare se il flag isTitolare è true OPPure (se non è specificato) se si trova tra i primi 11 della distinta E non è entrato in corso d'opera.
+      const eTitolare = (g.isTitolare === true) || (g.isTitolare !== false && index < 11 && minutoEntrata === null);
       let minutiCalcolati = 0;
 
       if (eTitolare) {
@@ -640,6 +640,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     return { success: false, error: err };
   }
 }
+
 export async function caricaStoricoReferti(societaId, campionato, annata) {
   try {
     let query = supabase
