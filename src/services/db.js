@@ -476,23 +476,74 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 🚀 Elaborazione dei minuti per i giocatori espulsi prima dell'archiviazione
-    const giocatoriConMinutiCorretti = giocatori.map(g => {
-      const eventoEspulsione = eventi.find(e => 
-        e.tipo === 'ESPULSIONE' && (
-          e.giocatoreId === g.id || 
-          (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-        )
-      );
+    // 1. Determiniamo la durata totale della partita (90' o eventuale recupero dagli eventi)
+    let durataTotalePartita = 90;
+    if (eventi && eventi.length > 0) {
+      const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
+      if (ultimoMinutoEvento > 90) {
+        durataTotalePartita = ultimoMinutoEvento;
+      }
+    }
 
-      let minutiFinali = g.minuti;
-      if (eventoEspulsione && eventoEspulsione.minuto) {
-        minutiFinali = eventoEspulsione.minuto;
+    // 🚀 2. CALCOLO MATEMATICO PRECISO DEI MINUTI DI OGNI GIOCATORE PRIMA DI ARCHIVIARE
+    const giocatoriConMinutiCorretti = giocatori.map((g, index) => {
+      const numG = String(g.numero || '').trim();
+      const idG = g.id;
+      const nomeG = (g.nome || '').toUpperCase().trim();
+
+      const matchGiocatore = (ev) => {
+        if (!ev) return false;
+        if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
+        const det = (ev.dettagli || '').toUpperCase();
+        if (nomeG && det.includes(nomeG)) return true;
+        if (numG) {
+          if (det.includes(`#${numG}`) || det.includes(` #${numG}`) || det.includes(` # ${numG}`) || det.includes(`-${numG}`)) return true;
+        }
+        return false;
+      };
+
+      const eventoEspulsione = eventi.find(e => e.tipo === 'ESPULSIONE' && matchGiocatore(e));
+      const eEspulso = !!eventoEspulsione || g.espulso;
+
+      let minutoUscita = null;
+      let minutoEntrata = null;
+
+      eventi.forEach(e => {
+        const tipo = (e.tipo || '').toUpperCase();
+        if (tipo.includes('SOSTITUZIONE') || tipo.includes('CAMBIO')) {
+          const minEv = e.minuto || 0;
+          const det = (e.dettagli || '').toUpperCase();
+          const eUscito = e.esceId === idG || det.includes(`ESCE #${numG}`) || (nomeG && det.includes(`ESCE ${nomeG}`));
+          const eEntrato = e.entraId === idG || det.includes(`ENTRA #${numG}`) || (nomeG && det.includes(`ENTRA ${nomeG}`));
+
+          if (eUscito) minutoUscita = minEv;
+          if (eEntrato) minutoEntrata = minEv;
+        }
+      });
+
+      const eTitolare = !!g.isTitolare || index < 11;
+      let minutiCalcolati = 0;
+
+      if (eTitolare) {
+        let tempoFine = durataTotalePartita;
+        if (minutoUscita !== null) tempoFine = Math.min(tempoFine, minutoUscita);
+        if (eEspulso && eventoEspulsione?.minuto !== undefined) tempoFine = Math.min(tempoFine, eventoEspulsione.minuto);
+        minutiCalcolati = Math.max(0, tempoFine);
+      } else {
+        if (minutoEntrata !== null) {
+          let tempoInizio = minutoEntrata;
+          let tempoFine = durataTotalePartita;
+          if (minutoUscita !== null && minutoUscita > tempoInizio) tempoFine = Math.min(tempoFine, minutoUscita);
+          if (eEspulso && eventoEspulsione?.minuto !== undefined && eventoEspulsione.minuto > tempoInizio) tempoFine = Math.min(tempoFine, eventoEspulsione.minuto);
+          minutiCalcolati = Math.max(0, tempoFine - tempoInizio);
+        } else {
+          minutiCalcolati = 0;
+        }
       }
 
       return {
         ...g,
-        minuti: minutiFinali
+        minuti: minutiCalcolati
       };
     });
 
@@ -588,7 +639,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     return { success: false, error: err };
   }
 }
-
 export async function caricaStoricoReferti(societaId, campionato, annata) {
   try {
     let query = supabase
