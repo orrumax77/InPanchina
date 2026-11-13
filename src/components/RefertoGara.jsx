@@ -18,11 +18,11 @@ export default function RefertoGara({
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  // 🛡️ Gestione minuti e ordinamento: prima chi ha giocato, in fondo chi è rimasto in panchina (0 min e non espulso)
+  // 🛡️ Mappatura stati e ordinamento rigoroso: prima chi ha giocato (per maglia), poi panchina (per maglia)
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
     
-    let stato = 'Non entrato';
+    let stato = 'Panchina';
     const eraTitolare = g.isTitolare === true || g.is_titolare === true;
 
     if (g.espulso) {
@@ -37,14 +37,14 @@ export default function RefertoGara({
       stato
     };
   }).sort((a, b) => {
-    const inPanchinaA = a.minuti === 0 && !a.espulso;
-    const inPanchinaB = b.minuti === 0 && !b.espulso;
+    const haGiocatoA = a.minuti > 0 || a.espulso;
+    const haGiocatoB = b.minuti > 0 || b.espulso;
 
-    // Chi è in panchina va in fondo
-    if (inPanchinaA && !inPanchinaB) return 1;
-    if (!inPanchinaA && inPanchinaB) return -1;
+    // 1. Chi ha giocato (o è stato espulso) va SEMPRE prima
+    if (haGiocatoA && !haGiocatoB) return -1;
+    if (!haGiocatoA && haGiocatoB) return 1;
 
-    // A parità di categoria, ordina per numero di maglia crescente
+    // 2. A parità di categoria (entrambi hanno giocato oppure entrambi sono in panchina), ordina per numero di maglia crescente
     return parseInt(a.numero, 10) - parseInt(b.numero, 10);
   });
 
