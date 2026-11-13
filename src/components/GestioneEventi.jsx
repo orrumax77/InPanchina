@@ -9,10 +9,9 @@ import {
   UserPlus, 
   Sparkles, 
   X, 
-  AlertCircle,
   Check
 } from 'lucide-react';
-import { dbModificaGiocatore, aggiornaGiocatoriCloud } from '../services/db';
+import { aggiornaGiocatoriCloud } from '../services/db';
 
 export default function GestioneEventi({
   societaId,
@@ -39,7 +38,7 @@ export default function GestioneEventi({
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
   const [modalSostituzione, setModalSostituzione] = useState(false);
 
-  // Stati di selezione per la logica intuitiva "Click & Swap"
+  // Stati di selezione per la logica "Click & Swap"
   const [selezionatoEsce, setSelezionatoEsce] = useState(null);
   const [selezionatoEntra, setSelezionatoEntra] = useState(null);
   const [coppieInAttesa, setCoppieInAttesa] = useState([]);
@@ -124,26 +123,14 @@ export default function GestioneEventi({
 
     const nuoveAmm = (target.ammonizioni || 0) + 1;
     const espulso = nuoveAmm >= 2;
-    const minutoEvento = isIntervalloEffettivo ? 45 : minutoCorrente;
 
     const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
-        let minutiFinali = Number(g.minuti || 0);
-        
-        if (espulso) {
-          const minutoInizio = g._minutoIngressoCorrente !== undefined && g._minutoIngressoCorrente !== null ? Number(g._minutoIngressoCorrente) : (g.isTitolare ? 0 : 0);
-          const segmentMin = Math.max(0, minutoEvento - minutoInizio);
-          minutiFinali += segmentMin;
-        }
-
         return {
           ...g,
           ammonizioni: nuoveAmm,
           espulso: espulso ? true : g.espulso,
-          isTitolare: espulso ? false : g.isTitolare,
-          minuti: minutiFinali,
-          _minutoIngressoCorrente: espulso ? null : g._minutoIngressoCorrente,
-          minutoUscita: espulso ? minutoEvento : g.minutoUscita
+          isTitolare: espulso ? false : g.isTitolare
         };
       }
       return g;
@@ -151,7 +138,6 @@ export default function GestioneEventi({
 
     setGiocatori(nuevaRosa);
     
-    // Sincronizzazione immediata sul DB dell'intera rosa
     if (partitaId && societaId && campionato && annata) {
       await aggiornaGiocatoriCloud(partitaId, societaId, nuevaRosa, campionato, annata);
     }
@@ -174,21 +160,12 @@ export default function GestioneEventi({
     const target = giocatori.find(g => g.id === giocatoreId);
     if (!target) return;
 
-    const minutoEvento = isIntervalloEffettivo ? 45 : minutoCorrente;
-
     const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
-        const minutiPrecedenti = Number(g.minuti || 0);
-        const minutoInizio = g._minutoIngressoCorrente !== undefined && g._minutoIngressoCorrente !== null ? Number(g._minutoIngressoCorrente) : (g.isTitolare ? 0 : 0);
-        const segmentMin = Math.max(0, minutoEvento - minutoInizio);
-
         return { 
           ...g, 
           espulso: true, 
-          isTitolare: false,
-          minuti: minutiPrecedenti + segmentMin,
-          _minutoIngressoCorrente: null,
-          minutoUscita: minutoEvento
+          isTitolare: false
         };
       }
       return g;
@@ -196,7 +173,6 @@ export default function GestioneEventi({
 
     setGiocatori(nuevaRosa);
 
-    // Sincronizzazione immediata sul DB dell'intera rosa
     if (partitaId && societaId && campionato && annata) {
       await aggiornaGiocatoriCloud(partitaId, societaId, nuevaRosa, campionato, annata);
     }
@@ -266,34 +242,20 @@ export default function GestioneEventi({
     let nuevaRosa = [...giocatori];
     const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
 
-    // 🔄 Aggiorniamo sequenzialmente la rosa per ogni coppia di cambio
     listaCambi.forEach(({ esce, entra }) => {
       nuevaRosa = nuevaRosa.map(g => {
-        // Chi esce
         if (g.id === esce.id) {
-          const minutiPrecedenti = Number(g.minuti || 0);
-          const minutoInizio = g._minutoIngressoCorrente !== undefined && g._minutoIngressoCorrente !== null ? Number(g._minutoIngressoCorrente) : 0;
-          const minutiSegmento = Math.max(0, minutoDelCambio - minutoInizio);
-          
           return {
             ...g,
-            isTitolare: false,
-            minuti: minutiPrecedenti + minutiSegmento,
-            minutoUscita: minutoDelCambio,
-            _minutoIngressoCorrente: null
+            isTitolare: false
           };
         }
-
-        // Chi entra
         if (g.id === entra.id) {
           return {
             ...g,
-            isTitolare: true,
-            _minutoIngressoCorrente: minutoDelCambio,
-            minuti: Number(g.minuti || 0)
+            isTitolare: true
           };
         }
-
         return g;
       });
 
@@ -312,10 +274,8 @@ export default function GestioneEventi({
       });
     });
 
-    // 1. Aggiorniamo lo stato locale
     setGiocatori(nuevaRosa);
 
-    // 🚀 2. SALVATAGGIO CLOUD UNITARIO: Inviamo l'intera rosa aggiornata in blocco
     if (partitaId && societaId && campionato && annata) {
       await aggiornaGiocatoriCloud(partitaId, societaId, nuevaRosa, campionato, annata);
     }
@@ -554,7 +514,7 @@ export default function GestioneEventi({
         </div>
       )}
       
-      {/* MODALE SOSTITUZIONE AGGIORNATO */}
+      {/* MODALE SOSTITUZIONE */}
       {modalSostituzione && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 max-w-3xl w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
