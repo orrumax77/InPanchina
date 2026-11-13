@@ -476,20 +476,25 @@ export async function getSocietaById(societaId) {
   return data;
 }
 
-// ⏱️ Funzione deterministica ibrida (ID + Fallback Testo) per il calcolo preciso dei minuti
-// ⏱️ Funzione deterministica di calcolo minuti blindata
+// ⏱️ Funzione con LOG DI DEBUG ESTREMO per tracciare ogni calcolo dei minuti
 export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePartita) {
-  const eraTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
   const idG = String(giocatore.id || '').trim();
   const numG = String(giocatore.numero || '').trim();
   const nomeG = (giocatore.nome || '').toUpperCase().trim();
+  const eraTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
+
+  console.log(`\n========================================`);
+  console.log(`[DEBUG CALCOLO] Giocatore: #${numG} ${nomeG} (ID: ${idG})`);
+  console.log(`[DEBUG CALCOLO] Proprietà ricevute -> isTitolare:`, giocatore.isTitolare, `| is_titolare:`, giocatore.is_titolare, `| eraTitolare dedotto:`, eraTitolare);
 
   // Ordiniamo gli eventi in ordine cronologico crescente
   const eventiCronologici = [...(eventiPartita || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
 
   let inCampo = eraTitolare;
-  let minutoUltimoIngresso = eraTitolare ? 0 : null;
+  let minutoInizioSpezzone = eraTitolare ? 0 : null;
   let minutiAccumulati = 0;
+
+  console.log(`[DEBUG CALCOLO] Stato Iniziale -> inCampo: ${inCampo}, minutoInizioSpezzone: ${minutoInizioSpezzone}`);
 
   for (const ev of eventiCronologici) {
     const minEv = Number(ev.minuto || 0);
@@ -500,50 +505,64 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     const giocatoreIdEv = String(ev.giocatoreId || ev.giocatore_id || '').trim();
     const dett = (ev.dettagli || '').toUpperCase();
 
-    // Identificazione rigorosa del ruolo del giocatore in QUESTO specifico evento
-    const eIlMioId = giocatoreIdEv === idG;
-    const eChiEsce = esceId === idG || (numG && dett.includes(`ESCE #${numG}`)) || (nomeG && dett.includes('ESCE') && dett.includes(nomeG));
-    const eChiEntra = entraId === idG || (numG && dett.includes(`ENTRA #${numG}`)) || (nomeG && dett.includes('ENTRA') && dett.includes(nomeG));
-    
-    // Per ammonizioni / cartellini rossi generici
-    const eSanzionatoGenerico = eIlMioId || (numG && (dett.includes(`#${numG} `) || dett.includes(` #${numG}`))) || (nomeG && dett.includes(nomeG));
+    const eIlMioId = giocatoreIdEv === idG || esceId === idG || entraId === idG;
+    const eIlMioNumero = numG && (dett.includes(`#${numG}`) || dett.includes(` #${numG}`));
+    const eIlMioNome = nomeG && dett.includes(nomeG);
 
-    // 1. SE IL GIOCATORE ENTRA (Subentrato)
+    if (!eIlMioId && !eIlMioNumero && !eIlMioNome) continue;
+
+    console.log(`  -> Trovato evento al min ${minEv} [${tipo}]: "${dett}" | Match ID: ${eIlMioId}, Num: ${eIlMioNumero}, Nome: ${eIlMioNome}`);
+
+    // 1. EVENTO DI INGRESSO (Subentrato)
+    const eChiEntra = entraId === idG || (numG && dett.includes(`ENTRA #${numG}`)) || (nomeG && dett.includes('ENTRA') && dett.includes(nomeG));
     if (tipo === 'SOSTITUZIONE' && eChiEntra) {
       if (!inCampo) {
         inCampo = true;
-        minutoUltimoIngresso = minEv;
+        minutoInizioSpezzone = minEv;
+        console.log(`     [ENTRATA] Entrato in campo al min ${minEv}. inCampo = true`);
       }
       continue;
     }
 
-    // 2. SE IL GIOCATORE ESCE PER CAMBIO
+    // 2. EVENTO DI USCITA PER CAMBIO
+    const eChiEsce = esceId === idG || (numG && dett.includes(`ESCE #${numG}`)) || (nomeG && dett.includes('ESCE') && dett.includes(nomeG));
     if (tipo === 'SOSTITUZIONE' && eChiEsce && inCampo) {
-      if (minutoUltimoIngresso !== null) {
-        minutiAccumulati += Math.max(0, minEv - minutoUltimoIngresso);
+      if (minutoInizioSpezzone !== null) {
+        const durataSpezzone = Math.max(0, minEv - minutoInizioSpezzone);
+        minutiAccumulati += durataSpezzone;
+        console.log(`     [USCITA] Uscito al min ${minEv}. Aggiunti ${durataSpezzone} min. Totale provvisorio: ${minutiAccumulati}`);
       }
       inCampo = false;
-      minutoUltimoIngresso = null;
+      minutoInizioSpezzone = null;
       continue;
     }
 
-    // 3. SE IL GIOCATORE RICEVE UN'ESPULSIONE
+    // 3. EVENTO DI ESPULSIONE
+    const eSanzionatoGenerico = eIlMioId || eIlMioNumero || eIlMioNome;
     if (tipo === 'ESPULSIONE' && eSanzionatoGenerico && inCampo) {
-      if (minutoUltimoIngresso !== null) {
-        minutiAccumulati += Math.max(0, minEv - minutoUltimoIngresso);
+      if (minutoInizioSpezzone !== null) {
+        const durataSpezzone = Math.max(0, minEv - minutoInizioSpezzone);
+        minutiAccumulati += durataSpezzone;
+        console.log(`     [ESPULSIONE] Espulso al min ${minEv}. Aggiunti ${durataSpezzone} min. Totale provvisorio: ${minutiAccumulati}`);
       }
       inCampo = false;
-      minutoUltimoIngresso = null;
-      break; // Espulso: fine della sua partita
+      minutoInizioSpezzone = null;
+      console.log(`     [ESPULSIONE] Partita finita per espulsione.`);
+      break; 
     }
   }
 
   // Se alla fine della partita il giocatore è ancora in campo
-  if (inCampo && minutoUltimoIngresso !== null) {
-    minutiAccumulati += Math.max(0, durataTotalePartita - minutoUltimoIngresso);
+  if (inCampo && minutoInizioSpezzone !== null) {
+    const durataFinale = Math.max(0, durataTotalePartita - minutoInizioSpezzone);
+    minutiAccumulati += durataFinale;
+    console.log(`  -> A fine gara era ancora in campo. Aggiunti ${durataFinale} min (dal min ${minutoInizioSpezzone} al min ${durataTotalePartita}).`);
   }
 
-  return Math.min(durataTotalePartita, Math.max(0, minutiAccumulati));
+  const risultato = Math.min(durataTotalePartita, Math.max(0, minutiAccumulati));
+  console.log(`[RISULTATO FINALE] #${numG} ${nomeG} = ${risultato} minuti\n========================================\n`);
+
+  return risultato;
 }
 
 export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato, annata) {
@@ -826,7 +845,7 @@ export async function adminEliminaSocietaCompleta(societaId) {
   await supabase.from('giocatori').delete().eq('societa_id', societaId);
   await supabase.from('partite').delete().eq('societa_id', societaId);
   await supabase.from('utenti_panchina').delete().eq('societa_id', societaId);
-  
+   
   const { error } = await supabase.from('societa').delete().eq('id', societaId);
   if (error) throw error;
   return { success: true };
