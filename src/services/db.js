@@ -355,7 +355,10 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
     minuto: evento.minuto,
     tempo: evento.tempo,
     tipo: evento.tipo,
-    dettagli: evento.dettagli
+    dettagli: evento.dettagli,
+    esce_id: evento.esceId || null,
+    entra_id: evento.entraId || null,
+    giocatore_id: evento.giocatoreId || null
   }]);
 
   if (partitaId) {
