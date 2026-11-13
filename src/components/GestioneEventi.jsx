@@ -270,14 +270,13 @@ export default function GestioneEventi({
     const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
     const idsModificati = new Set();
 
-    // 🔄 Elaboriamo ogni singolo cambio in modo isolato e sicuro
+    // 🔄 TRATTIAMO OGNI CAMBIO IN MODO COMPLETAMENTE ISOLATO
     listaCambi.forEach(({ esce, entra }) => {
       idsModificati.add(esce.id);
       idsModificati.add(entra.id);
 
-      // Aggiorniamo la rosa clonata per questo specifico cambio
+      // 1. Aggiorniamo il giocatore che ESCE calcolando il suo segmento esatto
       nuevaRosa = nuevaRosa.map(g => {
-        // Chi esce
         if (g.id === esce.id) {
           const minutiPrecedenti = Number(g.minuti || 0);
           const minutoInizio = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
@@ -287,20 +286,23 @@ export default function GestioneEventi({
             ...g,
             isTitolare: false,
             minuti: minutiPrecedenti + minutiSegmento,
-            minutoUscita: minutoDelCambio
+            minutoUscita: minutoDelCambio,
+            minutoUltimoIngresso: undefined // Reset per evitare sovrascritture future
           };
         }
+        return g;
+      });
 
-        // Chi entra
+      // 2. Aggiorniamo il giocatore che ENTRA
+      nuevaRosa = nuevaRosa.map(g => {
         if (g.id === entra.id) {
           return {
             ...g,
             isTitolare: true,
             minutoUltimoIngresso: minutoDelCambio,
-            minuti: Number(g.minuti || 0) // Mantiene eventuali minuti precedenti se ha fatto più ingressi
+            minuti: Number(g.minuti || 0) // Preserva i minuti accumulati in eventuali altri segmenti
           };
         }
-
         return g;
       });
 
@@ -319,10 +321,10 @@ export default function GestioneEventi({
       });
     });
 
-    // 1. Aggiorniamo lo stato locale con la nuova rosa corretta
+    // 🚀 3. AGGIORNIAMO LO STATO LOCALE
     setGiocatori(nuevaRosa);
 
-    // 🚀 2. SALVATAGGIO MIRATO SUL DB: Aggiorniamo singolarmente SOLO i giocatori coinvolti nei cambi
+    // 🚀 4. SALVATAGGIO MIRATO NEL DB: Inviamo a Supabase i dati corretti e unici di ogni giocatore toccato
     if (societaId && campionato && annata) {
       for (const idG of idsModificati) {
         const giocatoreAggiornato = nuevaRosa.find(g => g.id === idG);
@@ -351,6 +353,7 @@ export default function GestioneEventi({
     setSelezionatoEntra(null);
     setCoppieInAttesa([]);
   };
+  
   
   // Titolari attualmente in campo
   const titolariInCampo = giocatori.filter(g => {
