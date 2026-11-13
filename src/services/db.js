@@ -485,22 +485,23 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     }
 
     // 🚀 2. IL JSON COMANDA, MA CON RETE DI SICUREZZA PER I TITOLARI MAI USCITI
+    // 🚀 IL JSON COMANDA: Gestiamo in modo sicuro i minuti anche se nel JSON di partenza il campo "minuti" è assente o vuoto
     const giocatoriDaArchiviare = giocatori.map(g => {
-      let minutiFinali = g.minuti;
+      let minutiFinali = g.minuti !== undefined && g.minuti !== null ? g.minuti : 0;
       const eraTitolare = g.isTitolare === true || g.is_titolare === true;
 
-      // Se il titolare non è mai uscito e i minuti sono vuoti o a 0, prende l'intera durata della partita
-      if (eraTitolare && (minutiFinali === undefined || minutiFinali === null || minutiFinali === 0) && !g.minutoUscita) {
+      // Se il titolare non è mai uscito e i suoi minuti sono rimasti a 0 (o mancanti), prende l'intera durata della partita
+      if (eraTitolare && minutiFinali === 0 && !g.minutoUscita) {
         minutiFinali = durataTotalePartita;
       }
 
       return {
         ...g,
-        minuti: minutiFinali !== undefined && minutiFinali !== null ? minutiFinali : 0,
+        minuti: minutiFinali,
         isTitolare: eraTitolare
       };
     });
-
+    
     // Salvataggio nel database storico
     await supabase.from('partite').insert([{
       id: storicoId,
