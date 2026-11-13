@@ -27,7 +27,7 @@ export async function caricaStatoPartita(partitaId) {
       .eq('partita_id', partitaId)
       .order('created_at', { ascending: false });
 
-    // 🚀 Scarica anche lo stato live aggiornato dei giocatori
+    // Scarica anche lo stato live aggiornato dei giocatori
     const { data: giocatori } = await supabase
       .from('giocatori')
       .select('*')
@@ -476,12 +476,75 @@ export async function getSocietaById(societaId) {
   return data;
 }
 
+// ⏱️ Funzione deterministica per calcolare i minuti giocati da un giocatore in base agli eventi reali
+export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePartita) {
+  const eraTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
+  const idG = String(giocatore.id);
+  const numG = String(giocatore.numero);
+  const nomeG = (giocatore.nome || '').toUpperCase();
+
+  // Ordiniamo gli eventi in ordine cronologico crescente per minuto
+  const eventiCronologici = [...(eventiPartita || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
+
+  let inCampo = eraTitolare;
+  let minutoIngresso = eraTitolare ? 0 : null;
+  let minutiAccumulati = 0;
+
+  for (const ev of eventiCronologici) {
+    const minEv = ev.minuto || 0;
+    const dett = (ev.dettagli || '').toUpperCase();
+    const tipo = (ev.tipo || '').toUpperCase();
+
+    // Verifichiamo se l'evento riguarda questo giocatore specifico
+    const riguardaQuesto = 
+      ev.giocatoreId === idG || 
+      ev.esceId === idG || 
+      ev.entraId === idG || 
+      dett.includes(`#${numG} `) || 
+      dett.includes(nomeG);
+
+    if (!riguardaQuesto) continue;
+
+    // Ingresso in campo (subentrato)
+    if ((tipo === 'SOSTITUZIONE' && dett.includes(`ENTRA #${numG}`)) || ev.entraId === idG) {
+      if (!inCampo) {
+        inCampo = true;
+        minutoIngresso = minEv;
+      }
+    }
+
+    // Uscita dal campo (sostituito) o Espulsione
+    const eUscita = (tipo === 'SOSTITUZIONE' && (dett.includes(`ESCE #${numG}`) || dett.includes(`ESCE ${nomeG}`))) || ev.esceId === idG;
+    const eEspulsione = tipo === 'ESPULSIONE';
+
+    if ((eUscita || eEspulsione) && inCampo) {
+      if (minutoIngresso !== null) {
+        minutiAccumulati += Math.max(0, minEv - minutoIngresso);
+      }
+      inCampo = false;
+      minutoIngresso = null;
+
+      // Se viene espulso, la sua partita finisce definitivamente in quel minuto
+      if (eEspulsione) {
+        break;
+      }
+    }
+  }
+
+  // Se alla fine della partita (o della durata calcolata) il giocatore è ancora in campo
+  if (inCampo && minutoIngresso !== null) {
+    minutiAccumulati += Math.max(0, durataTotalePartita - minutoIngresso);
+  }
+
+  return Math.min(durataTotalePartita, Math.max(0, minutiAccumulati));
+}
+
 export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato, annata) {
   if (!campionato || !annata) return { success: false, error: 'Mancano campionato o annata' };
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // ⏱️ 1. Durata reale della partita
+    // ⏱️ 1. Durata reale della partita (incluso recupero o minuti extra oltre il 90')
     let durataTotalePartita = 90;
     if (eventi && eventi.length > 0) {
       const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
@@ -493,24 +556,14 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       durataTotalePartita = datiGara.minutoCorrente;
     }
 
-    // 🚀 2. Chiusura finale dei minuti per chi è rimasto in campo fino alla fine
+    // 🚀 2. Chiusura finale e calcolo preciso dei minuti tramite la funzione deterministica
     const giocatoriDaArchiviare = giocatori.map(g => {
+      const minutiReali = calcolaMinutiGiocatore(g, eventi, durataTotalePartita);
       const eraTitolare = g.isTitolare === true || g.is_titolare === true;
-      let minutiAttuali = Number(g.minuti || 0);
-
-      // Se il giocatore non è espulso e ha completato la partita (es. titolare mai uscito o riserva entrata e mai uscita)
-      if (!g.espulso) {
-        if (eraTitolare && minutiAttuali === 0 && !g.minutoUscita) {
-          minutiAttuali = durataTotalePartita;
-        } else if (g._minutoIngressoCorrente !== undefined && g._minutoIngressoCorrente !== null) {
-          const minutiFinaliSpezzone = Math.max(0, durataTotalePartita - Number(g._minutoIngressoCorrente));
-          minutiAttuali += minutiFinaliSpezzone;
-        }
-      }
 
       return {
         ...g,
-        minuti: Math.min(durataTotalePartita, minutiAttuali),
+        minuti: minutiReali,
         isTitolare: eraTitolare,
         is_titolare: eraTitolare
       };
