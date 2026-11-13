@@ -146,20 +146,31 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const fascia = g.isCapitano ? ' Ⓒ' : g.isVice ? ' 🅥' : '';
         
         let iconeGiocatore = '';
-        const haSegnato = reti.some(r => r.giocatoreId === g.id || (r.dettagli && r.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
-        const eAmmonito = ammonizioniEventi.some(a => a.giocatoreId === g.id || (a.dettagli && a.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
+        const haSegnato = reti.some(r => r.giocatoreId === g.id || (r.dettagli || '').toUpperCase().includes(g.nome.toUpperCase()));
+        const eAmmonito = ammonizioniEventi.some(a => a.giocatoreId === g.id || (a.dettagli || '').toUpperCase().includes(g.nome.toUpperCase()));
         
-        const eventoEspulsione = espulsioniEventi.find(e => e.giocatoreId === g.id || (e.dettagli && e.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
+        const eventoEspulsione = espulsioniEventi.find(e => e.giocatoreId === g.id || (e.dettagli || '').toUpperCase().includes(g.nome.toUpperCase()));
         const eEspulso = !!eventoEspulsione || g.espulso;
-        
-        const cambioUscita = cambi.find(c => 
-          c.esceId === g.id || 
-          (c.dettagli && (c.dettagli.toUpperCase().includes(`ESCE #${g.numero}`) || c.dettagli.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)))
-        );
-        const cambioEntrata = cambi.find(c => 
-          c.entraId === g.id || 
-          (c.dettagli && (c.dettagli.toUpperCase().includes(`ENTRA #${g.numero}`) || c.dettagli.toUpperCase().includes(`ENTRA ${g.nome.toUpperCase()}`)))
-        );
+
+        // 🔍 Cerchiamo direttamente negli eventi di tipo sostituzione/cambio che contengono il numero o il nome del giocatore
+        const nomeG = (g.nome || '').toUpperCase();
+        const numG = String(g.numero || '');
+
+        const eventoCambioUscita = eventi.find(e => {
+          const tipo = (e.tipo || '').toUpperCase();
+          const det = (e.dettagli || '').toUpperCase();
+          const eUnCambio = tipo.includes('SOSTITUZIONE') || tipo.includes('CAMBIO');
+          const menzionaGiocatore = det.includes(`ESCE #${numG}`) || det.includes(`ESCE ${nomeG}`) || e.esceId === g.id;
+          return eUnCambio && menzionaGiocatore;
+        });
+
+        const eventoCambioEntrata = eventi.find(e => {
+          const tipo = (e.tipo || '').toUpperCase();
+          const det = (e.dettagli || '').toUpperCase();
+          const eUnCambio = tipo.includes('SOSTITUZIONE') || tipo.includes('CAMBIO');
+          const menzionaGiocatore = det.includes(`ENTRA #${numG}`) || det.includes(`ENTRA ${nomeG}`) || e.entraId === g.id;
+          return eUnCambio && menzionaGiocatore;
+        });
 
         if (haSegnato) iconeGiocatore += ' ⚽';
         if (eAmmonito) iconeGiocatore += ' 🟨';
@@ -167,17 +178,25 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
           const isDoppia = eventoEspulsione?.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') || g.ammonizioni >= 2;
           iconeGiocatore += isDoppia ? ' 🟨🟨🟥' : ' 🟥';
         }
-        if (cambioUscita || cambioEntrata) iconeGiocatore += ' 🔄';
+        if (eventoCambioUscita || eventoCambioEntrata) iconeGiocatore += ' 🔄';
 
-        let minutiCalcolati = g.minuti;
+        // 🚀 CALCOLO MATEMATICO DEI MINUTI REALI AL 100%
+        let minutiCalcolati = 0;
 
-        if (minutiCalcolati === undefined || minutiCalcolati === null || (g.isTitolare && minutiCalcolati >= 90 && cambioUscita)) {
-          if (eEspulso && eventoEspulsione?.minuto) {
-            minutiCalcolati = eventoEspulsione.minuto;
-          } else if (g.isTitolare) {
-            minutiCalcolati = cambioUscita ? cambioUscita.minuto : durataTotalePartita;
+        if (eEspulso && eventoEspulsione?.minuto) {
+          // Espulso: si ferma al minuto del cartellino rosso
+          minutiCalcolati = eventoEspulsione.minuto;
+        } else if (g.isTitolare) {
+          // Titolare: parte da tutta la partita, ma se esce prende il minuto esatto dell'uscita
+          minutiCalcolati = eventoCambioUscita && eventoCambioUscita.minuto ? eventoCambioUscita.minuto : durataTotalePartita;
+        } else {
+          // Riserva: se entra, calcola i minuti dal momento dell'ingresso fino alla fine (o fino a un'eventuale successiva uscita)
+          if (eventoCambioEntrata && eventoCambioEntrata.minuto) {
+            const minEntrata = eventoCambioEntrata.minuto;
+            const minUscita = (eventoCambioUscita && eventoCambioUscita.minuto > minEntrata) ? eventoCambioUscita.minuto : durataTotalePartita;
+            minutiCalcolati = Math.max(0, minUscita - minEntrata);
           } else {
-            minutiCalcolati = cambioEntrata ? Math.max(0, durataTotalePartita - cambioEntrata.minuto) : 0;
+            minutiCalcolati = 0;
           }
         }
 
