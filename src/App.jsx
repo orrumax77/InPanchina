@@ -180,7 +180,11 @@ export default function App() {
     const squadraCasaBase = nomeSocietaUfficiale;
     const squadraOspiteBase = (staffBase.squadraOspite || '').toUpperCase();
     const isNostraCasaBase = staffBase.isNostraCasa ?? true;
-    const dataPartitaBase = staffBase.dataPartita || new Date().toISOString().split('T')[0];
+    //const dataPartitaBase = staffBase.dataPartita || new Date().toISOString().split('T')[0];
+    // Genera sempre la data odierna in formato italiano DD/MM/YYYY
+    const d = new Date();
+    const dataOdiernaItaliana = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    const dataPartitaBase = dataOdiernaItaliana;
 
     const stato = await caricaStatoPartita(idPartita);
     setRosa(rosaSalvataNelDb || []);
@@ -488,7 +492,8 @@ export default function App() {
           massaggiatore: (staffSpecificoAnnata.massaggiatore || societaAttiva?.massaggiatore_predefinito || '').toUpperCase(),
           preparatoreAtletico: (staffSpecificoAnnata.preparatoreAtletico || societaAttiva?.preparatore_atletico_predefinito || '').toUpperCase(),
           preparatorePortieri: (staffSpecificoAnnata.preparatorePortieri || societaAttiva?.preparatore_portieri_predefinito || '').toUpperCase(),
-          dataPartita: staffSpecificoAnnata.dataPartita || new Date().toISOString().split('T')[0],
+          //dataPartita: staffSpecificoAnnata.dataPartita || new Date().toISOString().split('T')[0],
+          dataPartita: dataOdiernaItaliana,
           isNostraCasa: staffSpecificoAnnata.isNostraCasa ?? true
         });
 
@@ -878,7 +883,8 @@ export default function App() {
         massaggiatore: (staffSpecificoAnnata.massaggiatore || societaAttiva?.massaggiatore_predefinito || '').toUpperCase(),
         preparatoreAtletico: (staffSpecificoAnnata.preparatoreAtletico || societaAttiva?.preparatore_atletico_predefinito || '').toUpperCase(),
         preparatorePortieri: (staffSpecificoAnnata.preparatorePortieri || societaAttiva?.preparatore_portieri_predefinito || '').toUpperCase(),
-        dataPartita: staffSpecificoAnnata.dataPartita || new Date().toISOString().split('T')[0],
+        //dataPartita: staffSpecificoAnnata.dataPartita || new Date().toISOString().split('T')[0],
+        dataPartita: dataOdiernaItaliana,
         isNostraCasa: staffSpecificoAnnata.isNostraCasa ?? true
       });
 
