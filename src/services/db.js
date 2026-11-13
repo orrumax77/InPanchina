@@ -486,6 +486,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     }
 
     // 🚀 2. CALCOLO MATEMATICO PRECISO DEI MINUTI DI OGNI GIOCATORE PRIMA DI ARCHIVIARE
+    // 🚀 CALCOLO MATEMATICO PRECISO DEI MINUTI DI OGNI GIOCATORE PRIMA DI ARCHIVIARE
     const giocatoriConMinutiCorretti = giocatori.map((g, index) => {
       const numG = String(g.numero || '').trim();
       const idG = g.id;
@@ -521,6 +522,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         }
       });
 
+      // 🛡️ CORREZIONE CRUCIALE: È titolare se explicitamente impostato O se è nei primi 11 della rosa
       const eTitolare = !!g.isTitolare || index < 11;
       let minutiCalcolati = 0;
 
@@ -546,7 +548,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         minuti: minutiCalcolati
       };
     });
-
+    
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
