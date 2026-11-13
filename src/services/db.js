@@ -475,7 +475,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Determiniamo la durata totale della partita (90' o eventuale recupero dagli eventi)
+    // 1. Durata totale della partita (90' o recupero)
     let durataTotalePartita = 90;
     if (eventi && eventi.length > 0) {
       const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
@@ -484,7 +484,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       }
     }
 
-    // 🚀 CALCOLO MATEMATICO PRECISO DEI MINUTI CON SUPPORTO ROBUSTO PER TITOLARI E RISERVE
+    // 🚀 2. CALCOLO MATEMATICO DEL MINUTAGGIO INDIPENDENTE E INFALLIBILE
     const giocatoriConMinutiCorretti = giocatori.map((g, index) => {
       const numG = String(g.numero || '').trim();
       const idG = g.id;
@@ -520,9 +520,12 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         }
       });
 
-      // 🛡️ LOGICA TITOLARE VS RISERVA:
-      // È titolare se il flag isTitolare è true OPPure (se non è specificato) se si trova tra i primi 11 della distinta E non è entrato in corso d'opera.
+      // 🛡️ REGINA DELLE REGOLE:
+      // Un giocatore è TITOLARE se:
+      // 1. Ha esplicitamente g.isTitolare === true, OPPURE
+      // 2. Si trova nei primi 11 convocati dell'elenco E NON risulta essere entrato con un cambio dalla panchina.
       const eTitolare = (g.isTitolare === true) || (g.isTitolare !== false && index < 11 && minutoEntrata === null);
+      
       let minutiCalcolati = 0;
 
       if (eTitolare) {
@@ -538,7 +541,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
           if (eEspulso && eventoEspulsione?.minuto !== undefined && eventoEspulsione.minuto > tempoInizio) tempoFine = Math.min(tempoFine, eventoEspulsione.minuto);
           minutiCalcolati = Math.max(0, tempoFine - tempoInizio);
         } else {
-          minutiCalcolati = 0;
+          minutiCalcolati = 0; // Riserva non entrata
         }
       }
 
@@ -547,7 +550,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         minuti: minutiCalcolati
       };
     });
-    
+
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
