@@ -148,26 +148,39 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         let iconeGiocatore = '';
         const numG = String(g.numero || '');
         const idG = g.id;
+        const nomeG = (g.nome || '').toUpperCase();
 
-        // 1. Controlli eventi standard
-        const haSegnato = reti.some(r => r.giocatoreId === idG || (r.dettagli || '').includes(`#${numG} `) || (r.dettagli || '').includes(`(#${numG})`));
-        const eAmmonito = ammonizioniEventi.some(a => a.giocatoreId === idG || (a.dettagli || '').includes(`#${numG} `) || (a.dettagli || '').includes(`(#${numG})`));
-        const eventoEspulsione = espulsioniEventi.find(e => e.giocatoreId === idG || (e.dettagli || '').includes(`#${numG} `) || (e.dettagli || '').includes(`(#${numG})`));
+        // Helper per abbinare un evento al giocatore
+        const matchGiocatore = (ev) => {
+          if (!ev) return false;
+          if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
+          const det = (ev.dettagli || '').toUpperCase();
+          if (nomeG && det.includes(nomeG)) return true;
+          if (numG && (det.includes(`#${numG}`) || det.includes(` ${numG} `) || det.endsWith(` ${numG}`))) return true;
+          return false;
+        };
+
+        const haSegnato = reti.some(r => matchGiocatore(r));
+        const eAmmonito = ammonizioniEventi.some(a => matchGiocatore(a));
+        const eventoEspulsione = espulsioniEventi.find(e => matchGiocatore(e));
         const eEspulso = !!eventoEspulsione || g.espulso;
 
-        // 2. Cerca sostituzioni basandosi strettamente sugli ID o sui numeri di maglia nei dettagli
+        // 🔍 CERHIAMO I CAMBI INTERCETTANDO SIA 'SOSTITUZIONE' CHE 'CAMBIO'
         let minUscita = null;
         let minEntrata = null;
 
-        cambi.forEach(c => {
-          const det = (c.dettagli || '').toUpperCase();
-          const minC = c.minuto || 0;
+        eventi.forEach(e => {
+          const tipo = (e.tipo || '').toUpperCase();
+          if (tipo.includes('SOSTITUZIONE') || tipo.includes('CAMBIO')) {
+            const det = (e.dettagli || '').toUpperCase();
+            const minEv = e.minuto || 0;
 
-          const eUscito = c.esceId === idG || det.includes(`ESCE #${numG} `) || det.includes(`ESCE #${numG}-`) || det.includes(`ESCE #${numG}`);
-          const eEntrato = c.entraId === idG || det.includes(`ENTRA #${numG} `) || det.includes(`ENTRA #${numG}-`) || det.includes(`ENTRA #${numG}`);
+            const eUscito = e.esceId === idG || det.includes(`ESCE #${numG}`) || (nomeG && det.includes(`ESCE ${nomeG}`));
+            const eEntrato = e.entraId === idG || det.includes(`ENTRA #${numG}`) || (nomeG && det.includes(`ENTRA ${nomeG}`));
 
-          if (eUscito) minUscita = minC;
-          if (eEntrato) minEntrata = minC;
+            if (eUscito) minUscita = minEv;
+            if (eEntrato) minEntrata = minEv;
+          }
         });
 
         if (haSegnato) iconeGiocatore += ' ⚽';
@@ -178,35 +191,26 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         }
         if (minUscita !== null || minEntrata !== null) iconeGiocatore += ' 🔄';
 
-        // 🚀 CALCOLO DEI MINUTI RIGOROSO E SENZA EQUIVOCI
+        // 🚀 CALCOLO MATEMATICO DEI MINUTI REALI
         let minutiCalcolati = 0;
+        const eTitolare = !!g.isTitolare;
 
-        if (g.isTitolare) {
-          // Parte da titolare (90' o durata totale)
-          minutiCalcolati = durataTotalePartita;
-
-          // Se viene espulso, il minutaggio si ferma al minuto del rosso
-          if (eEspulso && eventoEspulsione?.minuto !== undefined) {
-            minutiCalcolati = eventoEspulsione.minuto;
-          }
-          // Se esce con un cambio, il minutaggio si ferma al minuto dell'uscita
-          else if (minUscita !== null) {
-            minutiCalcolati = minUscita;
-          }
+        if (eTitolare && minEntrata === null) {
+          // Titolare partito dall'inizio
+          let endTime = durataTotalePartita;
+          if (minUscita !== null) endTime = Math.min(endTime, minUscita);
+          if (eEspulso && eventoEspulsione?.minuto !== undefined) endTime = Math.min(endTime, eventoEspulsione.minuto);
+          minutiCalcolati = Math.max(0, endTime - 0);
         } else {
-          // Parte dalla panchina (0 minuti di base)
-          minutiCalcolati = 0;
-
-          // Se entra in campo
+          // Riserva / Subentrato
           if (minEntrata !== null) {
-            // Gioca da quando entra fino alla fine (o fino a quando viene eventualmente espulso/risostituito)
-            let fineFrazione = durataTotalePartita;
-            if (eEspulso && eventoEspulsione?.minuto !== undefined && eventoEspulsione.minuto > minEntrata) {
-              fineFrazione = eventoEspulsione.minuto;
-            } else if (minUscita !== null && minUscita > minEntrata) {
-              fineFrazione = minUscita;
-            }
-            minutiCalcolati = Math.max(0, fineFrazione - minEntrata);
+            let startTime = minEntrata;
+            let endTime = durataTotalePartita;
+            if (minUscita !== null && minUscita > startTime) endTime = Math.min(endTime, minUscita);
+            if (eEspulso && eventoEspulsione?.minuto !== undefined && eventoEspulsione.minuto > startTime) endTime = Math.min(endTime, eventoEspulsione.minuto);
+            minutiCalcolati = Math.max(0, endTime - startTime);
+          } else {
+            minutiCalcolati = 0;
           }
         }
 
