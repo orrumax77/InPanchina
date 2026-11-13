@@ -13,7 +13,7 @@ import {
   AlertCircle,
   Check
 } from 'lucide-react';
-import { dbModificaGiocatore, aggiornaGiocatoriCloud } from '../db'; // 👈 Importiamo le funzioni del DB
+import { dbModificaGiocatore, aggiornaGiocatoriCloud } from '../src/services/db'; // 👈 Importiamo le funzioni del DB
 
 export default function GestioneEventi({
   societaId,
