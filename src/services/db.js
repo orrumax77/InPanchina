@@ -476,6 +476,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
     // 1. Durata totale della partita (90' o recupero basato sugli eventi)
+    // ⏱️ 1. CALCOLO DELLA DURATA REALE DELLA GARA (es. 93' se c'è recupero)
     let durataTotalePartita = 90;
     if (eventi && eventi.length > 0) {
       const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
@@ -483,21 +484,23 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         durataTotalePartita = ultimoMinutoEvento;
       }
     }
+    if (datiGara?.minutoCorrente && datiGara.minutoCorrente > durataTotalePartita) {
+      durataTotalePartita = datiGara.minutoCorrente;
+    }
 
-    // 🚀 2. IL JSON COMANDA, MA CON RETE DI SICUREZZA PER I TITOLARI MAI USCITI
-    // 🚀 IL JSON COMANDA: Gestiamo in modo sicuro i minuti anche se nel JSON di partenza il campo "minuti" è assente o vuoto
+    // 🚀 2. GESTIONE INTELLIGENTE DEI MINUTI NEL JSON
     const giocatoriDaArchiviare = giocatori.map(g => {
-      let minutiFinali = g.minuti !== undefined && g.minuti !== null ? g.minuti : 0;
+      let minutiFinali = g.minuti;
       const eraTitolare = g.isTitolare === true || g.is_titolare === true;
 
-      // Se il titolare non è mai uscito e i suoi minuti sono rimasti a 0 (o mancanti), prende l'intera durata della partita
-      if (eraTitolare && minutiFinali === 0 && !g.minutoUscita) {
+      // Se il titolare non ha minuti registrati (o sono a 0/vuoti) e non è mai uscito, fa tutta la partita reale!
+      if (eraTitolare && (minutiFinali === undefined || minutiFinali === null || minutiFinali === 0) && !g.minutoUscita) {
         minutiFinali = durataTotalePartita;
       }
 
       return {
         ...g,
-        minuti: minutiFinali,
+        minuti: minutiFinali !== undefined && minutiFinali !== null ? minutiFinali : 0,
         isTitolare: eraTitolare
       };
     });
