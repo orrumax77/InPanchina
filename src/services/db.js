@@ -68,7 +68,7 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
           nome: (g.nome || '').toUpperCase(),
           ruolo: g.ruolo || '',
           isConvocato: g.isConvocato ?? (index < 20),
-          isTitolare: g.isTitolare ?? g.is_titolare ?? (index < 11),
+          isTitolare: g.isTitolare ?? g.is_titolare ?? false,
           isCapitano: g.isCapitano ?? g.is_capitano ?? false,
           isVice: g.isVice ?? g.is_vice ?? false,
           ammonizioni: g.ammonizioni || 0,
@@ -93,7 +93,7 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
         nome: (g.nome || '').toUpperCase(),
         ruolo: g.ruolo || '',
         isConvocato: g.isConvocato ?? (index < 20),
-        isTitolare: g.is_titolare ?? (index < 11),
+        isTitolare: g.is_titolare ?? false,
         isCapitano: g.is_capitano ?? false,
         isVice: g.is_vice ?? false,
         ammonizioni: g.ammonizioni || 0,
@@ -475,82 +475,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Durata totale della partita (90' o recupero)
-    let durataTotalePartita = 90;
-    if (eventi && eventi.length > 0) {
-      const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
-      if (ultimoMinutoEvento > 90) {
-        durataTotalePartita = ultimoMinutoEvento;
-      }
-    }
-
-    // 🚀 2. CALCOLO MATEMATICO DEL MINUTAGGIO INDIPENDENTE E INFALLIBILE
-    const giocatoriConMinutiCorretti = giocatori.map((g, index) => {
-      const numG = String(g.numero || '').trim();
-      const idG = g.id;
-      const nomeG = (g.nome || '').toUpperCase().trim();
-
-      const matchGiocatore = (ev) => {
-        if (!ev) return false;
-        if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
-        const det = (ev.dettagli || '').toUpperCase();
-        if (nomeG && det.includes(nomeG)) return true;
-        if (numG) {
-          if (det.includes(`#${numG}`) || det.includes(` #${numG}`) || det.includes(` # ${numG}`) || det.includes(`-${numG}`)) return true;
-        }
-        return false;
-      };
-
-      const eventoEspulsione = eventi.find(e => e.tipo === 'ESPULSIONE' && matchGiocatore(e));
-      const eEspulso = !!eventoEspulsione || g.espulso;
-
-      let minutoUscita = null;
-      let minutoEntrata = null;
-
-      eventi.forEach(e => {
-        const tipo = (e.tipo || '').toUpperCase();
-        if (tipo.includes('SOSTITUZIONE') || tipo.includes('CAMBIO')) {
-          const minEv = e.minuto || 0;
-          const det = (e.dettagli || '').toUpperCase();
-          const eUscito = e.esceId === idG || det.includes(`ESCE #${numG}`) || (nomeG && det.includes(`ESCE ${nomeG}`));
-          const eEntrato = e.entraId === idG || det.includes(`ENTRA #${numG}`) || (nomeG && det.includes(`ENTRA ${nomeG}`));
-
-          if (eUscito) minutoUscita = minEv;
-          if (eEntrato) minutoEntrata = minEv;
-        }
-      });
-
-      // 🛡️ REGINA DELLE REGOLE:
-      // Un giocatore è TITOLARE se:
-      // 1. Ha esplicitamente g.isTitolare === true, OPPURE
-      // 2. Si trova nei primi 11 convocati dell'elenco E NON risulta essere entrato con un cambio dalla panchina.
-      const eTitolare = (g.isTitolare === true) || (g.isTitolare !== false && index < 11 && minutoEntrata === null);
-      
-      let minutiCalcolati = 0;
-
-      if (eTitolare) {
-        let tempoFine = durataTotalePartita;
-        if (minutoUscita !== null) tempoFine = Math.min(tempoFine, minutoUscita);
-        if (eEspulso && eventoEspulsione?.minuto !== undefined) tempoFine = Math.min(tempoFine, eventoEspulsione.minuto);
-        minutiCalcolati = Math.max(0, tempoFine);
-      } else {
-        if (minutoEntrata !== null) {
-          let tempoInizio = minutoEntrata;
-          let tempoFine = durataTotalePartita;
-          if (minutoUscita !== null && minutoUscita > tempoInizio) tempoFine = Math.min(tempoFine, minutoUscita);
-          if (eEspulso && eventoEspulsione?.minuto !== undefined && eventoEspulsione.minuto > tempoInizio) tempoFine = Math.min(tempoFine, eventoEspulsione.minuto);
-          minutiCalcolati = Math.max(0, tempoFine - tempoInizio);
-        } else {
-          minutiCalcolati = 0; // Riserva non entrata
-        }
-      }
-
-      return {
-        ...g,
-        minuti: minutiCalcolati
-      };
-    });
-
+    // 🚀 IL JSON COMANDA: Salviamo direttamente i giocatori così come arrivano dallo stato pulito dell'app
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -563,7 +488,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       annata: annata,
       stato: 'completata',
       referto_eventi: eventi,
-      referto_giocatori: giocatoriConMinutiCorretti,
+      referto_giocatori: giocatori,
       terminata_il: new Date().toISOString(),
       allenatore: partitaInfo.allenatore || '',
       allenatore_seconda: partitaInfo.allenatoreSeconda || '',
