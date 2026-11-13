@@ -173,8 +173,8 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         }
         if (haSubitoCambio) iconeGiocatore += ' 🔄';
 
-        // 🚀 PRENDIAMO DIRETTAMENTE I MINUTI SALVATI NEL DATABASE AL MOMENTO DELL'ARCHIVIAZIONE
-        const minutiValore = g.minuti !== undefined && g.minuti !== null ? g.minuti : (g.isTitolare ? 90 : 0);
+        // 🚀 LETTURA DIRETTA DEI MINUTI SALVATI NEL DB AL MOMENTO DELL'ARCHIVIAZIONE
+        const minutiValore = g.minuti !== undefined && g.minuti !== null ? g.minuti : 0;
         const minStr = `${minutiValore}'`;
 
         const statoStr = g.stato ? ` (${g.stato})` : '';
