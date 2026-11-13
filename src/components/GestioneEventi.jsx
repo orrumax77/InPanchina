@@ -227,28 +227,28 @@ export default function GestioneEventi({
     const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
 
     listaCambi.forEach(({ esce, entra }) => {
-      // 🚀 IL JSON COMANDA: Aggiorniamo in tempo reale titolarità e minuti giocati
+      // 🚀 IL JSON COMANDA: Calcoliamo e aggiorniamo in tempo reale i minuti esatti nel JSON
       nuevaRosa = nuevaRosa.map(g => {
         if (g.id === esce.id) {
-          // Chi esce: calcoliamo i minuti fatti dall'inizio (o dall'ultimo ingresso) fino ad ora
+          // Chi esce: calcoliamo i minuti trascorsi dall'ultimo ingresso (o dall'inizio se titolare)
           const minutiPrecedenti = g.minuti || 0;
-          // Se partiva titolare e non era ancora entrato, i minuti fatti sono il minuto attuale del cambio
-          const nuoviMinuti = g.isTitolare ? minutoDelCambio : minutiPrecedenti + (minutoDelCambio - (g.minutoEntrata || 0));
+          const minutoInizioEffettivo = g.minutoUltimoIngresso !== undefined ? g.minutoUltimoIngresso : 0;
+          const minutiQuestoSegmento = Math.max(0, minutoDelCambio - minutoInizioEffettivo);
           
           return {
             ...g,
             isTitolare: false,
-            minuti: Math.max(0, nuoviMinuti),
+            minuti: minutiPrecedenti + minutiQuestoSegmento,
             minutoUscita: minutoDelCambio
           };
         }
 
         if (g.id === entra.id) {
-          // Chi entra: segniamo il minuto in cui ha iniziato a giocare
+          // Chi entra: registriamo il minuto in cui mette piede in campo per far partire il conteggio
           return {
             ...g,
             isTitolare: true,
-            minutoEntrata: minutoDelCambio
+            minutoUltimoIngresso: minutoDelCambio
           };
         }
 
@@ -270,7 +270,7 @@ export default function GestioneEventi({
       });
     });
 
-    // 1. Aggiorniamo lo stato locale con il JSON arricchito
+    // Aggiorniamo lo stato locale con il JSON arricchito
     setGiocatori(nuevaRosa);
       
     const nuoviCambi = cambiEffettuati + listaCambi.length;
@@ -292,7 +292,7 @@ export default function GestioneEventi({
     setSelezionatoEntra(null);
     setCoppieInAttesa([]);
   };
-
+  
   // Titolari attualmente in campo
   const titolariInCampo = giocatori.filter(g => {
     const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `) || e.dettagli?.toUpperCase().includes(`ESCE ${g.nome.toUpperCase()}`)));
