@@ -224,12 +224,34 @@ export default function GestioneEventi({
     }
 
     let nuevaRosa = [...giocatori];
+    const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
 
     listaCambi.forEach(({ esce, entra }) => {
-      // 🚀 IL JSON COMANDA: chi esce perde la titolarità, chi entra la acquisisce
+      // 🚀 IL JSON COMANDA: Aggiorniamo in tempo reale titolarità e minuti giocati
       nuevaRosa = nuevaRosa.map(g => {
-        if (g.id === esce.id) return { ...g, isTitolare: false };
-        if (g.id === entra.id) return { ...g, isTitolare: true };
+        if (g.id === esce.id) {
+          // Chi esce: calcoliamo i minuti fatti dall'inizio (o dall'ultimo ingresso) fino ad ora
+          const minutiPrecedenti = g.minuti || 0;
+          // Se partiva titolare e non era ancora entrato, i minuti fatti sono il minuto attuale del cambio
+          const nuoviMinuti = g.isTitolare ? minutoDelCambio : minutiPrecedenti + (minutoDelCambio - (g.minutoEntrata || 0));
+          
+          return {
+            ...g,
+            isTitolare: false,
+            minuti: Math.max(0, nuoviMinuti),
+            minutoUscita: minutoDelCambio
+          };
+        }
+
+        if (g.id === entra.id) {
+          // Chi entra: segniamo il minuto in cui ha iniziato a giocare
+          return {
+            ...g,
+            isTitolare: true,
+            minutoEntrata: minutoDelCambio
+          };
+        }
+
         return g;
       });
 
@@ -239,7 +261,7 @@ export default function GestioneEventi({
 
       onNuovoEvento({
         id: (Date.now() + Math.random()).toString(),
-        minuto: isIntervalloEffettivo ? 45 : minutoCorrente,
+        minuto: minutoDelCambio,
         tempo: isIntervalloEffettivo ? 1 : tempoGara,
         tipo: 'SOSTITUZIONE',
         esceId: esce.id,
@@ -248,19 +270,13 @@ export default function GestioneEventi({
       });
     });
 
-    // 1. Aggiorniamo lo stato locale
+    // 1. Aggiorniamo lo stato locale con il JSON arricchito
     setGiocatori(nuevaRosa);
       
     const nuoviCambi = cambiEffettuati + listaCambi.length;
     const novosSlot = isIntervalloEffettivo ? slotUsati : Math.min(3, slotUsati + 1);
 
     try {
-      // 2. 🚀 SINCRONIZZAZIONE REAL-TIME SU TUTTI I DISPOSITIVI CLOUD
-      // Aggiorniamo immediatamente la tabella giocatori su Supabase affinché il JSON sia la fonte di verità pulita
-      if (typeof window !== 'undefined' && window.aggiornaGiocatoriCloud) {
-        // Se passata o disponibile nel contesto
-      }
-
       if (onAggiornaCambiSlot) {
         await onAggiornaCambiSlot(nuoviCambi, novosSlot);
       } else {
