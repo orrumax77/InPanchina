@@ -355,10 +355,7 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
     minuto: evento.minuto,
     tempo: evento.tempo,
     tipo: evento.tipo,
-    dettagli: evento.dettagli,
-    esce_id: evento.esceId || null,
-    entra_id: evento.entraId || null,
-    giocatore_id: evento.giocatoreId || null
+    dettagli: evento.dettagli
   }]);
 
   if (partitaId) {
@@ -492,13 +489,10 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
 
     const eventiOrdinati = [...(eventi || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
 
-    // 🚀 2. Calcolo matematico al minuto basato sui fatti reali
+    // 🚀 2. Calcolo dei minuti basato sul testo degli eventi (dettagli)
     const giocatoriDaArchiviare = giocatori.map(g => {
-      const idG = String(g.id);
       const numG = String(g.numero);
       const nomeG = (g.nome || '').toUpperCase().trim();
-      
-      // Riconoscimento sicuro del titolare (gestisce sia camelCase che snake_case del DB)
       const eraTitolare = g.isTitolare === true || g.is_titolare === true;
 
       let onField = eraTitolare;
@@ -511,20 +505,11 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         const tipoE = (e.tipo || '').toUpperCase();
         const dettE = (e.dettagli || '').toUpperCase();
 
-        const evGiocatoreId = String(e.giocatoreId || e.giocatore_id || '');
-        const evEsceId = String(e.esceId || e.esce_id || '');
-        const evEntraId = String(e.entraId || e.entra_id || '');
+        // Verifichiamo se l'evento riguarda questo giocatore (tramite numero di maglia o nome)
+        const riguardaGiocatore = dettE.includes(`#${numG}`) || (nomeG.length > 0 && dettE.includes(nomeG));
 
-        const matchId = evGiocatoreId === idG;
-        const matchNum = dettE.includes(`#${numG}`);
-        const matchNome = nomeG.length > 0 && dettE.includes(nomeG);
-        const matchPlayer = matchId || matchNum || matchNome;
-
-        const matchEsce = evEsceId === idG || (tipoE === 'SOSTITUZIONE' && matchPlayer && (dettE.includes('ESCE') || dettE.includes('➔')));
-        const matchEntra = evEntraId === idG || (tipoE === 'SOSTITUZIONE' && matchPlayer && (dettE.includes('ENTRA') || dettE.includes('➔')));
-
-        // 🟥 Espulsione
-        if ((tipoE.includes('ESPULSIONE') || tipoE.includes('ROSSO') || dettE.includes('ESPULSIONE') || dettE.includes('ROSSO')) && matchPlayer) {
+        // 🟥 Controllo Espulsione / Rosso
+        if ((tipoE.includes('ESPULSIONE') || tipoE.includes('ROSSO') || dettE.includes('ESPULSIONE') || dettE.includes('ROSSO')) && riguardaGiocatore) {
           if (onField && entryTime !== null) {
             totalMinutes += Math.max(0, minE - entryTime);
             onField = false;
@@ -533,26 +518,30 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
           espulso = true;
         }
 
-        // 🔄 Uscita (Cambio)
-        if (matchEsce && onField) {
-          if (evEsceId === idG || dettE.includes(`ESCE #${numG}`) || (matchNome && dettE.indexOf('ESCE') < dettE.indexOf(nomeG) + 20)) {
+        // 🔄 Controllo Sostituzione (Esce o Entra)
+        if (tipoE === 'SOSTITUZIONE' || dettE.includes('CAMBIO') || dettE.includes('ESCE') || dettE.includes('ENTRA')) {
+          // Se il giocatore è quello che esce (controlliamo che il suo nome/numero compaia prima della freccia o vicino a "ESCE")
+          const isUscito = riguardaGiocatore && (dettE.includes(`ESCE #${numG}`) || (dettE.includes(nomeG) && dettE.indexOf('ESCE') < dettE.indexOf(nomeG) + 30) || (dettE.includes('➔') && dettE.indexOf(nomeG) > 0 && dettE.indexOf(nomeG) < dettE.indexOf('➔')));
+          
+          // Se il giocatore è quello che entra (compare dopo la freccia o vicino a "ENTRA")
+          const isEntrato = riguardaGiocatore && (dettE.includes(`ENTRA #${numG}`) || (dettE.includes(nomeG) && dettE.indexOf('ENTRA') < dettE.indexOf(nomeG) + 30) || (dettE.includes('➔') && dettE.indexOf(nomeG) > dettE.indexOf('➔')));
+
+          if (isUscito && onField) {
             if (entryTime !== null) {
               totalMinutes += Math.max(0, minE - entryTime);
             }
             onField = false;
             entryTime = null;
           }
-        }
 
-        // 🟢 Entrata (Cambio)
-        if (matchEntra && !onField && !espulso) {
-          if (evEntraId === idG || dettE.includes(`ENTRA #${numG}`) || (matchNome && dettE.indexOf('ENTRA') < dettE.indexOf(nomeG) + 20)) {
+          if (isEntrato && !onField && !espulso) {
             onField = true;
             entryTime = minE;
           }
         }
       });
 
+      // Se a fine partita è ancora in campo e non espulso
       if (onField && entryTime !== null && !espulso) {
         totalMinutes += Math.max(0, durataTotalePartita - entryTime);
       }
