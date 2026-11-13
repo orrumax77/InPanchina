@@ -475,14 +475,33 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 🚀 Il JSON comanda: salviamo direttamente i giocatori così come sono nello stato live
-    const giocatoriDaArchiviare = giocatori.map(g => ({
-      ...g,
-      minuti: g.minuti !== undefined && g.minuti !== null ? g.minuti : (g.isTitolare ? 90 : 0),
-      isTitolare: g.isTitolare ?? false
-    }));
+    // 1. Durata totale della partita (90' o recupero basato sugli eventi)
+    let durataTotalePartita = 90;
+    if (eventi && eventi.length > 0) {
+      const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
+      if (ultimoMinutoEvento > 90) {
+        durataTotalePartita = ultimoMinutoEvento;
+      }
+    }
 
-    // Salviamo il referto nello storico con il JSON fedele
+    // 🚀 2. IL JSON COMANDA, MA CON RETE DI SICUREZZA PER I TITOLARI MAI USCITI
+    const giocatoriDaArchiviare = giocatori.map(g => {
+      let minutiFinali = g.minuti;
+      const eraTitolare = g.isTitolare === true || g.is_titolare === true;
+
+      // Se il titolare non è mai uscito e i minuti sono vuoti o a 0, prende l'intera durata della partita
+      if (eraTitolare && (minutiFinali === undefined || minutiFinali === null || minutiFinali === 0) && !g.minutoUscita) {
+        minutiFinali = durataTotalePartita;
+      }
+
+      return {
+        ...g,
+        minuti: minutiFinali !== undefined && minutiFinali !== null ? minutiFinali : 0,
+        isTitolare: eraTitolare
+      };
+    });
+
+    // Salvataggio nel database storico
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
