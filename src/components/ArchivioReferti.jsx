@@ -29,39 +29,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     '5-4-1'
   ];
 
-  const ricaricaStorico = async () => {
-    if (!societa?.id) return;
-    setCaricamento(true);
-    const lista = await caricaStoricoReferti(societa.id);
-    setPartiteStorico(lista);
-    setCaricamento(false);
-  };
-
-  useEffect(() => {
-    ricaricaStorico();
-
-    // 🚀 ASCOLTO REALTIME SULLA TABELLA PARTITE PER L'ARCHIVIO
-    const channel = supabase
-      .channel('archivio-referti-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Intercetta INSERT, UPDATE e DELETE
-          schema: 'public',
-          table: 'partite',
-          filter: `societa_id=eq.${societa?.id}`
-        },
-        () => {
-          // Quando c'è un cambiamento nello storico (es. archiviazione o eliminazione), ricarica la lista in tempo reale
-          ricaricaStorico();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [societa?.id]);
   
   const ricaricaStorico = async () => {
     if (!societa?.id) return;
