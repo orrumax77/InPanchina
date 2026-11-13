@@ -18,35 +18,37 @@ export default function RefertoGara({
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  // 1. Analisi basata sugli ID univoci degli eventi
+  // 1. Analisi robusta e combinata (ID univoci + corrispondenza testuale dei numeri di maglia)
   const eventiPerGiocatore = {};
   (eventi || []).forEach(e => {
+    const dett = (e.dettagli || '').toUpperCase();
     (giocatori || []).forEach(g => {
       const matchId = e.giocatoreId === g.id || e.esceId === g.id || e.entraId === g.id;
+      const matchNum = g.numero && (dett.includes(`#${g.numero} `) || dett.includes(` #${g.numero}`) || dett.includes(`#${g.numero}-`));
       
-      if (matchId) {
+      if (matchId || matchNum) {
         if (!eventiPerGiocatore[g.id]) {
           eventiPerGiocatore[g.id] = { haGol: false, haAmm: false, haEsp: false, haCambioEsce: false, haCambioEntra: false };
         }
-        if (e.tipo === 'GOL' && e.giocatoreId === g.id) eventiPerGiocatore[g.id].haGol = true;
-        if (e.tipo === 'AMMONIZIONE' && e.giocatoreId === g.id) eventiPerGiocatore[g.id].haAmm = true;
-        if (e.tipo === 'ESPULSIONE' && e.giocatoreId === g.id) eventiPerGiocatore[g.id].haEsp = true;
+        if (e.tipo === 'GOL' && (e.giocatoreId === g.id || matchNum)) eventiPerGiocatore[g.id].haGol = true;
+        if (e.tipo === 'AMMONIZIONE' && (e.giocatoreId === g.id || matchNum)) eventiPerGiocatore[g.id].haAmm = true;
+        if (e.tipo === 'ESPULSIONE' && (e.giocatoreId === g.id || matchNum)) eventiPerGiocatore[g.id].haEsp = true;
         if (e.tipo === 'SOSTITUZIONE') {
-          if (e.esceId === g.id) eventiPerGiocatore[g.id].haCambioEsce = true;
-          if (e.entraId === g.id) eventiPerGiocatore[g.id].haCambioEntra = true;
+          if (e.esceId === g.id || dett.includes(`ESCE #${g.numero}`)) eventiPerGiocatore[g.id].haCambioEsce = true;
+          if (e.entraId === g.id || dett.includes(`ENTRA #${g.numero}`)) eventiPerGiocatore[g.id].haCambioEntra = true;
         }
       }
     });
   });
 
-  // 2. Mappatura e ordinamento matematico rigoroso e blindato
+  // 2. Mappatura e ordinamento matematico blindato
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
     const evs = eventiPerGiocatore[g.id] || { haGol: false, haAmm: false, haEsp: false, haCambioEsce: false, haCambioEntra: false };
     
     const isEspulsoFinale = g.espulso || evs.haEsp;
     
-    // Regola blindata: minuti > 0, espulso, oppure coinvolto in un cambio (entra o esce)
+    // Regola blindata: chi ha minuti > 0, è espulso o ha fatto un cambio (entra o esce) va nel gruppo superiore
     const haGiocato = minutiVal > 0 || isEspulsoFinale || evs.haCambioEntra || evs.haCambioEsce;
 
     return {
