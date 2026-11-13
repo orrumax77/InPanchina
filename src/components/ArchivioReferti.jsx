@@ -150,7 +150,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const idG = g.id;
         const nomeG = (g.nome || '').toUpperCase();
 
-        // Helper per abbinare un evento al giocatore
         const matchGiocatore = (ev) => {
           if (!ev) return false;
           if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
@@ -165,7 +164,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const eventoEspulsione = espulsioniEventi.find(e => matchGiocatore(e));
         const eEspulso = !!eventoEspulsione || g.espulso;
 
-        // 🔍 CERHIAMO I CAMBI INTERCETTANDO SIA 'SOSTITUZIONE' CHE 'CAMBIO'
         let minUscita = null;
         let minEntrata = null;
 
@@ -191,23 +189,37 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         }
         if (minUscita !== null || minEntrata !== null) iconeGiocatore += ' 🔄';
 
-        // 🚀 CALCOLO MATEMATICO DEI MINUTI REALI
+        // 🚀 CALCOLO RIGOROSO E GERARCHICO DEI MINUTI
         let minutiCalcolati = 0;
         const eTitolare = !!g.isTitolare;
 
         if (eTitolare && minEntrata === null) {
-          // Titolare partito dall'inizio
+          // --- TITOLARE ---
           let endTime = durataTotalePartita;
-          if (minUscita !== null) endTime = Math.min(endTime, minUscita);
-          if (eEspulso && eventoEspulsione?.minuto !== undefined) endTime = Math.min(endTime, eventoEspulsione.minuto);
+
+          // Se esce per cambio
+          if (minUscita !== null) {
+            endTime = Math.min(endTime, minUscita);
+          }
+          // Se viene espulso (ha priorità assoluta sul limite temporale)
+          if (eEspulso && eventoEspulsione?.minuto !== undefined) {
+            endTime = Math.min(endTime, eventoEspulsione.minuto);
+          }
+
           minutiCalcolati = Math.max(0, endTime - 0);
         } else {
-          // Riserva / Subentrato
+          // --- RISERVA / SUBENTRATO ---
           if (minEntrata !== null) {
             let startTime = minEntrata;
             let endTime = durataTotalePartita;
-            if (minUscita !== null && minUscita > startTime) endTime = Math.min(endTime, minUscita);
-            if (eEspulso && eventoEspulsione?.minuto !== undefined && eventoEspulsione.minuto > startTime) endTime = Math.min(endTime, eventoEspulsione.minuto);
+
+            if (minUscita !== null && minUscita > startTime) {
+              endTime = Math.min(endTime, minUscita);
+            }
+            if (eEspulso && eventoEspulsione?.minuto !== undefined && eventoEspulsione.minuto > startTime) {
+              endTime = Math.min(endTime, eventoEspulsione.minuto);
+            }
+
             minutiCalcolati = Math.max(0, endTime - startTime);
           } else {
             minutiCalcolati = 0;
