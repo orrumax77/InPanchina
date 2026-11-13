@@ -475,7 +475,89 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 🚀 IL JSON COMANDA: Salviamo direttamente i giocatori così come arrivano dallo stato pulito dell'app
+    // 1. Durata totale della partita (90' o recupero basato sugli eventi)
+    let durataTotalePartita = 90;
+    if (eventi && eventi.length > 0) {
+      const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
+      if (ultimoMinutoEvento > 90) {
+        durataTotalePartita = ultimoMinutoEvento;
+      }
+    }
+
+    // 🚀 2. CALCOLO MATEMATICO DEI MINUTI DA SALVARE DENTRO IL JSON DEL GIOCATORE
+    const giocatoriConMinutiCorretti = giocatori.map((g) => {
+      const numG = String(g.numero || '').trim();
+      const idG = g.id;
+      const nomeG = (g.nome || '').toUpperCase().trim();
+
+      const matchGiocatore = (ev) => {
+        if (!ev) return false;
+        if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
+        const det = (ev.dettagli || '').toUpperCase();
+        if (nomeG && det.includes(nomeG)) return true;
+        if (numG) {
+          if (det.includes(`#${numG}`) || det.includes(` #${numG}`) || det.includes(` # ${numG}`) || det.includes(`-${numG}`)) return true;
+        }
+        return false;
+      };
+
+      const eventoEspulsione = eventi.find(e => e.tipo === 'ESPULSIONE' && matchGiocatore(e));
+      const minutoEspulsione = eventoEspulsione ? (eventoEspulsione.minuto || 0) : null;
+      const eEspulso = !!eventoEspulsione || g.espulso;
+
+      let minutoUscita = null;
+      let minutoEntrata = null;
+
+      eventi.forEach(e => {
+        const tipo = (e.tipo || '').toUpperCase();
+        if (tipo.includes('SOSTITUZIONE') || tipo.includes('CAMBIO')) {
+          const minEv = e.minuto || 0;
+          const det = (e.dettagli || '').toUpperCase();
+          const eUscito = e.esceId === idG || det.includes(`ESCE #${numG}`) || (nomeG && det.includes(`ESCE ${nomeG}`));
+          const eEntrato = e.entraId === idG || det.includes(`ENTRA #${numG}`) || (nomeG && det.includes(`ENTRA ${nomeG}`));
+
+          if (eUscito) minutoUscita = minEv;
+          if (eEntrato) minutoEntrata = minEv;
+        }
+      });
+
+      // Se ha un minuto di entrata negli eventi, è una riserva subentrata
+      const eSubentrato = minutoEntrata !== null;
+      let minutiCalcolati = 0;
+      let isTitolareEffettivo = g.isTitolare;
+
+      if (!eSubentrato) {
+        // Titolare iniziale o giocatore in campo dall'inizio
+        const eraInCampoIniziale = (g.isTitolare === true);
+        
+        if (eraInCampoIniziale || minutoUscita !== null || minutoEspulsione !== null) {
+          isTitolareEffettivo = true;
+          let tempoFine = durataTotalePartita;
+          if (minutoUscita !== null) tempoFine = Math.min(tempoFine, minutoUscita);
+          if (eEspulso && minutoEspulsione !== null) tempoFine = Math.min(tempoFine, minutoEspulsione);
+          minutiCalcolati = Math.max(0, tempoFine);
+        } else {
+          minutiCalcolati = 0; // Riserva rimasta in panchina
+        }
+      } else {
+        // Riserva subentrata
+        isTitolareEffettivo = false;
+        let tempoInizio = minutoEntrata;
+        let tempoFine = durataTotalePartita;
+        if (minutoUscita !== null && minutoUscita > tempoInizio) tempoFine = Math.min(tempoFine, minutoUscita);
+        if (eEspulso && minutoEspulsione !== null && minutoEspulsione > tempoInizio) tempoFine = Math.min(tempoFine, minutoEspulsione);
+        
+        minutiCalcolati = Math.max(0, tempoFine - tempoInizio);
+      }
+
+      return {
+        ...g,
+        isTitolare: isTitolareEffettivo,
+        minuti: minutiCalcolati // 👈 Salviamo i minuti reali nel JSON!
+      };
+    });
+
+    // Salviamo il JSON con i minuti corretti nello storico
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -488,7 +570,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       annata: annata,
       stato: 'completata',
       referto_eventi: eventi,
-      referto_giocatori: giocatori,
+      referto_giocatori: giocatoriConMinutiCorretti, // JSON arricchito con i minuti
       terminata_il: new Date().toISOString(),
       allenatore: partitaInfo.allenatore || '',
       allenatore_seconda: partitaInfo.allenatoreSeconda || '',
