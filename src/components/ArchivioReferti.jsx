@@ -29,7 +29,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     '5-4-1'
   ];
 
-  
   const ricaricaStorico = async () => {
     if (!societa?.id) return;
     setCaricamento(true);
@@ -40,6 +39,27 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
   useEffect(() => {
     ricaricaStorico();
+
+    // 🚀 ASCOLTO REALTIME SULLA TABELLA PARTITE PER AGGIORNARE L'ARCHIVIO SU TUTTI I DISPOSITIVI
+    const channel = supabase
+      .channel('archivio-referti-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Intercetta INSERT, UPDATE e DELETE
+          schema: 'public',
+          table: 'partite',
+          filter: `societa_id=eq.${societa?.id}`
+        },
+        () => {
+          ricaricaStorico();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [societa?.id]);
 
   const toggleDettaglio = async (id) => {
@@ -279,6 +299,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         <span className="text-xs font-bold px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase flex items-center gap-1.5">
           <Archive className="w-3.5 h-3.5" /> Storico Gare
         </span>
+
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
