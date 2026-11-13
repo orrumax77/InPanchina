@@ -72,7 +72,8 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
           isCapitano: g.isCapitano ?? g.is_capitano ?? false,
           isVice: g.isVice ?? g.is_vice ?? false,
           ammonizioni: g.ammonizioni || 0,
-          espulso: g.espulso || false
+          espulso: g.espulso || false,
+          minuti: g.minuti !== undefined ? g.minuti : 0
         }));
       }
     }
@@ -97,7 +98,8 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
         isCapitano: g.is_capitano ?? false,
         isVice: g.is_vice ?? false,
         ammonizioni: g.ammonizioni || 0,
-        espulso: g.espulso || false
+        espulso: g.espulso || false,
+        minuti: g.minuti !== undefined ? g.minuti : 0
       }));
     }
 
@@ -138,7 +140,8 @@ export async function dbAggiungiGiocatore(societaId, giocatore, campionato, anna
       is_capitano: giocatore.isCapitano ?? false,
       is_vice: giocatore.isVice ?? false,
       ammonizioni: 0,
-      espulso: false
+      espulso: false,
+      minuti: 0
     };
 
     await supabase.from('giocatori').upsert(riga);
@@ -166,7 +169,8 @@ export async function dbModificaGiocatore(societaId, giocatore, campionato, anna
       is_capitano: giocatore.isCapitano ?? false,
       is_vice: giocatore.isVice ?? false,
       ammonizioni: giocatore.ammonizioni || 0,
-      espulso: giocatore.espulso || false
+      espulso: giocatore.espulso || false,
+      minuti: giocatore.minuti || 0
     };
 
     const { error } = await supabase
@@ -228,7 +232,8 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
       is_capitano: g.isCapitano ?? false,
       is_vice: g.isVice ?? false,
       ammonizioni: g.ammonizioni || 0,
-      espulso: g.espulso || false
+      espulso: g.espulso || false,
+      minuti: g.minuti !== undefined ? g.minuti : (g.isTitolare ? 90 : 0)
     }));
 
     await supabase.from('giocatori').upsert(righeGiocatori);
@@ -389,7 +394,8 @@ export async function aggiornaGiocatoriCloud(partitaId, societaId, giocatori, ca
     is_capitano: g.isCapitano ?? false,
     is_vice: g.isVice ?? false,
     ammonizioni: g.ammonizioni || 0,
-    espulso: g.espulso || false
+    espulso: g.espulso || false,
+    minuti: g.minuti !== undefined ? g.minuti : 0
   }));
 
   await supabase.from('giocatori').upsert(righe);
@@ -487,71 +493,22 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       durataTotalePartita = datiGara.minutoCorrente;
     }
 
-    const eventiOrdinati = [...(eventi || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
-
-    // 🚀 2. Calcolo dei minuti basato sul testo degli eventi (dettagli)
+    // 🚀 2. Lettura dei minuti con rete di sicurezza per i titolari intoccabili
     const giocatoriDaArchiviare = giocatori.map(g => {
-      const numG = String(g.numero);
-      const nomeG = (g.nome || '').toUpperCase().trim();
       const eraTitolare = g.isTitolare === true || g.is_titolare === true;
+      let minutiFinali = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : null;
 
-      let onField = eraTitolare;
-      let entryTime = eraTitolare ? 0 : null;
-      let totalMinutes = 0;
-      let espulso = false;
-
-      eventiOrdinati.forEach(e => {
-        const minE = e.minuto || 0;
-        const tipoE = (e.tipo || '').toUpperCase();
-        const dettE = (e.dettagli || '').toUpperCase();
-
-        // Verifichiamo se l'evento riguarda questo giocatore (tramite numero di maglia o nome)
-        const riguardaGiocatore = dettE.includes(`#${numG}`) || (nomeG.length > 0 && dettE.includes(nomeG));
-
-        // 🟥 Controllo Espulsione / Rosso
-        if ((tipoE.includes('ESPULSIONE') || tipoE.includes('ROSSO') || dettE.includes('ESPULSIONE') || dettE.includes('ROSSO')) && riguardaGiocatore) {
-          if (onField && entryTime !== null) {
-            totalMinutes += Math.max(0, minE - entryTime);
-            onField = false;
-            entryTime = null;
-          }
-          espulso = true;
-        }
-
-        // 🔄 Controllo Sostituzione (Esce o Entra)
-        if (tipoE === 'SOSTITUZIONE' || dettE.includes('CAMBIO') || dettE.includes('ESCE') || dettE.includes('ENTRA')) {
-          // Se il giocatore è quello che esce (controlliamo che il suo nome/numero compaia prima della freccia o vicino a "ESCE")
-          const isUscito = riguardaGiocatore && (dettE.includes(`ESCE #${numG}`) || (dettE.includes(nomeG) && dettE.indexOf('ESCE') < dettE.indexOf(nomeG) + 30) || (dettE.includes('➔') && dettE.indexOf(nomeG) > 0 && dettE.indexOf(nomeG) < dettE.indexOf('➔')));
-          
-          // Se il giocatore è quello che entra (compare dopo la freccia o vicino a "ENTRA")
-          const isEntrato = riguardaGiocatore && (dettE.includes(`ENTRA #${numG}`) || (dettE.includes(nomeG) && dettE.indexOf('ENTRA') < dettE.indexOf(nomeG) + 30) || (dettE.includes('➔') && dettE.indexOf(nomeG) > dettE.indexOf('➔')));
-
-          if (isUscito && onField) {
-            if (entryTime !== null) {
-              totalMinutes += Math.max(0, minE - entryTime);
-            }
-            onField = false;
-            entryTime = null;
-          }
-
-          if (isEntrato && !onField && !espulso) {
-            onField = true;
-            entryTime = minE;
-          }
-        }
-      });
-
-      // Se a fine partita è ancora in campo e non espulso
-      if (onField && entryTime !== null && !espulso) {
-        totalMinutes += Math.max(0, durataTotalePartita - entryTime);
+      if (eraTitolare && (minutiFinali === null || minutiFinali === 0 || minutiFinali === 90) && !g.minutoUscita) {
+        minutiFinali = durataTotalePartita;
+      } else if (!eraTitolare && minutiFinali === null) {
+        minutiFinali = 0;
       }
 
       return {
         ...g,
-        minuti: Math.min(durataTotalePartita, Math.max(0, totalMinutes)),
+        minuti: minutiFinali,
         isTitolare: eraTitolare,
-        is_titolare: eraTitolare,
-        espulso: espulso || g.espulso || false
+        is_titolare: eraTitolare
       };
     });
       
@@ -636,7 +593,8 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       ...g,
       ammonizioni: 0,
       espulso: false,
-      isConvocato: true
+      isConvocato: true,
+      minuti: 0
     }));
 
     await aggiornaGiocatoriCloud(livePartitaId, societaId, listaDaSalvare, campionato, annata);
