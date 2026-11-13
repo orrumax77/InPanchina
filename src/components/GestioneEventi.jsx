@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
@@ -13,7 +12,7 @@ import {
   AlertCircle,
   Check
 } from 'lucide-react';
-import { dbModificaGiocatore, aggiornaGiocatoriCloud } from '../services/db'; // 👈 Importiamo le funzioni del DB
+import { dbModificaGiocatore, aggiornaGiocatoriCloud } from '../services/db';
 
 export default function GestioneEventi({
   societaId,
@@ -125,15 +124,27 @@ export default function GestioneEventi({
 
     const nuoveAmm = (target.ammonizioni || 0) + 1;
     const espulso = nuoveAmm >= 2;
+    const minutoEspulsione = isIntervalloEffettivo ? 45 : minutoCorrente;
 
     let giocatoreModificato = null;
     const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
+        let minutiFinali = Number(g.minuti || 0);
+        
+        // Se la doppia ammonizione porta all'espulsione, calcoliamo i minuti esatti fatti fino a questo momento
+        if (espulso) {
+          const minutoInizio = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
+          const segmentMin = Math.max(0, minutoEspulsione - minutoInizio);
+          minutiFinali = minutiFinali + segmentMin;
+        }
+
         giocatoreModificato = {
           ...g,
           ammonizioni: nuoveAmm,
           espulso: espulso ? true : g.espulso,
-          isTitolare: espulso ? false : g.isTitolare
+          isTitolare: espulso ? false : g.isTitolare,
+          minuti: minutiFinali,
+          minutoUscita: espulso ? minutoEspulsione : g.minutoUscita
         };
         return giocatoreModificato;
       }
@@ -142,7 +153,7 @@ export default function GestioneEventi({
 
     setGiocatori(nuevaRosa);
     
-    // 🚀 Sincronizzazione immediata sul DB
+    // Sincronizzazione immediata sul DB per il giocatore sanzionato
     if (giocatoreModificato && societaId && campionato && annata) {
       await dbModificaGiocatore(societaId, giocatoreModificato, campionato, annata);
     }
@@ -165,10 +176,22 @@ export default function GestioneEventi({
     const target = giocatori.find(g => g.id === giocatoreId);
     if (!target) return;
 
+    const minutoEspulsione = isIntervalloEffettivo ? 45 : minutoCorrente;
+
     let giocatoreModificato = null;
     const nuevaRosa = giocatori.map(g => {
       if (g.id === giocatoreId) {
-        giocatoreModificato = { ...g, espulso: true, isTitolare: false };
+        const minutiPrecedenti = Number(g.minuti || 0);
+        const minutoInizio = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
+        const segmentMin = Math.max(0, minutoEspulsione - minutoInizio);
+
+        giocatoreModificato = { 
+          ...g, 
+          espulso: true, 
+          isTitolare: false,
+          minuti: minutiPrecedenti + segmentMin,
+          minutoUscita: minutoEspulsione
+        };
         return giocatoreModificato;
       }
       return g;
@@ -176,7 +199,7 @@ export default function GestioneEventi({
 
     setGiocatori(nuevaRosa);
 
-    // 🚀 Sincronizzazione immediata sul DB
+    // Sincronizzazione immediata sul DB dell'espulso
     if (giocatoreModificato && societaId && campionato && annata) {
       await dbModificaGiocatore(societaId, giocatoreModificato, campionato, annata);
     }
@@ -245,32 +268,36 @@ export default function GestioneEventi({
 
     let nuevaRosa = [...giocatori];
     const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
-    const giocatoriModificatiIds = new Set();
+    const idsModificati = new Set();
 
+    // 🔄 Elaboriamo ogni singolo cambio in modo isolato e sicuro
     listaCambi.forEach(({ esce, entra }) => {
-      giocatoriModificatiIds.add(esce.id);
-      giocatoriModificatiIds.add(entra.id);
+      idsModificati.add(esce.id);
+      idsModificati.add(entra.id);
 
+      // Aggiorniamo la rosa clonata per questo specifico cambio
       nuevaRosa = nuevaRosa.map(g => {
+        // Chi esce
         if (g.id === esce.id) {
           const minutiPrecedenti = Number(g.minuti || 0);
-          const minutoInizioEffettivo = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
-          const minutiQuestoSegmento = Math.max(0, minutoDelCambio - minutoInizioEffettivo);
+          const minutoInizio = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
+          const minutiSegmento = Math.max(0, minutoDelCambio - minutoInizio);
           
           return {
             ...g,
             isTitolare: false,
-            minuti: minutiPrecedenti + minutiQuestoSegmento,
+            minuti: minutiPrecedenti + minutiSegmento,
             minutoUscita: minutoDelCambio
           };
         }
 
+        // Chi entra
         if (g.id === entra.id) {
           return {
             ...g,
             isTitolare: true,
             minutoUltimoIngresso: minutoDelCambio,
-            minuti: Number(g.minuti || 0) // Mantiene i minuti accumulati se rientra/entra
+            minuti: Number(g.minuti || 0) // Mantiene eventuali minuti precedenti se ha fatto più ingressi
           };
         }
 
@@ -292,12 +319,12 @@ export default function GestioneEventi({
       });
     });
 
-    // 1. Aggiorniamo lo stato locale
+    // 1. Aggiorniamo lo stato locale con la nuova rosa corretta
     setGiocatori(nuevaRosa);
 
-    // 🚀 2. SALVATAGGIO CHIRURGICO NEL DB: Aggiorniamo singolarmente ogni giocatore toccato dal cambio
+    // 🚀 2. SALVATAGGIO MIRATO SUL DB: Aggiorniamo singolarmente SOLO i giocatori coinvolti nei cambi
     if (societaId && campionato && annata) {
-      for (const idG of giocatoriModificatiIds) {
+      for (const idG of idsModificati) {
         const giocatoreAggiornato = nuevaRosa.find(g => g.id === idG);
         if (giocatoreAggiornato) {
           await dbModificaGiocatore(societaId, giocatoreAggiornato, campionato, annata);
