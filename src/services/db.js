@@ -476,6 +476,26 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
+    // 🚀 Elaborazione dei minuti per i giocatori espulsi prima dell'archiviazione
+    const giocatoriConMinutiCorretti = giocatori.map(g => {
+      const eventoEspulsione = eventi.find(e => 
+        e.tipo === 'ESPULSIONE' && (
+          e.giocatoreId === g.id || 
+          (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
+        )
+      );
+
+      let minutiFinali = g.minuti;
+      if (eventoEspulsione && eventoEspulsione.minuto) {
+        minutiFinali = eventoEspulsione.minuto;
+      }
+
+      return {
+        ...g,
+        minuti: minutiFinali
+      };
+    });
+
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -488,7 +508,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       annata: annata,
       stato: 'completata',
       referto_eventi: eventi,
-      referto_giocatori: giocatori,
+      referto_giocatori: giocatoriConMinutiCorretti,
       terminata_il: new Date().toISOString(),
       allenatore: partitaInfo.allenatore || '',
       allenatore_seconda: partitaInfo.allenatoreSeconda || '',
