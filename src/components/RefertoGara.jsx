@@ -18,9 +18,33 @@ export default function RefertoGara({
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  // 🛡️ Mappatura stati e ordinamento rigoroso: prima chi ha giocato (per maglia), poi panchina (per maglia)
+  // Analizziamo gli eventi per capire chi ha fatto davvero cambi (escludendo gli espulsi puri se l'icona si trascinava)
+  const idGiocatoriCambiati = new Set();
+  (eventi || []).forEach(e => {
+    if (e.tipo === 'SOSTITUZIONE') {
+      if (e.esceId) idGiocatoriCambiati.add(String(e.esceId));
+      if (e.entraId) idGiocatoriCambiati.add(String(e.entraId));
+      // Controllo di sicurezza testuale nel caso l'ID mancasse
+      const dett = (e.dettagli || '').toUpperCase();
+      if (dett.includes('ESCE') || dett.includes('ENTRA')) {
+        // Se troviamo il numero nel testo del cambio
+        matchNumeroTesto(dett, idGiocatoriCambiati, giocatori);
+      }
+    }
+  });
+
+  function matchNumeroTesto(testo, setCambi, listaGiocatori) {
+    listaGiocatori.forEach(g => {
+      if (testo.includes(`#${g.numero} `) || testo.includes(` #${g.numero}`)) {
+        setCambi.add(String(g.id));
+      }
+    });
+  }
+
+  // 🛡️ Mappatura e ordinamento rigoroso: prima minuti > 0 (per maglia), poi panchina (per maglia)
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
+    const haSubitoCambio = idGiocatoriCambiati.has(String(g.id));
     
     let stato = 'Panchina';
     const eraTitolare = g.isTitolare === true || g.is_titolare === true;
@@ -34,7 +58,8 @@ export default function RefertoGara({
     return {
       ...g,
       minuti: minutiVal,
-      stato
+      stato,
+      haSubitoCambio
     };
   }).sort((a, b) => {
     const haGiocatoA = a.minuti > 0 || a.espulso;
