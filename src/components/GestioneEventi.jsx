@@ -269,15 +269,11 @@ export default function GestioneEventi({
 
     let nuevaRosa = [...giocatori];
     const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
-    const idsModificati = new Set();
 
-    // 🔄 TRATTIAMO OGNI CAMBIO IN MODO COMPLETAMENTE ISOLATO
+    // 🔄 Calcoliamo i minuti in modo pulito e sequenziale per ogni coppia
     listaCambi.forEach(({ esce, entra }) => {
-      idsModificati.add(esce.id);
-      idsModificati.add(entra.id);
-
-      // 1. Aggiorniamo il giocatore che ESCE calcolando il suo segmento esatto
       nuevaRosa = nuevaRosa.map(g => {
+        // Se è il giocatore che esce
         if (g.id === esce.id) {
           const minutiPrecedenti = Number(g.minuti || 0);
           const minutoInizio = g.minutoUltimoIngresso !== undefined ? Number(g.minutoUltimoIngresso) : 0;
@@ -288,22 +284,20 @@ export default function GestioneEventi({
             isTitolare: false,
             minuti: minutiPrecedenti + minutiSegmento,
             minutoUscita: minutoDelCambio,
-            minutoUltimoIngresso: undefined // Reset per evitare sovrascritture future
+            minutoUltimoIngresso: undefined
           };
         }
-        return g;
-      });
 
-      // 2. Aggiorniamo il giocatore che ENTRA
-      nuevaRosa = nuevaRosa.map(g => {
+        // Se è il giocatore che entra
         if (g.id === entra.id) {
           return {
             ...g,
             isTitolare: true,
             minutoUltimoIngresso: minutoDelCambio,
-            minuti: Number(g.minuti || 0) // Preserva i minuti accumulati in eventuali altri segmenti
+            minuti: Number(g.minuti || 0)
           };
         }
+
         return g;
       });
 
@@ -322,17 +316,12 @@ export default function GestioneEventi({
       });
     });
 
-    // 🚀 3. AGGIORNIAMO LO STATO LOCALE
+    // 1. Aggiorniamo lo stato locale
     setGiocatori(nuevaRosa);
 
-    // 🚀 4. SALVATAGGIO MIRATO NEL DB: Inviamo a Supabase i dati corretti e unici di ogni giocatore toccato
-    if (societaId && campionato && annata) {
-      for (const idG of idsModificati) {
-        const giocatoreAggiornato = nuevaRosa.find(g => g.id === idG);
-        if (giocatoreAggiornato) {
-          await dbModificaGiocatore(societaId, giocatoreAggiornato, campionato, annata);
-        }
-      }
+    // 🚀 2. SALVATAGGIO UNITARIO: Inviamo l'INTERA ROSA aggiornata in un sol colpo al DB, evitando sovrascrizioni dell'ultimo minuto
+    if (partitaId && societaId && campionato && annata) {
+      await aggiornaGiocatoriCloud(partitaId, societaId, nuevaRosa, campionato, annata);
     }
       
     const nuoviCambi = cambiEffettuati + listaCambi.length;
