@@ -485,7 +485,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       }
     }
 
-    // 🚀 2. CALCOLO MATEMATICO PRECISO DEI MINUTI DI OGNI GIOCATORE PRIMA DI ARCHIVIARE
     // 🚀 CALCOLO MATEMATICO PRECISO DEI MINUTI DI OGNI GIOCATORE PRIMA DI ARCHIVIARE
     const giocatoriConMinutiCorretti = giocatori.map((g, index) => {
       const numG = String(g.numero || '').trim();
@@ -522,8 +521,9 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         }
       });
 
-      // 🛡️ CORREZIONE CRUCIALE: È titolare se explicitamente impostato O se è nei primi 11 della rosa
-      const eTitolare = !!g.isTitolare || index < 11;
+      // 🛡️ REGOLA DEFINITIVA: Se ha un minuto di entrata registrato in un cambio, è UNA RISERVA al 100%!
+      // Altrimenti vale il flag isTitolare del DB, oppure l'indice < 11 solo se non ha mai subito un cambio in entrata.
+      const eTitolare = minutoEntrata === null && (!!g.isTitolare || index < 11);
       let minutiCalcolati = 0;
 
       if (eTitolare) {
@@ -539,6 +539,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
           if (eEspulso && eventoEspulsione?.minuto !== undefined && eventoEspulsione.minuto > tempoInizio) tempoFine = Math.min(tempoFine, eventoEspulsione.minuto);
           minutiCalcolati = Math.max(0, tempoFine - tempoInizio);
         } else {
+          // Riserva che non è mai entrata in campo
           minutiCalcolati = 0;
         }
       }
