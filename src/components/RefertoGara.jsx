@@ -18,7 +18,7 @@ export default function RefertoGara({
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  // 1. Analisi pulita degli eventi reali per ogni giocatore
+  // 1. Analisi precisa degli eventi per ogni giocatore
   const eventiPerGiocatore = {};
   (eventi || []).forEach(e => {
     const dett = (e.dettagli || '').toUpperCase();
@@ -34,20 +34,25 @@ export default function RefertoGara({
         if (e.tipo === 'AMMONIZIONE') eventiPerGiocatore[g.id].haAmm = true;
         if (e.tipo === 'ESPULSIONE') eventiPerGiocatore[g.id].haEsp = true;
         if (e.tipo === 'SOSTITUZIONE') {
-          if (e.esceId === g.id || dett.includes(`ESCE #${g.numero}`)) eventiPerGiocatore[g.id].haCambioEsce = true;
-          if (e.entraId === g.id || dett.includes(`ENTRA #${g.numero}`)) eventiPerGiocatore[g.id].haCambioEntra = true;
+          if (e.esceId === g.id || (e.esceId === null && dett.includes(`ESCE #${g.numero}`))) {
+            eventiPerGiocatore[g.id].haCambioEsce = true;
+          }
+          if (e.entraId === g.id || (e.entraId === null && dett.includes(`ENTRA #${g.numero}`))) {
+            eventiPerGiocatore[g.id].haCambioEntra = true;
+          }
         }
       }
     });
   });
 
-  // 2. Mappatura rosa e ordinamento rigoroso (prima chi ha giocato ordinato per maglia, poi panchina ordinata per maglia)
+  // 2. Mappatura e ordinamento perfetto in due blocchi: Campo vs Panchina
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
     const evs = eventiPerGiocatore[g.id] || { haGol: false, haAmm: false, haEsp: false, haCambioEsce: false, haCambioEntra: false };
     
     const isEspulsoFinale = g.espulso || evs.haEsp;
-    const haGiocato = minutiVal > 0 || isEspulsoFinale;
+    // Un giocatore ha giocato se ha minuti > 0, se è stato espulso o se è entrato in campo (anche se per errore eventuale avesse 0)
+    const haGiocato = minutiVal > 0 || isEspulsoFinale || evs.haCambioEntra;
 
     return {
       ...g,
@@ -60,11 +65,11 @@ export default function RefertoGara({
       haGiocato
     };
   }).sort((a, b) => {
-    // Prima tutti quelli che hanno giocato o sono stati espulsi
+    // BLOCCO 1: Chi ha giocato/è entrato/è espulso va SEMPRE sopra
     if (a.haGiocato && !b.haGiocato) return -1;
     if (!a.haGiocato && b.haGiocato) return 1;
 
-    // A parità di categoria, ordinamento rigoroso per numero di maglia crescente
+    // BLOCCO 2: A parità di gruppo, ordinamento rigoroso per numero di maglia crescente
     return parseInt(a.numero, 10) - parseInt(b.numero, 10);
   });
 
@@ -129,17 +134,16 @@ export default function RefertoGara({
     rosaConMinuti.forEach(g => {
       const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
       
-      // Costruzione pulita delle icone (ESCLUDENDO assolutamente il cambio se il giocatore è stato espulso)
       let icone = '';
       if (g.haGol) icone += ' ⚽';
       if (g.haAmm) icone += ' 🟨';
       if (g.haEsp) {
-        icone += ' 🟥'; // Se espulso, niente icona cambio!
+        icone += ' 🟥';
       } else {
         if (g.haCambioEsce || g.haCambioEntra) icone += ' 🔄';
       }
 
-      t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}${icone}: ${g.minuti}'${g.minuti === 0 ? ' (PANCHINA)' : ''}\n`;
+      t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}${icone}: ${g.minuti}'${g.minuti === 0 && !g.haCambioEntra ? ' (PANCHINA)' : ''}\n`;
     });
 
     return t;
