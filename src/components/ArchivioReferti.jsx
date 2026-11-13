@@ -154,19 +154,12 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         }
         if (cambioUscita || cambioEntrata) iconeGiocatore += ' 🔄';
 
-        // Calcolo preciso dei minuti effettivi
-        let minutiCalcolati = g.minuti;
-        if (minutiCalcolati === undefined || minutiCalcolati === null) {
-          if (eEspulso && eventoEspulsione?.minuto) {
-            minutiCalcolati = eventoEspulsione.minuto;
-          } else if (g.isTitolare) {
-            minutiCalcolati = cambioUscita ? cambioUscita.minuto : 90;
-          } else {
-            minutiCalcolati = cambioEntrata ? Math.max(0, 90 - cambioEntrata.minuto) : 0;
-          }
-        }
+        // 🚀 USHIAMO DIRETTAMENTE IL MINUTAGGIO GIA' SALVATO E CALCOLATO A MONTE DALL'APP
+        let minutiValore = g.minuti !== undefined && g.minuti !== null 
+          ? g.minuti 
+          : (g.isTitolare ? 90 : 0);
 
-        const minStr = `${minutiCalcolati}'`;
+        const minStr = `${minutiValore}'`;
         const statoStr = g.stato ? ` (${g.stato})` : '';
         const votoStr = g.voto && g.voto !== 'S.V.' ? ` ⭐ Voto: *${g.voto}*` : g.voto === 'S.V.' ? ` ⭐ Voto: *S.V.*` : '';
         
