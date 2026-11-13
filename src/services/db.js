@@ -475,101 +475,14 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // 1. Durata totale della partita (90' o recupero basato sugli eventi)
-    let durataTotalePartita = 90;
-    if (eventi && eventi.length > 0) {
-      const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
-      if (ultimoMinutoEvento > 90) {
-        durataTotalePartita = ultimoMinutoEvento;
-      }
-    }
+    // 🚀 Il JSON comanda: salviamo direttamente i giocatori così come sono nello stato live
+    const giocatoriDaArchiviare = giocatori.map(g => ({
+      ...g,
+      minuti: g.minuti !== undefined && g.minuti !== null ? g.minuti : (g.isTitolare ? 90 : 0),
+      isTitolare: g.isTitolare ?? false
+    }));
 
-    // 🚀 2. CALCOLO MATEMATICO DEI MINUTI DA SALVARE DENTRO IL JSON DEL GIOCATORE
-    const giocatoriConMinutiCorretti = giocatori.map((g) => {
-      const numG = String(g.numero || '').trim();
-      const idG = g.id;
-      const nomeG = (g.nome || '').toUpperCase().trim();
-
-      const matchGiocatore = (ev) => {
-        if (!ev) return false;
-        if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
-        const det = (ev.dettagli || '').toUpperCase();
-        if (nomeG && det.includes(nomeG)) return true;
-        if (numG) {
-          if (det.includes(`#${numG}`) || det.includes(` #${numG}`) || det.includes(`-#${numG}`) || det.includes(` ${numG} `)) return true;
-        }
-        return false;
-      };
-
-      const eventoEspulsione = eventi.find(e => e.tipo === 'ESPULSIONE' && matchGiocatore(e));
-      const minutoEspulsione = eventoEspulsione ? (eventoEspulsione.minuto || 0) : null;
-      const eEspulso = !!eventoEspulsione || g.espulso;
-
-      let minutoUscita = null;
-      let minutoEntrata = null;
-
-      eventi.forEach(e => {
-        const tipo = (e.tipo || '').toUpperCase();
-        if (tipo.includes('SOSTITUZIONE') || tipo.includes('CAMBIO')) {
-          const minEv = e.minuto || 0;
-          const det = (e.dettagli || '').toUpperCase();
-
-          // 🛡️ CONTROLLO CAMBI ULTRA-ROBUSTO (Tramite ID o riscontro flessibile su numero/nome nei dettagli)
-          const escePerId = e.esceId === idG;
-          const entraPerId = e.entraId === idG;
-
-          const escePerTesto = numG && (det.includes(`ESCE #${numG}`) || det.includes(`ESCE ${numG}`) || det.includes(`#${numG} ➔`) || det.includes(`#${numG} ->`));
-          const entraPerTesto = numG && (det.includes(`ENTRA #${numG}`) || det.includes(`ENTRA ${numG}`) || det.includes(`➔ #${numG}`) || det.includes(`-> #${numG}`));
-
-          const escePerNome = nomeG && det.includes(nomeG) && det.includes('ESCE');
-          const entraPerNome = nomeG && det.includes(nomeG) && det.includes('ENTRA');
-
-          if (escePerId || escePerTesto || escePerNome) {
-            minutoUscita = minEv;
-          }
-          if (entraPerId || entraPerTesto || entraPerNome) {
-            minutoEntrata = minEv;
-          }
-        }
-      });
-
-      // Se ha un minuto di entrata negli eventi, è una riserva subentrata
-      const eSubentrato = minutoEntrata !== null;
-      let minutiCalcolati = 0;
-      let isTitolareEffettivo = g.isTitolare;
-
-      if (!eSubentrato) {
-        // Titolare iniziale o giocatore in campo dall'inizio
-        const eraInCampoIniziale = (g.isTitolare === true);
-        
-        if (eraInCampoIniziale || minutoUscita !== null || minutoEspulsione !== null) {
-          isTitolareEffettivo = true;
-          let tempoFine = durataTotalePartita;
-          if (minutoUscita !== null) tempoFine = Math.min(tempoFine, minutoUscita);
-          if (eEspulso && minutoEspulsione !== null) tempoFine = Math.min(tempoFine, minutoEspulsione);
-          minutiCalcolati = Math.max(0, tempoFine);
-        } else {
-          minutiCalcolati = 0; // Riserva rimasta in panchina
-        }
-      } else {
-        // Riserva subentrata
-        isTitolareEffettivo = false;
-        let tempoInizio = minutoEntrata;
-        let tempoFine = durataTotalePartita;
-        if (minutoUscita !== null && minutoUscita > tempoInizio) tempoFine = Math.min(tempoFine, minutoUscita);
-        if (eEspulso && minutoEspulsione !== null && minutoEspulsione > tempoInizio) tempoFine = Math.min(tempoFine, minutoEspulsione);
-        
-        minutiCalcolati = Math.max(0, tempoFine - tempoInizio);
-      }
-
-      return {
-        ...g,
-        isTitolare: isTitolareEffettivo,
-        minuti: minutiCalcolati // 👈 Minuti reali calcolati al millimetro!
-      };
-    });
-
-    // Salviamo il JSON con i minuti corretti nello storico
+    // Salviamo il referto nello storico con il JSON fedele
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -582,7 +495,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       annata: annata,
       stato: 'completata',
       referto_eventi: eventi,
-      referto_giocatori: giocatoriConMinutiCorretti,
+      referto_giocatori: giocatoriDaArchiviare,
       terminata_il: new Date().toISOString(),
       allenatore: partitaInfo.allenatore || '',
       allenatore_seconda: partitaInfo.allenatoreSeconda || '',
