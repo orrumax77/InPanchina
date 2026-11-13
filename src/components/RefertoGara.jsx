@@ -18,7 +18,7 @@ export default function RefertoGara({
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  // 1. Analisi robusta e combinata (ID univoci + corrispondenza testuale dei numeri di maglia)
+  // 1. Analisi basata sugli ID univoci degli eventi e riscontro testuale sicuro
   const eventiPerGiocatore = {};
   (eventi || []).forEach(e => {
     const dett = (e.dettagli || '').toUpperCase();
@@ -41,15 +41,15 @@ export default function RefertoGara({
     });
   });
 
-  // 2. Mappatura e ordinamento matematico blindato
+  // 2. Mappatura e ordinamento matematico blindato (Titolari/Subentrati/Espulsi sopra, Panchina a 0' sotto)
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
     const evs = eventiPerGiocatore[g.id] || { haGol: false, haAmm: false, haEsp: false, haCambioEsce: false, haCambioEntra: false };
     
     const isEspulsoFinale = g.espulso || evs.haEsp;
     
-    // Regola blindata: chi ha minuti > 0, è espulso o ha fatto un cambio (entra o esce) va nel gruppo superiore
-    const haGiocato = minutiVal > 0 || isEspulsoFinale || evs.haCambioEntra || evs.haCambioEsce;
+    // Un giocatore ha giocato se: ha minuti > 0, è stato espulso, è entrato in campo, o era titolare iniziale e non è mai uscito senza rientrare
+    const haGiocato = minutiVal > 0 || isEspulsoFinale || evs.haCambioEntra || evs.haCambioEsce || (g.isTitolare === true);
 
     return {
       ...g,
@@ -62,7 +62,7 @@ export default function RefertoGara({
       haGiocato
     };
   }).sort((a, b) => {
-    // BLOCCO 1: Chi ha giocato/è entrato/è espulso va SEMPRE sopra
+    // BLOCCO 1: Chi ha giocato/è titolare/è espulso va SEMPRE nel blocco superiore
     if (a.haGiocato && !b.haGiocato) return -1;
     if (!a.haGiocato && b.haGiocato) return 1;
 
