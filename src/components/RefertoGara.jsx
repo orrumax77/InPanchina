@@ -18,55 +18,26 @@ export default function RefertoGara({
   const [copiato, setCopiato] = useState(false);
   const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 
-  const minutoFinalePartita = Math.max(90, minutoCorrente || 90);
-
-  // Calcolo dei minuti giocati per ogni calciatore
-  const calcolaMinutiGiocati = (g) => {
-    const evEspulsione = (eventi || []).find(e => 
-      e.tipo === 'ESPULSIONE' && 
-      (e.dettagli.includes(`#${g.numero} `) || e.dettagli.includes(g.nome))
-    );
-    const minutoRosso = evEspulsione ? evEspulsione.minuto : null;
-
-    const evUscita = (eventi || []).find(e => 
-      e.tipo === 'SOSTITUZIONE' && 
-      e.dettagli.includes(`Esce #${g.numero} `)
-    );
-    const minutoUscita = evUscita ? evUscita.minuto : null;
-
-    const evEntrata = (eventi || []).find(e => 
-      e.tipo === 'SOSTITUZIONE' && 
-      e.dettagli.includes(`Entra #${g.numero} `)
-    );
-    const minutoEntrata = evEntrata ? evEntrata.minuto : null;
-
-    let minuti = 0;
+  // 🛡️ Usiamo direttamente i minuti calcolati e passati dai componenti genitori / db
+  const rosaConMinuti = (giocatori || []).map(g => {
+    const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
+    
+    // Determiniamo uno stato testuale descrittivo pulito
     let stato = 'Non entrato';
+    const eraTitolare = g.isTitolare === true || g.is_titolare === true;
 
-    const eraTitolareAllInizio = !evEntrata && (g.isTitolare || evUscita);
-
-    if (eraTitolareAllInizio) {
-      const fineMinuto = minutoRosso 
-        ? Math.min(minutoRosso, minutoUscita || minutoFinalePartita)
-        : (minutoUscita || minutoFinalePartita);
-
-      minuti = Math.max(0, fineMinuto);
-      stato = evUscita ? `Titolare (Uscito al ${minutoUscita}')` : 'Titolare (Intera gara)';
-      if (minutoRosso) stato += ` [Espulso al ${minutoRosso}']`;
-    } else if (evEntrata) {
-      const fineMinuto = minutoRosso ? Math.min(minutoRosso, minutoFinalePartita) : minutoFinalePartita;
-      minuti = Math.max(0, fineMinuto - minutoEntrata);
-      stato = `Subentrato al ${minutoEntrata}'`;
-      if (minutoRosso) stato += ` [Espulso al ${minutoRosso}']`;
+    if (g.espulso) {
+      stato = 'Espulso';
+    } else if (minutiVal > 0) {
+      stato = eraTitolare ? 'Titolare' : 'Subentrato';
     }
 
-    return { minuti, stato };
-  };
-
-  const rosaConMinuti = (giocatori || []).map(g => ({
-    ...g,
-    ...calcolaMinutiGiocati(g)
-  })).sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+    return {
+      ...g,
+      minuti: minutiVal,
+      stato
+    };
+  }).sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
 
   const golEventi = (eventi || []).filter(e => e.tipo === 'GOL');
   const ammoniti = (giocatori || []).filter(g => g.ammonizioni > 0 && !g.espulso);
@@ -128,7 +99,7 @@ export default function RefertoGara({
     t += `⏱️ *MINUTAGGIO ROSA GIOCATORI:*\n`;
     rosaConMinuti.forEach(g => {
       const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
-      t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}: ${g.minuti}' giocati (${g.stato})\n`;
+      t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}: ${g.minuti}' giocati\n`;
     });
 
     return t;
@@ -179,12 +150,10 @@ export default function RefertoGara({
           <FileText className="w-5 h-5 text-emerald-400" /> Referto Completo di Gara
         </h2>
 
-        {/* Finestra/Box di testo con tutto il referto formattato */}
         <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
           {testoReferto}
         </div>
 
-        {/* Tasti Azione */}
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -211,7 +180,6 @@ export default function RefertoGara({
           </button>
         </div>
 
-        {/* Termina Live e Archivia */}
         <div className="pt-2 border-t border-slate-800">
           <button
             type="button"
