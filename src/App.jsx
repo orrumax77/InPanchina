@@ -249,6 +249,11 @@ export default function App() {
       setCambiEffettuati(partitaDB.cambi_effettuati || 0);
       setEventi(stato.eventi || []);
 
+      // 🚀 INCOLLA QUI IL BLOCCO:
+      const d = new Date();
+      const oggiIt = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      setPartitaInfo(prev => ({ ...(prev || {}), dataPartita: oggiIt }));
+      
       setSalvataggioInCorso(false);
       setFaseApp('partita');
     } else {
@@ -282,6 +287,11 @@ export default function App() {
       setCambiEffettuati(0);
       setEventi([]);
 
+      // 🚀 INCOLLA QUI IL BLOCCO:
+      const d = new Date();
+      const oggiIt = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      setPartitaInfo(prev => ({ ...(prev || {}), dataPartita: oggiIt }));
+      
       setSalvataggioInCorso(false);
       setFaseApp('distinta');
     }
