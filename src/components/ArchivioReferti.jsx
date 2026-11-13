@@ -3,7 +3,6 @@ import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
 import { supabase } from '../supabaseClient';
 import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X } from 'lucide-react';
 
-
 export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
   const [caricamento, setCaricamento] = useState(true);
@@ -98,7 +97,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     const reti = eventi.filter(e => e.tipo === 'GOL');
     const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
 
-    // Estrazione ammoniti ed espulsi sia dagli eventi salvati che direttamente dalla rosa per sicurezza
     const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
     const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
 
@@ -150,11 +148,38 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     if (rosa.length > 0) {
       t += `⏱️ *MINUTAGGIO & PAGELLE ROSA:*\n`;
       rosa.forEach(g => {
-        const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
-        const minStr = g.minuti !== undefined ? `${g.minuti}' giocati` : `${g.isTitolare ? "90'" : "0'"} giocati`;
+        const fascia = g.isCapitano ? ' Ⓒ' : g.isVice ? ' 🅥' : '';
+        
+        // Controllo icone richieste per singolo giocatore
+        let iconeGiocatore = '';
+        
+        const haSegnato = reti.some(r => r.giocatoreId === g.id || (r.dettagli && r.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
+        const eAmmonito = ammonizioniEventi.some(a => a.giocatoreId === g.id || (a.dettagli && a.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
+        
+        const eventoEspulsione = espulsioniEventi.find(e => e.giocatoreId === g.id || (e.dettagli && e.dettagli.toUpperCase().includes(g.nome.toUpperCase())));
+        const eEspulso = !!eventoEspulsione || g.espulso;
+        
+        const haCambiato = cambi.some(c => 
+          c.esceId === g.id || c.entraId === g.id || 
+          (c.dettagli && (c.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || c.dettagli.includes(`#${g.numero} `)))
+        );
+
+        if (haSegnato) iconeGiocatore += ' ⚽';
+        if (eAmmonito) iconeGiocatore += ' 🟨';
+        if (eEspulso) {
+          const isDoppia = eventoEspulsione?.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') || g.ammonizioni >= 2;
+          iconeGiocatore += isDoppia ? ' 🟨🟨🟥' : ' 🟥';
+        }
+        if (haCambiato) iconeGiocatore += ' 🔄';
+
+        // Minutaggio pulito senza diciture superflue
+        let minutiValore = g.minuti !== undefined ? g.minuti : (g.isTitolare ? 90 : 0);
+        const minStr = `${minutiValore}'`;
+
         const statoStr = g.stato ? ` (${g.stato})` : '';
         const votoStr = g.voto && g.voto !== 'S.V.' ? ` ⭐ Voto: *${g.voto}*` : g.voto === 'S.V.' ? ` ⭐ Voto: *S.V.*` : '';
-        t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}: ${minStr}${statoStr}${votoStr}\n`;
+        
+        t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}${iconeGiocatore}: ${minStr}${statoStr}${votoStr}\n`;
       });
     }
 
