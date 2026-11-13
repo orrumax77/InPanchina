@@ -96,7 +96,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
     const reti = eventi.filter(e => e.tipo === 'GOL');
     const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
-
     const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
     const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
 
@@ -134,12 +133,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     if (rosa.length > 0) {
       t += `⏱️ *MINUTAGGIO & PAGELLE ROSA:*\n`;
 
-      const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
-      const reti = eventi.filter(e => e.tipo === 'GOL');
-      const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
-      const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
-      const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE' || e.tipo === 'CAMBIO');
-
       rosa.forEach(g => {
         const fascia = g.isCapitano ? ' Ⓒ' : g.isVice ? ' 🅥' : '';
         
@@ -148,13 +141,14 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const idG = g.id;
         const nomeG = (g.nome || '').toUpperCase().trim();
 
+        // Match rigoroso solo per associare le icone visive degli eventi
         const matchGiocatore = (ev) => {
           if (!ev) return false;
           if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
           const det = (ev.dettagli || '').toUpperCase();
           if (nomeG && det.includes(nomeG)) return true;
           if (numG) {
-            if (det.includes(`#${numG}`) || det.includes(` #${numG}`) || det.includes(` # ${numG}`) || det.includes(`-${numG}`)) return true;
+            if (det.includes(`#${numG}`) || det.includes(` #${numG}`) || det.includes(`-#${numG}`) || det.includes(` ${numG} `)) return true;
           }
           return false;
         };
@@ -173,11 +167,18 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         }
         if (haSubitoCambio) iconeGiocatore += ' 🔄';
 
-        // 🚀 LETTURA DIRETTA DEI MINUTI SALVATI NEL DB AL MOMENTO DELL'ARCHIVIAZIONE
+        // 🚀 IL JSON COMANDA AL 100%: Leggiamo i minuti salvati nel JSON del giocatore
         const minutiValore = g.minuti !== undefined && g.minuti !== null ? g.minuti : 0;
         const minStr = `${minutiValore}'`;
 
-        const statoStr = g.stato ? ` (${g.stato})` : '';
+        // Se nel JSON il giocatore ha 0 minuti e non era titolare, mostriamo lo stato Panchina registrato
+        let statoStr = '';
+        if (minutiValore === 0 && !g.isTitolare) {
+          statoStr = ' (PANCHINA)';
+        } else if (g.stato) {
+          statoStr = ` (${g.stato})`;
+        }
+
         const votoStr = g.voto && g.voto !== 'S.V.' ? ` ⭐ Voto: *${g.voto}*` : g.voto === 'S.V.' ? ` ⭐ Voto: *S.V.*` : '';
         
         t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}${iconeGiocatore}: ${minStr}${statoStr}${votoStr}\n`;
