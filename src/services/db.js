@@ -488,7 +488,7 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
   const eventiCronologici = [...(eventiPartita || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
 
   let inCampo = eraTitolare;
-  let minutoIngresso = eraTitolare ? 0 : null;
+  let minutoUltimoIngresso = eraTitolare ? 0 : null;
   let minutiAccumulati = 0;
 
   for (const ev of eventiCronologici) {
@@ -500,42 +500,47 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     const giocatoreIdEv = String(ev.giocatoreId || ev.giocatore_id || '').trim();
     const dett = (ev.dettagli || '').toUpperCase();
 
-    // Verifichiamo se l'evento riguarda questo giocatore (tramite ID o stringa)
-    const eIlMioId = giocatoreIdEv === idG || esceId === idG || entraId === idG;
-    const eIlMioTesto = (numG && (dett.includes(`#${numG} `) || dett.includes(`#${numG}-`) || dett.includes(` #${numG}`))) || (nomeG && dett.includes(nomeG));
+    // Identificazione rigorosa del ruolo del giocatore in QUESTO specifico evento
+    const eIlMioId = giocatoreIdEv === idG;
+    const eChiEsce = esceId === idG || (numG && dett.includes(`ESCE #${numG}`)) || (nomeG && dett.includes('ESCE') && dett.includes(nomeG));
+    const eChiEntra = entraId === idG || (numG && dett.includes(`ENTRA #${numG}`)) || (nomeG && dett.includes('ENTRA') && dett.includes(nomeG));
+    
+    // Per ammonizioni / cartellini rossi generici
+    const eSanzionatoGenerico = eIlMioId || (numG && (dett.includes(`#${numG} `) || dett.includes(` #${numG}`))) || (nomeG && dett.includes(nomeG));
 
-    if (!eIlMioId && !eIlMioTesto) continue;
-
-    // 1. EVENTO DI INGRESSO (Subentrato)
-    const eEntrata = tipo === 'SOSTITUZIONE' && (entraId === idG || dett.includes(`ENTRA #${numG}`) || (nomeG && dett.includes('ENTRA') && dett.includes(nomeG)));
-    if (eEntrata) {
+    // 1. SE IL GIOCATORE ENTRA (Subentrato)
+    if (tipo === 'SOSTITUZIONE' && eChiEntra) {
       if (!inCampo) {
         inCampo = true;
-        minutoIngresso = minEv;
+        minutoUltimoIngresso = minEv;
       }
       continue;
     }
 
-    // 2. EVENTO DI USCITA O ESPULSIONE
-    const eUscitaCambio = tipo === 'SOSTITUZIONE' && (esceId === idG || dett.includes(`ESCE #${numG}`) || (nomeG && dett.includes('ESCE') && dett.includes(nomeG)));
-    const eEspulsione = tipo === 'ESPULSIONE';
-
-    if ((eUscitaCambio || eEspulsione) && inCampo) {
-      if (minutoIngresso !== null) {
-        minutiAccumulati += Math.max(0, minEv - minutoIngresso);
+    // 2. SE IL GIOCATORE ESCE PER CAMBIO
+    if (tipo === 'SOSTITUZIONE' && eChiEsce && inCampo) {
+      if (minutoUltimoIngresso !== null) {
+        minutiAccumulati += Math.max(0, minEv - minutoUltimoIngresso);
       }
       inCampo = false;
-      minutoIngresso = null;
+      minutoUltimoIngresso = null;
+      continue;
+    }
 
-      if (eEspulsione) {
-        break; // Espulso: la sua partita finisce qui
+    // 3. SE IL GIOCATORE RICEVE UN'ESPULSIONE
+    if (tipo === 'ESPULSIONE' && eSanzionatoGenerico && inCampo) {
+      if (minutoUltimoIngresso !== null) {
+        minutiAccumulati += Math.max(0, minEv - minutoUltimoIngresso);
       }
+      inCampo = false;
+      minutoUltimoIngresso = null;
+      break; // Espulso: fine della sua partita
     }
   }
 
-  // Se alla fine della partita (o della durata calcolata) il giocatore è ancora in campo
-  if (inCampo && minutoIngresso !== null) {
-    minutiAccumulati += Math.max(0, durataTotalePartita - minutoIngresso);
+  // Se alla fine della partita il giocatore è ancora in campo
+  if (inCampo && minutoUltimoIngresso !== null) {
+    minutiAccumulati += Math.max(0, durataTotalePartita - minutoUltimoIngresso);
   }
 
   return Math.min(durataTotalePartita, Math.max(0, minutiAccumulati));
