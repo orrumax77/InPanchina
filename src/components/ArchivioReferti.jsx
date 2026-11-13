@@ -134,7 +134,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     if (rosa.length > 0) {
       t += `⏱️ *MINUTAGGIO & PAGELLE ROSA:*\n`;
 
-      // Determiniamo la durata effettiva della partita basandoci sull'ultimo evento registrato o su 90' di default
       let durataTotalePartita = 90;
       if (eventi.length > 0) {
         const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
@@ -170,18 +169,14 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         }
         if (cambioUscita || cambioEntrata) iconeGiocatore += ' 🔄';
 
-        // 🚀 CALCOLO DINAMICO BASATO SULLA DURATA REALE DELLA GARA
         let minutiCalcolati = g.minuti;
 
         if (minutiCalcolati === undefined || minutiCalcolati === null || (g.isTitolare && minutiCalcolati >= 90 && cambioUscita)) {
           if (eEspulso && eventoEspulsione?.minuto) {
-            // Espulso: si ferma al minuto dell'espulsione
             minutiCalcolati = eventoEspulsione.minuto;
           } else if (g.isTitolare) {
-            // Titolare: fa tutta la gara (durata reale, es. 93'), a meno che non esca prima
             minutiCalcolati = cambioUscita ? cambioUscita.minuto : durataTotalePartita;
           } else {
-            // Riserva: entra e gioca dal minuto d'ingresso fino alla fine
             minutiCalcolati = cambioEntrata ? Math.max(0, durataTotalePartita - cambioEntrata.minuto) : 0;
           }
         }
@@ -193,6 +188,9 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         t += `• #${g.numero} ${g.nome.toUpperCase()}${fascia}${iconeGiocatore}: ${minStr}${statoStr}${votoStr}\n`;
       });
     }
+
+    return t;
+  };
   
   const handleCopia = (p) => {
     const testo = generaTestoReferto(p);
