@@ -45,13 +45,12 @@ export default function RefertoGara({
     });
   });
 
-  // 2. Mappatura e ordinamento perfetto in due blocchi: Campo vs Panchina
+  // 2. Mappatura e ordinamento matematico rigoroso in due blocchi separati per numero di maglia
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
     const evs = eventiPerGiocatore[g.id] || { haGol: false, haAmm: false, haEsp: false, haCambioEsce: false, haCambioEntra: false };
     
     const isEspulsoFinale = g.espulso || evs.haEsp;
-    // Un giocatore ha giocato se ha minuti > 0, se è stato espulso o se è entrato in campo (anche se per errore eventuale avesse 0)
     const haGiocato = minutiVal > 0 || isEspulsoFinale || evs.haCambioEntra;
 
     return {
@@ -69,7 +68,7 @@ export default function RefertoGara({
     if (a.haGiocato && !b.haGiocato) return -1;
     if (!a.haGiocato && b.haGiocato) return 1;
 
-    // BLOCCO 2: A parità di gruppo, ordinamento rigoroso per numero di maglia crescente
+    // BLOCCO 2: Ordinamento rigoroso per numero di maglia crescente all'interno di ciascun gruppo
     return parseInt(a.numero, 10) - parseInt(b.numero, 10);
   });
 
@@ -137,6 +136,8 @@ export default function RefertoGara({
       let icone = '';
       if (g.haGol) icone += ' ⚽';
       if (g.haAmm) icone += ' 🟨';
+      
+      // Regola ferrea: se è espulso, niente icona del cambio!
       if (g.haEsp) {
         icone += ' 🟥';
       } else {
