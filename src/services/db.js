@@ -475,7 +475,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // ⏱️ 1. CALCOLO DELLA DURATA REALE DELLA GARA (es. 93' se c'è recupero)
+    // ⏱️ 1. CALCOLO DELLA DURATA REALE DELLA GARA
     let durataTotalePartita = 90;
     if (eventi && eventi.length > 0) {
       const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
@@ -487,52 +487,81 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       durataTotalePartita = datiGara.minutoCorrente;
     }
 
-    // 🚀 2. CALCOLO MATEMATICO DEI MINUTI RIGIDAMENTE BASATO SUGLI EVENTI DI GARA
+    // Ordiniamo gli eventi in ordine cronologico
+    const eventiOrdinati = [...(eventi || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
+
+    // 🚀 2. SIMULAZIONE MATEMATICA PRECISA AL MINUTO BASATA SUGLI EVENTI DI GARA
     const giocatoriDaArchiviare = giocatori.map(g => {
-      const idG = g.id;
-      const eraTitolare = g.isTitolare === true || g.is_titolare === true || g.minutoEntrata === undefined;
+      const idG = String(g.id);
+      const numG = String(g.numero);
+      const nomeG = (g.nome || '').toUpperCase().trim();
+      
+      // 🛡️ DISTINZIONE NETTA: Chi parte titolare e chi no (senza trucchi)
+      const eraTitolare = g.isTitolare === true || g.is_titolare === true;
 
-      // Cerchiamo gli eventi chiave per questo specifico giocatore
-      const eventoEspulsione = eventi.find(e => (e.tipo === 'ESPULSIONE' || (e.tipo === 'AMMONIZIONE' && e.dettagli?.includes('Espulsione'))) && e.giocatoreId === idG);
-      const minutoEspulsione = eventoEspulsione ? (eventoEspulsione.minuto || 0) : null;
+      let onField = eraTitolare;
+      let entryTime = eraTitolare ? 0 : null;
+      let totalMinutes = 0;
+      let espulso = false;
 
-      // Evento in cui il giocatore ESCE dal campo
-      const eventoUscita = eventi.find(e => e.tipo === 'SOSTITUZIONE' && e.esceId === idG);
-      const minutoUscita = eventoUscita ? (eventoUscita.minuto || 0) : null;
+      // Scansioniamo tutti gli eventi cronologicamente
+      eventiOrdinati.forEach(e => {
+        const minE = e.minuto || 0;
+        const tipoE = (e.tipo || '').toUpperCase();
+        const dettE = (e.dettagli || '').toUpperCase();
 
-      // Evento in cui il giocatore ENTRA in campo dalla panchina
-      const eventoEntrata = eventi.find(e => e.tipo === 'SOSTITUZIONE' && e.entraId === idG);
-      const minutoEntrata = eventoEntrata ? (eventoEntrata.minuto || 0) : null;
+        const matchId = String(e.giocatoreId || e.giocatore_id || '') === idG;
+        const matchNum = dettE.includes(`#${numG}`);
+        const matchNome = nomeG.length > 0 && dettE.includes(nomeG);
+        const matchPlayer = matchId || matchNum || matchNome;
 
-      let minutiCalcolati = 0;
-      let titolareEffettivo = eraTitolare;
+        const esceId = String(e.esceId || e.esce_id || '');
+        const entraId = String(e.entraId || e.entra_id || '');
 
-      if (minutoEntrata === null) {
-        // --- GIOCATORE PARTITO TITOLARE (o non mai subentrato come riserva) ---
-        if (eraTitolare || g.isTitolare || g.is_titolare) {
-          let tempoFine = durataTotalePartita;
-          if (minutoUscita !== null) tempoFine = Math.min(tempoFine, minutoUscita);
-          if (minutoEspulsione !== null) tempoFine = Math.min(tempoFine, minutoEspulsione);
-          minutiCalcolati = Math.max(0, tempoFine);
-          titolareEffettivo = true;
-        } else {
-          minutiCalcolati = 0; // Riserva rimasta sempre in panchina
-          titolareEffettivo = false;
+        const matchEsce = esceId === idG || (tipoE === 'SOSTITUZIONE' && matchPlayer && (dettE.includes('ESCE') || dettE.includes('➔')));
+        const matchEntra = entraId === idG || (tipoE === 'SOSTITUZIONE' && matchPlayer && (dettE.includes('ENTRA') || dettE.includes('➔')));
+
+        // 🟥 Controllo Espulsione
+        if ((tipoE.includes('ESPULSIONE') || tipoE.includes('ROSSO') || dettE.includes('ESPULSIONE') || dettE.includes('ROSSO')) && matchPlayer) {
+          if (onField && entryTime !== null) {
+            totalMinutes += Math.max(0, minE - entryTime);
+            onField = false;
+            entryTime = null;
+          }
+          espulso = true;
         }
-      } else {
-        // --- RISERVA SUBENTRATA DALLA PANCHINA ---
-        titolareEffettivo = false;
-        let tempoInizio = minutoEntrata;
-        let tempoFine = durataTotalePartita;
-        if (minutoUscita !== null && minutoUscita > tempoInizio) tempoFine = Math.min(tempoFine, minutoUscita);
-        if (minutoEspulsione !== null && minutoEspulsione > tempoInizio) tempoFine = Math.min(tempoFine, minutoEspulsione);
-        minutiCalcolati = Math.max(0, tempoFine - tempoInizio);
+
+        // 🔄 Controllo Uscita (Cambio)
+        if (matchEsce && onField) {
+          // Verifichiamo che l'evento parli esplicitamente di questo giocatore in uscita
+          if (esceId === idG || dettE.includes(`ESCE #${numG}`) || (matchNome && dettE.indexOf('ESCE') < dettE.indexOf(nomeG) + 20)) {
+            if (entryTime !== null) {
+              totalMinutes += Math.max(0, minE - entryTime);
+            }
+            onField = false;
+            entryTime = null;
+          }
+        }
+
+        // 🟢 Controllo Entrata (Cambio)
+        if (matchEntra && !onField && !espulso) {
+          if (entraId === idG || dettE.includes(`ENTRA #${numG}`) || (matchNome && dettE.indexOf('ENTRA') < dettE.indexOf(nomeG) + 20)) {
+            onField = true;
+            entryTime = minE;
+          }
+        }
+      });
+
+      // Se alla fine della partita il giocatore è ancora in campo e non è stato espulso
+      if (onField && entryTime !== null && !espulso) {
+        totalMinutes += Math.max(0, durataTotalePartita - entryTime);
       }
 
       return {
         ...g,
-        minuti: minutiCalcolati,
-        isTitolare: titolareEffettivo
+        minuti: Math.min(durataTotalePartita, Math.max(0, totalMinutes)),
+        isTitolare: eraTitolare,
+        espulso: espulso || g.espulso || false
       };
     });
       
