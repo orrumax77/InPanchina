@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Plus, Clock, ArrowRight, FastForward } from 'lucide-react';
+import { Play, Pause, Plus, Clock, ArrowRight, FastForward, RotateCcw } from 'lucide-react';
 
 // Generatore Audio Web Audio API del Fischio Arbitro
 function riproduciFischioArbitro(tipo = 'fine_gara') {
@@ -276,15 +277,31 @@ export default function Cronometro({
       <div className="pt-1">
         <button
           type="button"
-          onClick={cambiaFase}
-          className={`w-full py-3 sm:py-3.5 px-2 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition shadow-lg cursor-pointer ${
-            tempo === 2 && tempoScaduto
-              ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950'
+          onClick={() => {
+            if (tempo === 1) {
+              if (onFinePrimoTempo) onFinePrimoTempo();
+            } else {
+              // Quando siamo nel 2° tempo, questo pulsante esegue l'archiviazione e il reset immediato
+              if (onFinePartita) onFinePartita();
+            }
+          }}
+          className={`w-full py-3.5 px-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg cursor-pointer ${
+            tempo === 2
+              ? 'border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400'
               : 'bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200'
           }`}
         >
-          <span className="truncate">{tempo === 1 ? 'Azzera e Passa al 2° Tempo (da 00:00)' : 'Termina Partita e Vai al Referto'}</span>
-          <ArrowRight className="w-4 h-4 flex-shrink-0" />
+          {tempo === 1 ? (
+            <>
+              <span className="truncate">Azzera e Passa al 2° Tempo (da 00:00)</span>
+              <ArrowRight className="w-4 h-4 flex-shrink-0" />
+            </>
+          ) : (
+            <>
+              <RotateCcw className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">Termina live e archivia per prossima gara</span>
+            </>
+          )}
         </button>
       </div>
     </div>
