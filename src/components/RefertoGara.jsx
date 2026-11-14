@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Copy, Share2, Check, ArrowLeft, CheckCircle2, RotateCcw, Download } from 'lucide-react';
+import { FileText, Copy, Share2, Check, ArrowLeft, CheckCircle2, RotateCcw } from 'lucide-react';
 
 export default function RefertoGara({ 
   partitaInfo, 
@@ -163,61 +163,6 @@ export default function RefertoGara({
     window.open(url, '_blank');
   };
 
-  // Funzione per scaricare/stampare il PDF
-  const handleScaricaPDF = () => {
-    const finestraStampa = window.open('', '_blank');
-    const contenutoHTML = testoReferto.replace(/\n/g, '<br>');
-
-    finestraStampa.document.write(`
-      <html>
-        <head>
-          <title>Referto Ufficiale di Gara</title>
-          <style>
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              padding: 30px;
-              color: #111;
-              line-height: 1.5;
-              font-size: 13px;
-            }
-            .header {
-              text-align: center;
-              border-bottom: 2px solid #333;
-              padding-bottom: 15px;
-              margin-bottom: 20px;
-            }
-            h1 { font-size: 18px; margin: 0 0 5px 0; }
-            .content {
-              white-space: pre-wrap;
-              background: #f9f9f9;
-              padding: 20px;
-              border: 1px solid #ddd;
-              border-radius: 8px;
-            }
-            @media print {
-              body { padding: 0; }
-              button { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>📋 REFERTO UFFICIALE DI GARA</h1>
-          </div>
-          <div class="content">
-            ${contenutoHTML}
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-            }
-          </script>
-        </body>
-      </html>
-    `);
-    finestraStampa.document.close();
-  };
-
   const handleTerminaConferma = async () => {
     const conferma = window.confirm(
       "Vuoi terminare definitivamente la partita e archiviarla con il minutaggio e lo staff nello storico?\n\nIl live verrà azzerato e preparato per la prossima gara (la rosa e lo staff rimarranno salvati)."
@@ -254,11 +199,11 @@ export default function RefertoGara({
           {testoReferto}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={handleCopia}
-            className="p-3.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center gap-2 transition border border-slate-700 uppercase cursor-pointer"
+            className="p-3.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center gap-2 transition border border-slate-700 uppercase"
           >
             {copiato ? (
               <>
@@ -274,17 +219,9 @@ export default function RefertoGara({
           <button
             type="button"
             onClick={handleWhatsApp}
-            className="p-3.5 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-950 uppercase cursor-pointer"
+            className="p-3.5 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-950 uppercase"
           >
             <Share2 className="w-4 h-4" /> WhatsApp
-          </button>
-
-          <button
-            type="button"
-            onClick={handleScaricaPDF}
-            className="p-3.5 rounded-xl font-bold text-sm bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition shadow-lg shadow-blue-950 uppercase cursor-pointer"
-          >
-            <Download className="w-4 h-4" /> Scarica PDF
           </button>
         </div>
 
