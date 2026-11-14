@@ -1276,16 +1276,7 @@ export default function App() {
         />
 
         <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
-
-        <div className="pt-2">
-          <button
-            type="button"
-            onClick={() => handleTerminaLiveEResetta()}
-            className="w-full py-3 rounded-xl border border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer"
-          >
-            <RotateCcw className="w-4 h-4" /> Termina Live e Archivia per Prossima Gara
-          </button>
-        </div>
+          
       </div>
       )}
 
