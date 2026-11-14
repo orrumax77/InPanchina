@@ -152,13 +152,13 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     const rosaGrella = p.referto_giocatori || [];
     
-    // 🗂️ ORDINAMENTO RIGOROSO: PRIMA I TITOLARI (per numero), POI LA PANCHINA (per numero)
+    // 🗂️ ORDINAMENTO RIGOROSO: PRIMA I TITOLARI (per numero), POI LE RISERVE / PANCHINA (per numero)
     const rosa = [...rosaGrella].sort((a, b) => {
-      const titolareA = a.isTitolare ? 1 : 0;
-      const titolareB = b.isTitolare ? 1 : 0;
+      const isTitA = a.isTitolare && a.minuti > 0;
+      const isTitB = b.isTitolare && b.minuti > 0;
 
-      if (titolareA !== titolareB) {
-        return titolareB - titolareA; // Chi è titolare va sopra (-1)
+      if (isTitA !== isTitB) {
+        return isTitA ? -1 : 1; // I titolari vanno sopra
       }
       return parseInt(a.numero, 10) - parseInt(b.numero, 10);
     });
