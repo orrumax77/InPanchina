@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X, FileText } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
+
 export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
   const [caricamento, setCaricamento] = useState(true);
