@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
 import { supabase } from '../supabaseClient';
-import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X } from 'lucide-react';
+import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X, Download } from 'lucide-react';
 
 export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
@@ -162,19 +162,13 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const idG = g.id;
         const nomeG = (g.nome || '').toUpperCase().trim();
 
-        // Match rigoroso solo per associare le icone visive degli eventi
-        // 🛡️ MATCHING RIGOROSO E SICURO (Nessun falso positivo sui numeri singoli come l'1 nello SLOT 1/3)
         const matchGiocatore = (ev) => {
           if (!ev) return false;
-          // 1. Controllo infallibile tramite gli ID univoci registrati nell'evento
           if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
           
           const det = (ev.dettagli || '').toUpperCase();
-          
-          // 2. Controllo sul nome (se presente e univoco nei dettagli)
           if (nomeG && det.includes(nomeG)) return true;
           
-          // 3. Controllo sul numero di maglia (SOLO se rigorosamente preceduto da cancelletto o delimitato da trattini/parentesi, MAI spazi ambigui)
           if (numG) {
             if (
               det.includes(`#${numG}`) || 
@@ -203,11 +197,9 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         }
         if (haSubitoCambio) iconeGiocatore += ' 🔄';
 
-        // 🚀 IL JSON COMANDA AL 100%: Leggiamo i minuti salvati nel JSON del giocatore
         const minutiValore = g.minuti !== undefined && g.minuti !== null ? g.minuti : 0;
         const minStr = `${minutiValore}'`;
 
-        // Se nel JSON il giocatore ha 0 minuti e non era titolare, mostriamo lo stato Panchina registrato
         let statoStr = '';
         if (minutiValore === 0 && !g.isTitolare) {
           statoStr = ' (PANCHINA)';
@@ -234,6 +226,62 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     const testo = generaTestoReferto(p);
     const url = `https://wa.me/?text=${encodeURIComponent(testo)}`;
     window.open(url, '_blank');
+  };
+
+  // 📄 FUNZIONE PER SCARICARE/STAMPARE IL PDF DAL REFERTO ARCHIVIATO
+  const handleScaricaPDF = (p) => {
+    const testoReferto = generaTestoReferto(p);
+    const finestraStampa = window.open('', '_blank');
+    const contenutoHTML = testoReferto.replace(/\n/g, '<br>');
+
+    finestraStampa.document.write(`
+      <html>
+        <head>
+          <title>Referto Ufficiale di Gara</title>
+          <style>
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              padding: 30px;
+              color: #111;
+              line-height: 1.5;
+              font-size: 13px;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #333;
+              padding-bottom: 15px;
+              margin-bottom: 20px;
+            }
+            h1 { font-size: 18px; margin: 0 0 5px 0; }
+            .content {
+              white-space: pre-wrap;
+              background: #f9f9f9;
+              padding: 20px;
+              border: 1px solid #ddd;
+              border-radius: 8px;
+            }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>📋 REFERTO UFFICIALE DI GARA</h1>
+          </div>
+          <div class="content">
+            ${contenutoHTML}
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    finestraStampa.document.close();
   };
 
   const handleElimina = async (p) => {
@@ -408,6 +456,14 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
                           className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition border border-amber-500/40 cursor-pointer"
                         >
                           <Star className="w-4 h-4 fill-amber-400" /> Voti Pagelle
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleScaricaPDF(p)}
+                          className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-blue-950 cursor-pointer"
+                        >
+                          <Download className="w-4 h-4" /> Scarica PDF
                         </button>
 
                         <button
