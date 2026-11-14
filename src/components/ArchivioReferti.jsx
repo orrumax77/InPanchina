@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
 import { supabase } from '../supabaseClient';
-import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X, Download } from 'lucide-react';
+import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X, FileText } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
@@ -228,79 +229,83 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     window.open(url, '_blank');
   };
 
-  // 📄 SCARICA FILE HTML/PDF CON LOGO E NOME SOCIETÀ IN ALTO AL CENTRO
-  const handleScaricaPDF = (p) => {
-    const testoReferto = generaTestoReferto(p);
-    const contenutoHTML = testoReferto.replace(/\n/g, '<br>');
-    const logoUrl = societa?.logo_url || '';
-    const nomeSoc = societa?.nome ? societa.nome.toUpperCase() : 'SOCIETA SPORTIVA';
+  // 📄 GENERAZIONE E DOWNLOAD DEL VERO E PROPRIO PDF NATIVO CON LOGO E NOME SOCIETÀ
+  const handleScaricaPDF = async (p) => {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    let yPos = 20;
+
+    // 1. Logo della società in alto al centro (se presente)
+    const logoUrl = societa?.logo_url;
+    if (logoUrl) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = logoUrl;
+        });
+
+        const logoSize = 22;
+        const logoX = (pageWidth - logoSize) / 2;
+        doc.addImage(img, 'JPEG', logoX, yPos, logoSize, logoSize);
+        yPos += logoSize + 6;
+      } catch (err) {
+        console.warn("Impossibile caricare il logo per il PDF:", err);
+      }
+    }
+
+    // 2. Nome della società in alto al centro sotto il logo
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(20, 20, 20);
+    const nomeSoc = societa?.nome ? societa.nome.toUpperCase() : 'SOCIETÀ SPORTIVA';
+    doc.text(nomeSoc, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 8;
+
+    // Sottotitolo
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text("REFERTO UFFICIALE DI GARA", pageWidth / 2, yPos, { align: 'center' });
+    yPos += 10;
+
+    // Linea divisoria
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.4);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 8;
+
+    // 3. Testo pulito del referto
+    const testoGrezzo = generaTestoReferto(p);
+    const testoPulito = testoGrezzo
+      .replace(/[*_#]/g, '')
+      .replace(/📋|📅|🏆|👤|⚽|👔|🟨|🟥|🔄|⏱️|⭐/g, '');
+
+    doc.setFont("courier", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(30, 30, 30);
+
+    const linee = doc.splitTextToSize(testoPulito, pageWidth - (margin * 2));
+    
+    linee.forEach((linea) => {
+      if (yPos > 280) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.text(linea, margin, yPos);
+      yPos += 5;
+    });
+
+    // 4. Download nativo del PDF
     const dataGara = p.data_gara || 'partita';
-
-    const htmlCompleto = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Referto_${dataGara}</title>
-          <style>
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              padding: 40px;
-              color: #111;
-              line-height: 1.5;
-              font-size: 13px;
-              background: #fff;
-            }
-            .header-societa {
-              text-align: center;
-              margin-bottom: 30px;
-              border-bottom: 2px solid #222;
-              padding-bottom: 20px;
-            }
-            .logo-img {
-              width: 70px;
-              height: 70px;
-              object-fit: cover;
-              border-radius: 50%;
-              border: 2px solid #333;
-              margin-bottom: 10px;
-            }
-            h2 {
-              margin: 0;
-              font-size: 18px;
-              letter-spacing: 1px;
-            }
-            .content {
-              white-space: pre-wrap;
-              background: #fafafa;
-              padding: 25px;
-              border: 1px solid #ccc;
-              border-radius: 8px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header-societa">
-            ${logoUrl ? `<img src="${logoUrl}" class="logo-img" alt="Logo">` : ''}
-            <h2>${nomeSoc}</h2>
-          </div>
-          <div class="content">
-            ${contenutoHTML}
-          </div>
-        </body>
-      </html>
-    `;
-
-    // Crea un blob e avvia il download diretto del file HTML/PDF senza finestre di stampa
-    const blob = new Blob([htmlCompleto], { type: 'text/html' });
-    const urlBlob = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = urlBlob;
-    link.download = `Referto_${dataGara}_${p.squadra_ospite || 'gara'}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(urlBlob);
+    doc.save(`Referto_${dataGara}_${p.squadra_ospite || 'gara'}.pdf`);
   };
 
   const handleElimina = async (p) => {
@@ -482,7 +487,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
                           onClick={() => handleScaricaPDF(p)}
                           className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-blue-950 cursor-pointer"
                         >
-                          <Download className="w-4 h-4" /> Scarica file
+                          <FileText className="w-4 h-4" /> Scarica PDF
                         </button>
 
                         <button
