@@ -41,14 +41,12 @@ export default function RefertoGara({
     });
   });
 
-  // 2. Mappatura e ordinamento matematico blindato (Titolari/Subentrati/Espulsi sopra, Panchina a 0' sotto)
+  // 2. Mappatura e ordinamento rigoroso: PRIMA I TITOLARI (per numero), POI LA PANCHINA (per numero)
   const rosaConMinuti = (giocatori || []).map(g => {
     const minutiVal = g.minuti !== undefined && g.minuti !== null ? Number(g.minuti) : 0;
     const evs = eventiPerGiocatore[g.id] || { haGol: false, haAmm: false, haEsp: false, haCambioEsce: false, haCambioEntra: false };
     
     const isEspulsoFinale = g.espulso || evs.haEsp;
-    
-    // Un giocatore ha giocato se: ha minuti > 0, è stato espulso, è entrato in campo, o era titolare iniziale e non è mai uscito senza rientrare
     const haGiocato = minutiVal > 0 || isEspulsoFinale || evs.haCambioEntra || evs.haCambioEsce || (g.isTitolare === true);
 
     return {
@@ -62,11 +60,15 @@ export default function RefertoGara({
       haGiocato
     };
   }).sort((a, b) => {
-    // BLOCCO 1: Chi ha giocato/è titolare/è espulso va SEMPRE nel blocco superiore
-    if (a.haGiocato && !b.haGiocato) return -1;
-    if (!a.haGiocato && b.haGiocato) return 1;
+    // 1. BLOCCO PRINCIPALE: I titolari vanno SEMPRE nel gruppo superiore rispetto a chi è in panchina
+    const titolareA = a.isTitolare ? 1 : 0;
+    const titolareB = b.isTitolare ? 1 : 0;
 
-    // BLOCCO 2: Ordinamento rigoroso per numero di maglia crescente all'interno di ciascun gruppo
+    if (titolareA !== titolareB) {
+      return titolareB - titolareA; // Chi è titolare va sopra (-1)
+    }
+
+    // 2. BLOCCO SECONDARIO: A parità di ruolo (es. entrambi titolari o entrambi panchinari), ordina per numero di maglia crescente
     return parseInt(a.numero, 10) - parseInt(b.numero, 10);
   });
 
