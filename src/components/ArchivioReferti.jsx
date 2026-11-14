@@ -4,7 +4,6 @@ import { supabase } from '../supabaseClient';
 import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X, FileText } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
-
 export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
   const [caricamento, setCaricamento] = useState(true);
@@ -88,6 +87,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Testo standard originale per UI, Copia e WhatsApp
   const generaTestoReferto = (p) => {
     const dataFormatted = p.data_gara ? p.data_gara.split('-').reverse().join('/') : '';
     const nomeSocietaTesto = societa?.nome ? societa.nome.toUpperCase() : 'REFERTO GARA';
@@ -230,7 +230,100 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     window.open(url, '_blank');
   };
 
-  // 📄 GENERAZIONE E DOWNLOAD DEL VERO E PROPRIO PDF NATIVO CON LOGO E NOME SOCIETÀ
+  // 📄 GENERAZIONE DEL REFERTO PULITO SPECIFICO SOLO PER IL PDF NATIVO
+  const generaTestoPulitoPerPDF = (p) => {
+    const dataFormatted = p.data_gara ? p.data_gara.split('-').reverse().join('/') : '';
+    const nomeSocietaTesto = societa?.nome ? societa.nome.toUpperCase() : 'REFERTO GARA';
+    
+    let t = `${nomeSocietaTesto}\n`;
+    t += `REFERTO UFFICIALE DI GARA\n\n`;
+    t += `Data: ${dataFormatted}\n`;
+    if (campionato) t += `Campionato: ${campionato}\n`;
+    if (annata) t += `Annata: ${annata}\n`;
+    t += `\n`;
+    t += `${(p.squadra_casa || 'CASA').toUpperCase()} ${p.gol_casa} - ${p.gol_ospite} ${(p.squadra_ospite || 'OSPITE').toUpperCase()}\n`;
+    
+    if (p.modulo_gioco) {
+      t += `Modulo: ${p.modulo_gioco}\n`;
+    }
+    t += `\n`;
+
+    t += `STAFF TECNICO & DIRIGENZIALE UFFICIALE:\n`;
+    if (p.allenatore) t += `- Allenatore: ${p.allenatore.toUpperCase()}\n`;
+    if (p.allenatore_seconda) t += `- Allenatore in Seconda: ${p.allenatore_seconda.toUpperCase()}\n`;
+    if (p.dirigente) t += `- Dirigente Accompagnatore Ufficiale della Squadra: ${p.dirigente.toUpperCase()}\n`;
+    if (p.dirigente_ufficiali) t += `- Dirigente Addetto Ufficiali di Gara: ${p.dirigente_ufficiali.toUpperCase()}\n`;
+    if (p.assistente_arbitro) t += `- Assistente all'Arbitro: ${p.assistente_arbitro.toUpperCase()}\n`;
+    if (p.medico_sociale) t += `- Medico Sociale: ${p.medico_sociale.toUpperCase()}\n`;
+    if (p.massaggiatore) t += `- Massaggiatore: ${p.massaggiatore.toUpperCase()}\n`;
+    if (p.preparatore_atletico) t += `- Preparatore Atletico: ${p.preparatore_atletico.toUpperCase()}\n`;
+    if (p.preparatore_portieri) t += `- Preparatore dei Portieri: ${p.preparatore_portieri.toUpperCase()}\n`;
+    t += `\n`;
+
+    const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
+    const reti = eventi.filter(e => e.tipo === 'GOL');
+    const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
+    const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
+    const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
+
+    if (reti.length > 0) {
+      t += `MARCATURE:\n`;
+      reti.forEach(r => { 
+        t += `- ${r.minuto}' GOL: #${r.giocatoreNumero || ''} ${(r.giocatoreNome || r.dettagli).toUpperCase()}\n`; 
+      });
+      t += `\n`;
+    }
+
+    if (ammonizioniEventi.length > 0) {
+      t += `AMMONITI:\n`;
+      ammonizioniEventi.forEach(a => {
+        t += `- ${a.minuto}' AMMONIZIONE: #${a.giocatoreNumero || ''} ${(a.giocatoreNome || a.dettagli).toUpperCase()}\n`;
+      });
+      t += `\n`;
+    }
+
+    if (espulsioniEventi.length > 0) {
+      t += `ESPULSI:\n`;
+      espulsioniEventi.forEach(e => {
+        const tipoEsp = e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') ? 'DOPPIA AMMONIZIONE' : 'ESPULSIONE DIRETTA';
+        t += `- ${e.minuto}' ${tipoEsp}: #${e.giocatoreNumero || ''} ${(e.giocatoreNome || e.dettagli).toUpperCase()}\n`;
+      });
+      t += `\n`;
+    }
+
+    if (cambi.length > 0) {
+      t += `SOSTITUZIONI:\n`;
+      cambi.forEach(c => { 
+        t += `- ${c.minuto}' CAMBIO: ${c.dettagli.replace(/GOL:|ESCE|ENTRA/gi, match => match.toUpperCase())}\n`; 
+      });
+      t += `\n`;
+    }
+
+    const rosa = p.referto_giocatori || [];
+    if (rosa.length > 0) {
+      t += `MINUTAGGIO & PAGELLE ROSA:\n`;
+
+      rosa.forEach(g => {
+        const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
+        const minutiValore = g.minuti !== undefined && g.minuti !== null ? g.minuti : 0;
+        const minStr = `${minutiValore}'`;
+
+        let statoStr = '';
+        if (minutiValore === 0 && !g.isTitolare) {
+          statoStr = ' (PANCHINA)';
+        } else if (g.stato) {
+          statoStr = ` (${g.stato})`;
+        }
+
+        const votoStr = g.voto && g.voto !== '' ? ` - Voto: ${g.voto}` : ' - Voto: S.V.';
+        
+        t += `- #${g.numero} ${g.nome.toUpperCase()}${fascia}: ${minStr}${statoStr}${votoStr}\n`;
+      });
+    }
+    return t;
+  };
+
+  // 📄 DOWNLOAD DEL VERO E PROPRIO PDF NATIVO CON TESTO PULITO
   const handleScaricaPDF = async (p) => {
     const doc = new jsPDF({
       orientation: 'portrait',
@@ -283,17 +376,14 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     doc.line(margin, yPos, pageWidth - margin, yPos);
     yPos += 8;
 
-    // 3. Testo pulito del referto
-    const testoGrezzo = generaTestoReferto(p);
-    const testoPulito = testoGrezzo
-      .replace(/[*_#]/g, '')
-      .replace(/📋|📅|🏆|👤|⚽|👔|🟨|🟥|🔄|⏱️|⭐/g, '');
+    // 3. Testo formattato e pulito specifico per il PDF
+    const testoPulitoPDF = generaTestoPulitoPerPDF(p);
 
     doc.setFont("courier", "normal");
     doc.setFontSize(9);
     doc.setTextColor(30, 30, 30);
 
-    const linee = doc.splitTextToSize(testoPulito, pageWidth - (margin * 2));
+    const linee = doc.splitTextToSize(testoPulitoPDF, pageWidth - (margin * 2));
     
     linee.forEach((linea) => {
       if (yPos > 280) {
