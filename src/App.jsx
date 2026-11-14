@@ -181,7 +181,6 @@ export default function App() {
     const squadraOspiteBase = (staffBase.squadraOspite || '').toUpperCase();
     const isNostraCasaBase = staffBase.isNostraCasa ?? true;
     
-    // Data odierna in formato standard YYYY-MM-DD per la logica/input nativi
     const dataPartitaBase = new Date().toLocaleDateString('en-CA');
 
     const stato = await caricaStatoPartita(idPartita);
@@ -615,7 +614,8 @@ export default function App() {
       alert("Fine 1° Tempo! Il cronometro del 2° Tempo è azzerato a 00:00 e sincronizzato.");
     } else if (nuovoTempo === 'fine') {
       mettiInPausaTimer();
-      setFaseApp('referto');
+      // 🚀 SALTA IL REFERTO E ARCHIVIA SUBITO
+      handleTerminaLiveEResetta();
     }
   };
 
@@ -1337,7 +1337,7 @@ export default function App() {
                   <>Il tempo regolamentare della prima frazione è scaduto. Passa al 2° tempo per azzerare il cronometro a 00:00 o aggiungi eventuale recupero.</>
                 ) : (
                   <>
-                    Il tempo regolamentare è concluso. Per salvare e validare ufficialmente il match devi accedere al <strong className="text-white">Referto Finale</strong>, altrimenti la sessione live non verrà archiviata!
+                    Il tempo regolamentare è concluso. Clicca sotto per archiviare immediatamente la gara e ripulire la sessione live per la prossima partita!
                   </>
                 )}
               </p>
@@ -1349,7 +1349,7 @@ export default function App() {
                 onClick={() => cambiaFaseGara(modaleBloccoTempo === 'primo_tempo' ? 2 : 'fine')}
                 className="w-full py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-rose-950 transition active:scale-95 cursor-pointer"
               >
-                {modaleBloccoTempo === 'primo_tempo' ? 'Azzera e Passa al 2° Tempo' : 'Procedi al Referto Ufficiale (Obbligatorio)'}
+                {modaleBloccoTempo === 'primo_tempo' ? 'Azzera e Passa al 2° Tempo' : 'Termina Live e Archivia Subito'}
                 <ArrowRight className="w-5 h-5" />
               </button>
 
