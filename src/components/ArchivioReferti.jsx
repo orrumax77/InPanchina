@@ -150,7 +150,19 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       t += `\n`;
     }
 
-    const rosa = p.referto_giocatori || [];
+    const rosaGrella = p.referto_giocatori || [];
+    
+    // 🗂️ ORDINAMENTO RIGOROSO: PRIMA I TITOLARI (per numero), POI LA PANCHINA (per numero)
+    const rosa = [...rosaGrella].sort((a, b) => {
+      const titolareA = a.isTitolare ? 1 : 0;
+      const titolareB = b.isTitolare ? 1 : 0;
+
+      if (titolareA !== titolareB) {
+        return titolareB - titolareA; // Chi è titolare va sopra (-1)
+      }
+      return parseInt(a.numero, 10) - parseInt(b.numero, 10);
+    });
+
     if (rosa.length > 0) {
       t += `⏱️ *MINUTAGGIO & PAGELLE ROSA:*\n`;
 
@@ -165,13 +177,11 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         // 🛡️ MATCHING RIGOROSO BASATO SU ID E NUMERI DI MAGLIA DELIMITATI
         const matchGiocatore = (ev) => {
           if (!ev) return false;
-          // Controllo sicuro tramite ID univoci registrati nell'evento
           if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
           
           const det = (ev.dettagli || '').toUpperCase();
           if (nomeG && det.includes(nomeG)) return true;
           
-          // Controllo rigoroso sul numero di maglia (evita falsi positivi come l'1 nello slot 1/3)
           if (numG) {
             if (
               det.includes(`#${numG} `) || 
@@ -195,7 +205,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const eEspulso = !!eventoEsp || g.espulso;
         const eAmmonito = !!eventoAmm && !isDoppia;
         
-        // Verifica cambio rigorosa usando gli id esatti dei cambi (esceId / entraId)
         const haSubitoCambio = cambi.some(c => {
           if (c.esceId === idG || c.entraId === idG) return true;
           const det = (c.dettagli || '').toUpperCase();
