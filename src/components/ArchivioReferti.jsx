@@ -152,17 +152,20 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     const rosaGrella = p.referto_giocatori || [];
     
-    // 🗂️ SEPARAZIONE E ORDINAMENTO FERREO:
-    const titolari = rosaGrella
-      .filter(g => g.isTitolare)
-      .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+    // 🗂️ ORDINAMENTO FERREO E SICURO
+    const rosa = [...rosaGrella].sort((a, b) => {
+      // Un giocatore è considerato del blocco titolari se ha giocato > 0 minuti o se era titolare
+      const isTitA = (a.isTitolare || (a.minuti !== undefined && a.minuti > 0)) ? 1 : 0;
+      const isTitB = (b.isTitolare || (b.minuti !== undefined && b.minuti > 0)) ? 1 : 0;
 
-    const riserve = rosaGrella
-      .filter(g => !g.isTitolare)
-      .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+      // Chi ha giocato/è titolare va sempre sopra
+      if (isTitA !== isTitB) {
+        return isTitB - isTitA; 
+      }
 
-    // Uniamo i due blocchi ordinati
-    const rosa = [...titolari, ...riserve];
+      // A parità di gruppo, ordina per numero di maglia crescente
+      return parseInt(a.numero, 10) - parseInt(b.numero, 10);
+    });
 
     if (rosa.length > 0) {
       t += `⏱️ *MINUTAGGIO & PAGELLE ROSA:*\n`;
