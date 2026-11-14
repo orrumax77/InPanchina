@@ -82,8 +82,25 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     };
   }, [societa?.id]);
 
-  const ordinaPerNumeroMaglia = (lista) => {
+  /*const ordinaPerNumeroMaglia = (lista) => {
     return [...lista].sort((a, b) => {
+      const numA = parseInt(a.numero, 10) || 0;
+      const numB = parseInt(b.numero, 10) || 0;
+      return numA - numB;
+    });
+  };*/
+
+  const ordinaDistinta = (lista) => {
+    return [...lista].sort((a, b) => {
+      // 1. I titolari convocati vanno SEMPRE sopra i panchinari/tribuna
+      const titolareA = (a.isTitolare && a.isConvocato) ? 1 : 0;
+      const titolareB = (b.isTitolare && b.isConvocato) ? 1 : 0;
+
+      if (titolareA !== titolareB) {
+        return titolareB - titolareA; // Chi è titolare va in cima (-1)
+      }
+
+      // 2. A parità di ruolo (es. entrambi titolari o entrambi panchinari), ordina per numero di maglia crescente
       const numA = parseInt(a.numero, 10) || 0;
       const numB = parseInt(b.numero, 10) || 0;
       return numA - numB;
@@ -131,7 +148,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         nome: (g.nome || '').toUpperCase(),
         isConvocato: g.isConvocato ?? (index < 20)
       }));
-      setGiocatori(ordinaPerNumeroMaglia(formattati));
+      setGiocatori(ordinaDistinta(formattati));
     }
 
     setTimeout(() => {
@@ -254,7 +271,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       return g;
     });
 
-    const listaOrdinata = ordinaPerNumeroMaglia(nuovaLista);
+    const listaOrdinata = ordinaDistinta(nuovaLista);
      
     setGiocatori(listaOrdinata);
     aggiornaRosaGlobale(listaOrdinata);
@@ -278,7 +295,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     }
 
     const aggiornato = { ...target, isTitolare: !target.isTitolare };
-    const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
+    const nuovaLista = ordinaDistinta(giocatori.map(g => (g.id === id ? aggiornato : g)));
     setGiocatori(nuovaLista);
     aggiornaRosaGlobale(nuovaLista);
 
@@ -290,7 +307,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const target = giocatori.find(g => g.id === id);
     if (!target || !target.isConvocato) return;
 
-    const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => ({
+    const nuovaLista = ordinaDistinta(giocatori.map(g => ({
       ...g,
       isCapitano: g.id === id ? !g.isCapitano : false,
       isVice: g.id === id ? false : g.isVice
@@ -306,7 +323,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const target = giocatori.find(g => g.id === id);
     if (!target || !target.isConvocato) return;
 
-    const nuovaLista = ordinaPerNumeroMaglia(giocatori.map(g => ({
+    const nuovaLista = ordinaDistinta(giocatori.map(g => ({
       ...g,
       isVice: g.id === id ? !g.isVice : false,
       isCapitano: g.id === id ? false : g.isCapitano
@@ -358,7 +375,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       isVice: false
     };
 
-    const nuovaRosa = ordinaPerNumeroMaglia([...giocatori, nuovo]);
+    const nuovaRosa = ordinaDistinta([...giocatori, nuovo]);
     setGiocatori(nuovaRosa);
     aggiornaRosaGlobale(nuovaRosa);
     setNuovoNome('');
@@ -370,7 +387,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   };
 
   const rimuoviGiocatore = async (id) => {
-    const nuovaRosa = ordinaPerNumeroMaglia(giocatori.filter(g => g.id !== id));
+    const nuovaRosa = ordinaDistinta(giocatori.filter(g => g.id !== id));
     setGiocatori(nuovaRosa);
     aggiornaRosaGlobale(nuovaRosa);
     if (editingId === id) setEditingId(null);
@@ -422,7 +439,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       nome: editNome.trim().toUpperCase()
     };
 
-    const nuovaRosa = ordinaPerNumeroMaglia(giocatori.map(g => (g.id === id ? aggiornato : g)));
+    const nuovaRosa = ordinaDistinta(giocatori.map(g => (g.id === id ? aggiornato : g)));
     setGiocatori(nuovaRosa);
     aggiornaRosaGlobale(nuovaRosa);
     setEditingId(null);
@@ -463,12 +480,12 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
     onConfermaDistinta({ 
       partitaInfo, 
-      giocatori: ordinaPerNumeroMaglia(giocatoriNormalizzati) 
+      giocatori: ordinaDistinta(giocatoriNormalizzati) 
     });
   };
 
   const numeroSuggeritoPlaceholder = trovaSuccessivoNumeroLibero();
-  const giocatoriOrdinati = ordinaPerNumeroMaglia(giocatori);
+  const giocatoriOrdinati = ordinaDistinta(giocatori);
 
   return (
     <div className="max-w-4xl mx-auto p-3 sm:p-4 space-y-5 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
