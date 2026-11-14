@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
 import { supabase } from '../supabaseClient';
-import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X, Download } from 'lucide-react';
+import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X } from 'lucide-react';
 
 export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
@@ -228,81 +228,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     window.open(url, '_blank');
   };
 
-  // 📄 SCARICA FILE HTML/PDF CON LOGO E NOME SOCIETÀ IN ALTO AL CENTRO
-  const handleScaricaPDF = (p) => {
-    const testoReferto = generaTestoReferto(p);
-    const contenutoHTML = testoReferto.replace(/\n/g, '<br>');
-    const logoUrl = societa?.logo_url || '';
-    const nomeSoc = societa?.nome ? societa.nome.toUpperCase() : 'SOCIETA SPORTIVA';
-    const dataGara = p.data_gara || 'partita';
-
-    const htmlCompleto = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Referto_${dataGara}</title>
-          <style>
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              padding: 40px;
-              color: #111;
-              line-height: 1.5;
-              font-size: 13px;
-              background: #fff;
-            }
-            .header-societa {
-              text-align: center;
-              margin-bottom: 30px;
-              border-bottom: 2px solid #222;
-              padding-bottom: 20px;
-            }
-            .logo-img {
-              width: 70px;
-              height: 70px;
-              object-fit: cover;
-              border-radius: 50%;
-              border: 2px solid #333;
-              margin-bottom: 10px;
-            }
-            h2 {
-              margin: 0;
-              font-size: 18px;
-              letter-spacing: 1px;
-            }
-            .content {
-              white-space: pre-wrap;
-              background: #fafafa;
-              padding: 25px;
-              border: 1px solid #ccc;
-              border-radius: 8px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header-societa">
-            ${logoUrl ? `<img src="${logoUrl}" class="logo-img" alt="Logo">` : ''}
-            <h2>${nomeSoc}</h2>
-          </div>
-          <div class="content">
-            ${contenutoHTML}
-          </div>
-        </body>
-      </html>
-    `;
-
-    // Crea un blob e avvia il download diretto del file HTML/PDF senza finestre di stampa
-    const blob = new Blob([htmlCompleto], { type: 'text/html' });
-    const urlBlob = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = urlBlob;
-    link.download = `Referto_${dataGara}_${p.squadra_ospite || 'gara'}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(urlBlob);
-  };
-
   const handleElimina = async (p) => {
     const conferma = window.confirm(`Vuoi cancellare definitivamente il referto del ${p.data_gara} contro ${p.squadra_ospite}?`);
     if (!conferma) return;
@@ -475,14 +400,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
                           className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition border border-amber-500/40 cursor-pointer"
                         >
                           <Star className="w-4 h-4 fill-amber-400" /> Voti Pagelle
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleScaricaPDF(p)}
-                          className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-blue-950 cursor-pointer"
-                        >
-                          <Download className="w-4 h-4" /> Scarica file
                         </button>
 
                         <button
