@@ -152,16 +152,17 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     const rosaGrella = p.referto_giocatori || [];
     
-    // 🗂️ ORDINAMENTO RIGOROSO: PRIMA I TITOLARI (per numero), POI LE RISERVE / PANCHINA (per numero)
-    const rosa = [...rosaGrella].sort((a, b) => {
-      const isTitA = a.isTitolare && a.minuti > 0;
-      const isTitB = b.isTitolare && b.minuti > 0;
+    // 🗂️ SEPARAZIONE E ORDINAMENTO FERREO:
+    const titolari = rosaGrella
+      .filter(g => g.isTitolare)
+      .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
 
-      if (isTitA !== isTitB) {
-        return isTitA ? -1 : 1; // I titolari vanno sopra
-      }
-      return parseInt(a.numero, 10) - parseInt(b.numero, 10);
-    });
+    const riserve = rosaGrella
+      .filter(g => !g.isTitolare)
+      .sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+
+    // Uniamo i due blocchi ordinati
+    const rosa = [...titolari, ...riserve];
 
     if (rosa.length > 0) {
       t += `⏱️ *MINUTAGGIO & PAGELLE ROSA:*\n`;
