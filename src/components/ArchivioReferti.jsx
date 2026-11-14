@@ -228,60 +228,79 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     window.open(url, '_blank');
   };
 
-  // 📄 FUNZIONE PER SCARICARE/STAMPARE IL PDF DAL REFERTO ARCHIVIATO
+  // 📄 SCARICA FILE HTML/PDF CON LOGO E NOME SOCIETÀ IN ALTO AL CENTRO
   const handleScaricaPDF = (p) => {
     const testoReferto = generaTestoReferto(p);
-    const finestraStampa = window.open('', '_blank');
     const contenutoHTML = testoReferto.replace(/\n/g, '<br>');
+    const logoUrl = societa?.logo_url || '';
+    const nomeSoc = societa?.nome ? societa.nome.toUpperCase() : 'SOCIETA SPORTIVA';
+    const dataGara = p.data_gara || 'partita';
 
-    finestraStampa.document.write(`
+    const htmlCompleto = `
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Referto Ufficiale di Gara</title>
+          <meta charset="utf-8">
+          <title>Referto_${dataGara}</title>
           <style>
             body {
               font-family: 'Courier New', Courier, monospace;
-              padding: 30px;
+              padding: 40px;
               color: #111;
               line-height: 1.5;
               font-size: 13px;
+              background: #fff;
             }
-            .header {
+            .header-societa {
               text-align: center;
-              border-bottom: 2px solid #333;
-              padding-bottom: 15px;
-              margin-bottom: 20px;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #222;
+              padding-bottom: 20px;
             }
-            h1 { font-size: 18px; margin: 0 0 5px 0; }
+            .logo-img {
+              width: 70px;
+              height: 70px;
+              object-fit: cover;
+              border-radius: 50%;
+              border: 2px solid #333;
+              margin-bottom: 10px;
+            }
+            h2 {
+              margin: 0;
+              font-size: 18px;
+              letter-spacing: 1px;
+            }
             .content {
               white-space: pre-wrap;
-              background: #f9f9f9;
-              padding: 20px;
-              border: 1px solid #ddd;
+              background: #fafafa;
+              padding: 25px;
+              border: 1px solid #ccc;
               border-radius: 8px;
-            }
-            @media print {
-              body { padding: 0; }
-              button { display: none; }
             }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>📋 REFERTO UFFICIALE DI GARA</h1>
+          <div class="header-societa">
+            ${logoUrl ? `<img src="${logoUrl}" class="logo-img" alt="Logo">` : ''}
+            <h2>${nomeSoc}</h2>
           </div>
           <div class="content">
             ${contenutoHTML}
           </div>
-          <script>
-            window.onload = function() {
-              window.print();
-            }
-          </script>
         </body>
       </html>
-    `);
-    finestraStampa.document.close();
+    `;
+
+    // Crea un blob e avvia il download diretto del file HTML/PDF senza finestre di stampa
+    const blob = new Blob([htmlCompleto], { type: 'text/html' });
+    const urlBlob = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = urlBlob;
+    link.download = `Referto_${dataGara}_${p.squadra_ospite || 'gara'}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(urlBlob);
   };
 
   const handleElimina = async (p) => {
@@ -463,7 +482,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
                           onClick={() => handleScaricaPDF(p)}
                           className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-blue-950 cursor-pointer"
                         >
-                          <Download className="w-4 h-4" /> Scarica PDF
+                          <Download className="w-4 h-4" /> Scarica file
                         </button>
 
                         <button
