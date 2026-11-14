@@ -129,7 +129,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     if (ammonizioniEventi.length > 0) {
       t += `🟨 *AMMONITI:*\n`;
       ammonizioniEventi.forEach(a => {
-        t += `• 🟨 ${a.minuto}' #${a.giocatoreNumero || ''} ${(a.giocatoreNome || a.dettagli).toUpperCase()}\n`;
+        t += `• 🟨 ${a.minuto}' ${(a.dettagli || '').toUpperCase()}\n`;
       });
       t += `\n`;
     }
@@ -139,7 +139,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       espulsioniEventi.forEach(e => {
         const isDoppiaAmmonizione = e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE');
         const iconaEspulsione = isDoppiaAmmonizione ? '🟨🟨🟥' : '🟥';
-        t += `• ${iconaEspulsione} ${e.minuto}' #${e.giocatoreNumero || ''} ${(e.giocatoreNome || e.dettagli).toUpperCase()}\n`;
+        t += `• ${iconaEspulsione} ${e.minuto}' ${(e.dettagli || '').toUpperCase()}\n`;
       });
       t += `\n`;
     }
@@ -162,20 +162,24 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const idG = g.id;
         const nomeG = (g.nome || '').toUpperCase().trim();
 
+        // 🛡️ MATCHING RIGOROSO BASATO SU ID E NUMERI DI MAGLIA DELIMITATI
         const matchGiocatore = (ev) => {
           if (!ev) return false;
+          // Controllo sicuro tramite ID univoci registrati nell'evento
           if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
           
           const det = (ev.dettagli || '').toUpperCase();
           if (nomeG && det.includes(nomeG)) return true;
           
+          // Controllo rigoroso sul numero di maglia (evita falsi positivi come l'1 nello slot 1/3)
           if (numG) {
             if (
-              det.includes(`#${numG}`) || 
+              det.includes(`#${numG} `) || 
               det.includes(` #${numG}`) || 
               det.includes(`-#${numG}`) || 
               det.includes(`(${numG})`) ||
-              det.includes(`[${numG}]`)
+              det.includes(`[${numG}]`) ||
+              det.endsWith(`#${numG}`)
             ) {
               return true;
             }
@@ -184,15 +188,24 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         };
 
         const haSegnato = reti.some(r => matchGiocatore(r));
-        const eAmmonito = ammonizioniEventi.some(a => matchGiocatore(a));
-        const eventoEspulsione = espulsioniEventi.find(e => matchGiocatore(e));
-        const eEspulso = !!eventoEspulsione || g.espulso;
-        const haSubitoCambio = cambi.some(c => matchGiocatore(c));
+        const eventoAmm = ammonizioniEventi.find(a => matchGiocatore(a));
+        const eventoEsp = espulsioniEventi.find(e => matchGiocatore(e));
+        
+        const isDoppia = (eventoEsp?.dettagli || '').toUpperCase().includes('DOPPIA') || g.ammonizioni >= 2;
+        const eEspulso = !!eventoEsp || g.espulso;
+        const eAmmonito = !!eventoAmm && !isDoppia;
+        
+        // Verifica cambio rigorosa usando gli id esatti dei cambi (esceId / entraId)
+        const haSubitoCambio = cambi.some(c => {
+          if (c.esceId === idG || c.entraId === idG) return true;
+          const det = (c.dettagli || '').toUpperCase();
+          if (numG && (det.includes(`ESCE #${numG} `) || det.includes(`ENTRA #${numG} `))) return true;
+          return false;
+        });
 
         if (haSegnato) iconeGiocatore += ' ⚽';
         if (eAmmonito) iconeGiocatore += ' 🟨';
         if (eEspulso) {
-          const isDoppia = (eventoEspulsione?.dettagli || '').toUpperCase().includes('DOPPIA AMMONIZIONE') || g.ammonizioni >= 2;
           iconeGiocatore += isDoppia ? ' 🟨🟨🟥' : ' 🟥';
         }
         if (haSubitoCambio) iconeGiocatore += ' 🔄';
