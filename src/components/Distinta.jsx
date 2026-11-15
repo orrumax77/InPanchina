@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar, CheckCircle2, UserCog } from 'lucide-react';
+import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar, CheckCircle2, UserCog, ArrowUpDown } from 'lucide-react';
 import { 
   salvaRosaBaseSocieta, 
   salvaBozzaPartitaSuDb, 
   salvaBozzaKeepalive,
   dbAggiungiGiocatore, 
   dbModificaGiocatore, 
-  dbEliminaGiocatore 
+  dbEliminaGiocatore,
+  salvaStaffBaseSocieta
 } from '../services/db';
 
 export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, partitaIniziale, rosaIniziale, campionato, annata }) {
@@ -16,6 +17,11 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
   const staffSocieta = societa?.staff_base || {};
   const nomeSocietaUfficiale = (societa?.nome || '').toUpperCase();
+
+  // 🗂️ Legge il criterio di ordinamento salvato nel DB della società (default 'numero')
+  const [criterioOrdinamento, setCriterioOrdinamento] = useState(() => {
+    return staffSocieta?.criterio_ordinamento_distinta || 'numero';
+  });
 
   const isCasaIniziale = partitaIniziale?.isNostraCasa ?? staffSocieta.isNostraCasa ?? true;
   const dbCasaIniziale = partitaIniziale?.squadraCasa || staffSocieta.squadraCasa || '';
@@ -82,14 +88,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     };
   }, [societa?.id]);
 
-  /*const ordinaPerNumeroMaglia = (lista) => {
-    return [...lista].sort((a, b) => {
-      const numA = parseInt(a.numero, 10) || 0;
-      const numB = parseInt(b.numero, 10) || 0;
-      return numA - numB;
-    });
-  };*/
-
+  // 🗂️ Ordinamento dinamico in base alla scelta salvata nel Database
   const ordinaDistinta = (lista) => {
     return [...lista].sort((a, b) => {
       // 1. I titolari convocati vanno SEMPRE sopra i panchinari/tribuna
@@ -100,11 +99,37 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         return titolareB - titolareA; // Chi è titolare va in cima (-1)
       }
 
-      // 2. A parità di ruolo (es. entrambi titolari o entrambi panchinari), ordina per numero di maglia crescente
-      const numA = parseInt(a.numero, 10) || 0;
-      const numB = parseInt(b.numero, 10) || 0;
-      return numA - numB;
+      // 2. A parità di ruolo, ordina secondo il criterio scelto
+      if (criterioOrdinamento === 'alfabetico') {
+        const nomeA = (a.nome || '').trim().toUpperCase();
+        const nomeB = (b.nome || '').trim().toUpperCase();
+        return nomeA.localeCompare(nomeB);
+      } else {
+        // Default: numero di maglia crescente
+        const numA = parseInt(a.numero, 10) || 0;
+        const numB = parseInt(b.numero, 10) || 0;
+        return numA - numB;
+      }
     });
+  };
+
+  // Funzione per cambiare criterio e salvarlo subito sul Cloud (Database)
+  const handleCambiaCriterioOrdinamento = async (e) => {
+    const nuovoCriterio = e.target.value;
+    setCriterioOrdinamento(nuovoCriterio);
+
+    const listaOrdinata = ordinaDistinta(giocatori);
+    setGiocatori(listaOrdinata);
+    aggiornaRosaGlobale(listaOrdinata);
+
+    if (societa?.id) {
+      const nuovoStaffBase = {
+        ...(societa.staff_base || {}),
+        criterio_ordinamento_distinta: nuovoCriterio
+      };
+      await salvaStaffBaseSocieta(societa.id, nuovoStaffBase);
+      mostraNotificaSalvataggio();
+    }
   };
 
   useEffect(() => {
@@ -121,6 +146,10 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const prepPortVal = (staff.preparatorePortieri || partitaIniziale?.preparatorePortieri || '').toUpperCase();
     
     const dataPartitaVal = partitaIniziale?.dataPartita || staff.dataPartita || oggiISO;
+
+    if (staff?.criterio_ordinamento_distinta) {
+      setCriterioOrdinamento(staff.criterio_ordinamento_distinta);
+    }
 
     setPartitaInfo(prev => ({
       ...prev,
@@ -154,7 +183,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setTimeout(() => {
       isLoaded.current = true;
     }, 200);
-  }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
+  }, [societa, partitaIniziale, rosaIniziale, oggiISO, criterioOrdinamento]);
 
   const mostraNotificaSalvataggio = () => {
     setSalvataggioNotifica(true);
@@ -469,7 +498,6 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       return;
     }
 
-    // 🛡️ Normalizzazione fondamentale per sincronizzare isTitolare e is_titolare per il database
     const giocatoriNormalizzati = giocatori
       .filter(g => g.isConvocato)
       .map(g => ({
@@ -749,6 +777,23 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
             </h2>
             <p className="text-[11px] text-emerald-400 mt-0.5">● Massimo 20 convocati (di cui 11 titolari), gli altri in tribuna</p>
           </div>
+
+          {/* 🗂️ Selettore Ordinamento salvato nel Database */}
+          <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-700">
+            <ArrowUpDown className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span className="text-[11px] font-bold text-slate-400 uppercase">Ordine:</span>
+            <select
+              value={criterioOrdinamento}
+              onChange={handleCambiaCriterioOrdinamento}
+              className="bg-transparent text-white text-xs font-bold uppercase outline-none cursor-pointer"
+            >
+              <option value="numero" className="bg-slate-900 text-white">N° Maglia</option>
+              <option value="alfabetico" className="bg-slate-900 text-white">Cognome / Nome</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
           <div className="flex items-center gap-2">
             <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${convocatiCount <= 20 ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
               Convocati: {convocatiCount} / 20
