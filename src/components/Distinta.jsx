@@ -104,14 +104,17 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   };
 
   // Funzione per cambiare criterio, aggiornare lo stato e salvarlo sul DB
+  // 🗂️ Funzione per cambiare criterio, aggiornare la vista all'istante e salvarlo sul DB
   const handleCambiaCriterioOrdinamento = async (e) => {
     const nuovoCriterio = e.target.value;
     setCriterioOrdinamento(nuovoCriterio);
 
+    // 🚀 Forza immediatamente il ricalcolo e l'aggiornamento della lista a schermo
     const listaOrdinata = ordinaDistinta(giocatori, nuovoCriterio);
-    setGiocatori(listaOrdinata);
+    setGiocatori([...listaOrdinata]);
     aggiornaRosaGlobale(listaOrdinata);
 
+    // Salva la preferenza sul Database Cloud in background
     if (societa?.id) {
       const nuovoStaffBase = {
         ...(societa.staff_base || {}),
@@ -121,7 +124,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       mostraNotificaSalvataggio();
     }
   };
-
+  
   useEffect(() => {
     const staff = societa?.staff_base || {};
 
