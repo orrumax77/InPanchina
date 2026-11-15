@@ -237,7 +237,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     return t;
   };
   
-  // 📄 Funzione per generare il PDF ufficiale con associazione eventi sicura tramite ID e numeri certi
+  // 📄 Funzione per generare il PDF ufficiale con eventi sicuri e puliti
   const generaPDFReferto = async (p) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -360,12 +360,8 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     doc.text("VOTO", pageWidth - 18, y + 4.2, { align: "right" });
     y += 6;
 
-    // Estrazione eventi
+    // Estrazione eventi dal database
     const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
-    const reti = eventi.filter(e => e.tipo === 'GOL');
-    const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
-    const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
-    const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
 
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "normal");
@@ -385,52 +381,26 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         y = 20;
       }
 
-      const numG = String(g.numero || '').trim();
       const idG = g.id;
-
       let descEventi = [];
 
-      // 1. Controllo Gol tramite ID o match rigoroso del numero esatto (es. #7 o (7))
-      reti.forEach(r => {
-        const matchId = r.giocatoreId === idG || r.giocatore_id === idG;
-        const matchTesto = numG && (r.det || r.dettagli || '').toUpperCase().includes(`#${numG} `);
-        if (matchId || matchTesto) {
-          descEventi.push(`[Gol ${r.minuto}']`);
-        }
-      });
-
-      // 2. Controllo Ammonizioni
-      ammonizioniEventi.forEach(a => {
-        const matchId = a.giocatoreId === idG || a.giocatore_id === idG;
-        const matchTesto = numG && (a.det || a.dettagli || '').toUpperCase().includes(`#${numG} `);
-        if (matchId || matchTesto) {
-          descEventi.push(`[Ammonito ${a.minuto}']`);
-        }
-      });
-
-      // 3. Controllo Espulsioni
-      espulsioniEventi.forEach(e => {
-        const matchId = e.giocatoreId === idG || e.giocatore_id === idG;
-        const matchTesto = numG && (e.det || e.dettagli || '').toUpperCase().includes(`#${numG} `);
-        if (matchId || matchTesto) {
-          descEventi.push(`[Espulso ${e.minuto}']`);
-        }
-      });
-
-      // 4. Controllo Sostituzioni (esce / entra)
-      cambi.forEach(c => {
-        const matchEsceId = c.esceId === idG;
-        const matchEntraId = c.entraId === idG;
-        const detC = (c.det || c.dettagli || '').toUpperCase();
+      // Filtro basato ESCLUSIVAMENTE sui puntamenti ID univoci salvati negli eventi
+      eventi.forEach(ev => {
+        const minEv = ev.minuto;
+        const eId = ev.giocatoreId || ev.esceId || ev.entraId || ev.giocatore_id;
         
-        const matchEsceTesto = numG && (detC.includes(`ESCE #${numG} `) || detC.includes(`ESCE #${numG}`));
-        const matchEntraTesto = numG && (detC.includes(`ENTRA #${numG} `) || detC.includes(`ENTRA #${numG}`));
-
-        if (matchEsceId || matchEsceTesto) {
-          descEventi.push(`[Esce ${c.minuto}']`);
-        }
-        if (matchEntraId || matchEntraTesto) {
-          descEventi.push(`[Entra ${c.minuto}']`);
+        // Se l'ID corrisponde perfettamente al giocatore corrente
+        if (eId && eId === idG) {
+          if (ev.tipo === 'GOL') {
+            descEventi.push(`[Gol ${minEv}']`);
+          } else if (ev.tipo === 'AMMONIZIONE') {
+            descEventi.push(`[Ammonito ${minEv}']`);
+          } else if (ev.tipo === 'ESPULSIONE') {
+            descEventi.push(`[Espulso ${minEv}']`);
+          } else if (ev.tipo === 'SOSTITUZIONE') {
+            if (ev.esceId === idG) descEventi.push(`[Esce ${minEv}']`);
+            if (ev.entraId === idG) descEventi.push(`[Entra ${minEv}']`);
+          }
         }
       });
 
