@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { caricaStoricoReferti, eliminaRefertoStorico } from '../services/db';
 import { supabase } from '../supabaseClient';
-import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X } from 'lucide-react';
+import { ArrowLeft, Archive, Calendar, Share2, Copy, Check, Trash2, ChevronDown, ChevronUp, Trophy, Clock, Star, X, FileText } from 'lucide-react';
+import { jsPDF } from "jspdf";
 
 export default function ArchivioReferti({ societa, campionato, annata, onTornaIndietro }) {
   const [partiteStorico, setPartiteStorico] = useState([]);
@@ -152,18 +153,14 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     const rosaGrella = p.referto_giocatori || [];
     
-    // 🗂️ ORDINAMENTO FERREO E SICURO
     const rosa = [...rosaGrella].sort((a, b) => {
-      // Un giocatore è considerato del blocco titolari se ha giocato > 0 minuti o se era titolare
       const isTitA = (a.isTitolare || (a.minuti !== undefined && a.minuti > 0)) ? 1 : 0;
       const isTitB = (b.isTitolare || (b.minuti !== undefined && b.minuti > 0)) ? 1 : 0;
 
-      // Chi ha giocato/è titolare va sempre sopra
       if (isTitA !== isTitB) {
         return isTitB - isTitA; 
       }
 
-      // A parità di gruppo, ordina per numero di maglia crescente
       return parseInt(a.numero, 10) - parseInt(b.numero, 10);
     });
 
@@ -178,7 +175,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const idG = g.id;
         const nomeG = (g.nome || '').toUpperCase().trim();
 
-        // 🛡️ MATCHING RIGOROSO BASATO SU ID E NUMERI DI MAGLIA DELIMITATI
         const matchGiocatore = (ev) => {
           if (!ev) return false;
           if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
@@ -239,6 +235,200 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       });
     }
     return t;
+  };
+  
+  // 📄 Funzione per generare il PDF ufficiale, dinamico e formale con logo centrato in testa
+  const generaPDFReferto = async (p) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 15;
+
+    // --- 🖼️ LOGO E NOME SOCIETÀ CENTRATO IN TESTA ---
+    if (societa?.logo_url) {
+      try {
+        const toDataURL = async (url) => {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        };
+        const base64Logo = await toDataURL(societa.logo_url);
+        doc.addImage(base64Logo, 'PNG', pageWidth / 2 - 12, y, 24, 24);
+        y += 28;
+      } catch (e) {
+        y += 5;
+      }
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    const nomeSocieta = (societa?.nome || 'SOCIETA SPORTIVA').toUpperCase();
+    doc.text(nomeSocieta, pageWidth / 2, y, { align: "center" });
+    y += 6;
+
+    doc.setFontSize(11);
+    doc.setTextColor(71, 85, 105);
+    doc.text("REFERTO UFFICIALE DI GARA", pageWidth / 2, y, { align: "center" });
+    y += 10;
+
+    // Linea divisoria
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(203, 213, 225);
+    doc.line(15, y, pageWidth - 15, y);
+    y += 8;
+
+    // --- 📅 DATI GENERALI DINAMICI ---
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    
+    const dataFormatted = p.data_gara ? p.data_gara.split('-').reverse().join('/') : '';
+    doc.text(`Data Gara: ${dataFormatted}`, 15, y);
+    doc.text(`Campionato: ${campionato || 'N.D.'}`, pageWidth - 15, y, { align: "right" });
+    y += 5;
+    doc.text(`Annata / Categoria: ${annata || 'N.D.'}`, 15, y);
+    if (p.modulo_gioco) {
+      doc.text(`Modulo di Gioco: ${p.modulo_gioco}`, pageWidth - 15, y, { align: "right" });
+    }
+    y += 10;
+
+    // --- ⚽ BOX RISULTATO DINAMICO ---
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(15, y, pageWidth - 30, 14, 2, 2, "F");
+    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    const matchText = `${(p.squadra_casa || 'CASA').toUpperCase()}    [  ${p.gol_casa ?? 0}  -  ${p.gol_ospite ?? 0}  ]    ${(p.squadra_ospite || 'OSPITE').toUpperCase()}`;
+    doc.text(matchText, pageWidth / 2, y + 9.5, { align: "center" });
+    y += 20;
+
+    // --- 👔 STAFF TECNICO & DIRIGENZIALE DINAMICO ---
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("STAFF TECNICO & DIRIGENZIALE UFFICIALE", 15, y);
+    y += 5;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    const staffList = [
+      p.allenatore ? `Allenatore: ${p.allenatore}` : null,
+      p.allenatore_seconda ? `Allenatore in Seconda: ${p.allenatore_seconda}` : null,
+      p.dirigente ? `Dirigente Accompagnatore Ufficiale: ${p.dirigente}` : null,
+      p.dirigente_ufficiali ? `Addetto Ufficiali di Gara: ${p.dirigente_ufficiali}` : null,
+      p.assistente_arbitro ? `Assistente all'Arbitro: ${p.assistente_arbitro}` : null,
+      p.medico_sociale ? `Medico Sociale: ${p.medico_sociale}` : null,
+      p.massaggiatore ? `Massaggiatore: ${p.massaggiatore}` : null,
+      p.preparatore_atletico ? `Preparatore Atletico: ${p.preparatore_atletico}` : null,
+      p.preparatore_portieri ? `Preparatore Portieri: ${p.preparatore_portieri}` : null,
+    ].filter(Boolean);
+
+    let colX = 18;
+    staffList.forEach((item, idx) => {
+      if (y > 275) { doc.addPage(); y = 20; }
+      doc.text(`• ${item}`, colX, y);
+      if (idx % 2 === 0) {
+        colX = pageWidth / 2 + 5;
+      } else {
+        colX = 18;
+        y += 4.5;
+      }
+    });
+    if (staffList.length % 2 !== 0) y += 4.5;
+    y += 6;
+
+    // --- ⚽ 🟨 🟥 🔄 CRONACA EVENTI DINAMICA ---
+    const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
+
+    if (eventi.length > 0) {
+      if (y > 255) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("CRONACA EVENTI (GOL, CARTELLINI, CAMBI)", 15, y);
+      y += 5;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+
+      eventi.forEach(ev => {
+        if (y > 275) { doc.addPage(); y = 20; }
+        let icona = '•';
+        if (ev.tipo === 'GOL') icona = '⚽';
+        else if (ev.tipo === 'AMMONIZIONE') icona = '🟨';
+        else if (ev.tipo === 'ESPULSIONE') icona = '🟥';
+        else if (ev.tipo === 'SOSTITUZIONE') icona = '🔄';
+
+        doc.text(`${icona} [${ev.minuto}'] ${ev.dettagli || ''}`, 18, y);
+        y += 4;
+      });
+      y += 6;
+    }
+
+    // --- ⏱️ TABELLA MINUTAGGIO & PAGELLE ROSA DINAMICA ---
+    if (y > 250) { doc.addPage(); y = 20; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("MINUTAGGIO & PAGELLE ROSA", 15, y);
+    y += 5;
+
+    // Intestazione Tabella
+    doc.setFillColor(30, 41, 59);
+    doc.setTextColor(255, 255, 255);
+    doc.rect(15, y, pageWidth - 30, 6, "F");
+    
+    doc.setFontSize(8);
+    doc.text("N°", 18, y + 4.2);
+    doc.text("GIOCATORE", 28, y + 4.2);
+    doc.text("MINUTI", 115, y + 4.2);
+    doc.text("STATO", 138, y + 4.2);
+    doc.text("VOTO", pageWidth - 18, y + 4.2, { align: "right" });
+    y += 6;
+
+    // Righe Giocatori
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "normal");
+
+    const rosa = p.referto_giocatori || [];
+    
+    const rosaOrdinata = [...rosa].sort((a, b) => {
+      const isTitA = (a.isTitolare || (a.minuti !== undefined && a.minuti > 0)) ? 1 : 0;
+      const isTitB = (b.isTitolare || (b.minuti !== undefined && b.minuti > 0)) ? 1 : 0;
+      if (isTitA !== isTitB) return isTitB - isTitA;
+      return parseInt(a.numero, 10) - parseInt(b.numero, 10);
+    });
+
+    rosaOrdinata.forEach((g, index) => {
+      if (y > 275) {
+        doc.addPage();
+        y = 20;
+      }
+
+      if (index % 2 === 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, y, pageWidth - 30, 5.5, "F");
+      }
+
+      const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
+      const nomeCompleto = `${g.nome || ''}${fascia}`.toUpperCase();
+      const minutiVal = g.minuti !== undefined && g.minuti !== null ? `${g.minuti}'` : "0'";
+      const statoVal = (g.minuti === 0 && !g.isTitolare) ? "Panchina" : "Titolare";
+      const votoVal = g.voto ? String(g.voto) : "-";
+
+      doc.text(String(g.numero || ''), 18, y + 3.8);
+      doc.text(nomeCompleto, 28, y + 3.8);
+      doc.text(minutiVal, 115, y + 3.8);
+      doc.text(statoVal, 138, y + 3.8);
+      doc.text(votoVal, pageWidth - 18, y + 3.8, { align: "right" });
+
+      y += 5.5;
+    });
+
+    // --- 📥 DOWNLOAD DEL PDF ---
+    const nomeFilePdf = `Referto_${p.squadra_casa}_vs_${p.squadra_ospite}_${p.data_gara}.pdf`.replace(/\s+/g, '_');
+    doc.save(nomeFilePdf);
   };
   
   const handleCopia = (p) => {
@@ -412,12 +602,21 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
                       </button>
 
                       <div className="flex flex-wrap items-center gap-2">
+                        {/* 📄 Pulsante Esporta in PDF */}
+                        <button
+                          type="button"
+                          onClick={() => generaPDFReferto(p)}
+                          className="px-3.5 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition border border-rose-500/40 cursor-pointer"
+                        >
+                          <FileText className="w-4 h-4" /> Scarica PDF
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => apriModaleModulo(p)}
                           className="px-3.5 py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-1.5 transition border border-indigo-500/40 cursor-pointer"
                         >
-                          <Trophy className="w-4 h-4" /> {p.modulo_gioco ? `Modulo (${p.modulo_gioco})` : 'Assegna Modulo'}
+                          <Trophy className="w-4 h-4" /> {p.modulo_gioco ? `Modulo (${p.modulo_gioco})` : 'Modulo'}
                         </button>
 
                         <button
@@ -425,7 +624,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
                           onClick={() => apriModaleVoti(p)}
                           className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition border border-amber-500/40 cursor-pointer"
                         >
-                          <Star className="w-4 h-4 fill-amber-400" /> Voti Pagelle
+                          <Star className="w-4 h-4 fill-amber-400" /> Voti
                         </button>
 
                         <button
