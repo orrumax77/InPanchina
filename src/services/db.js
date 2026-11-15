@@ -81,8 +81,9 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       .select('*')
       .eq('societa_id', societaId)
       .eq('campionato', campionato)
-      .eq('annata', annataPulita)
-      .order('numero', { ascending: true });
+      .eq('annata', annataPulita);
+      
+      //.order('numero', { ascending: true });
 
     if (!errG && gList && gList.length > 0) {
       return gList.map((g, index) => ({
