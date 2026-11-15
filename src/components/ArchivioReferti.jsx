@@ -238,6 +238,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
   };
   
   // 📄 Funzione per generare il PDF ufficiale, dinamico e formale con logo centrato in testa
+  // 📄 Funzione per generare il PDF ufficiale con eventi integrati nella tabella della rosa
   const generaPDFReferto = async (p) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -281,7 +282,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     doc.line(15, y, pageWidth - 15, y);
     y += 8;
 
-    // --- 📅 DATI GENERALI DINAMICI ---
+    // --- 📅 DATI GENERALI ---
     doc.setFontSize(9);
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "bold");
@@ -296,7 +297,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     }
     y += 10;
 
-    // --- ⚽ BOX RISULTATO DINAMICO ---
+    // --- ⚽ BOX RISULTATO ---
     doc.setFillColor(241, 245, 249);
     doc.roundedRect(15, y, pageWidth - 30, 14, 2, 2, "F");
     
@@ -306,7 +307,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     doc.text(matchText, pageWidth / 2, y + 9.5, { align: "center" });
     y += 20;
 
-    // --- 👔 STAFF TECNICO & DIRIGENZIALE DINAMICO ---
+    // --- 👔 STAFF TECNICO & DIRIGENZIALE ---
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text("STAFF TECNICO & DIRIGENZIALE UFFICIALE", 15, y);
@@ -338,40 +339,13 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       }
     });
     if (staffList.length % 2 !== 0) y += 4.5;
-    y += 6;
+    y += 8;
 
-    // --- ⚽ 🟨 🟥 🔄 CRONACA EVENTI DINAMICA ---
-    const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
-
-    if (eventi.length > 0) {
-      if (y > 255) { doc.addPage(); y = 20; }
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text("CRONACA EVENTI (GOL, CARTELLINI, CAMBI)", 15, y);
-      y += 5;
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-
-      eventi.forEach(ev => {
-        if (y > 275) { doc.addPage(); y = 20; }
-        let icona = '•';
-        if (ev.tipo === 'GOL') icona = '⚽';
-        else if (ev.tipo === 'AMMONIZIONE') icona = '🟨';
-        else if (ev.tipo === 'ESPULSIONE') icona = '🟥';
-        else if (ev.tipo === 'SOSTITUZIONE') icona = '🔄';
-
-        doc.text(`${icona} [${ev.minuto}'] ${ev.dettagli || ''}`, 18, y);
-        y += 4;
-      });
-      y += 6;
-    }
-
-    // --- ⏱️ TABELLA MINUTAGGIO & PAGELLE ROSA DINAMICA ---
+    // --- ⏱️ TABELLA MINUTAGGIO, EVENTI & PAGELLE ROSA ---
     if (y > 250) { doc.addPage(); y = 20; }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text("MINUTAGGIO & PAGELLE ROSA", 15, y);
+    doc.text("MINUTAGGIO, EVENTI & PAGELLE ROSA", 15, y);
     y += 5;
 
     // Intestazione Tabella
@@ -381,11 +355,18 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     
     doc.setFontSize(8);
     doc.text("N°", 18, y + 4.2);
-    doc.text("GIOCATORE", 28, y + 4.2);
-    doc.text("MINUTI", 115, y + 4.2);
-    doc.text("STATO", 138, y + 4.2);
+    doc.text("GIOCATORE & EVENTI", 28, y + 4.2);
+    doc.text("MIN", 115, y + 4.2);
+    doc.text("STATO", 135, y + 4.2);
     doc.text("VOTO", pageWidth - 18, y + 4.2, { align: "right" });
     y += 6;
+
+    // Estrazione eventi per il matching
+    const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
+    const reti = eventi.filter(e => e.tipo === 'GOL');
+    const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
+    const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
+    const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
 
     // Righe Giocatori
     doc.setTextColor(15, 23, 42);
@@ -411,8 +392,33 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         doc.rect(15, y, pageWidth - 30, 5.5, "F");
       }
 
+      // Ricerca eventi associati al giocatore
+      const numG = String(g.numero || '').trim();
+      const idG = g.id;
+      const nomeG = (g.nome || '').toUpperCase().trim();
+
+      const matchGiocatore = (ev) => {
+        if (!ev) return false;
+        if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
+        const det = (ev.dettagli || '').toUpperCase();
+        if (nomeG && det.includes(nomeG)) return true;
+        if (numG && (det.includes(`#${numG} `) || det.includes(` #${numG}`) || det.includes(`(${numG})`) || det.includes(`[${numG}]`))) return true;
+        return false;
+      };
+
+      const haSegnato = reti.some(r => matchGiocatore(r));
+      const eventoAmm = ammonizioniEventi.find(a => matchGiocatore(a));
+      const eventoEsp = espulsioniEventi.find(e => matchGiocatore(e));
+      const haSubitoCambio = cambi.some(c => c.esceId === idG || c.entraId === idG || (numG && (c.dettagli || '').toUpperCase().includes(`#${numG}`)));
+
+      let iconeEventi = '';
+      if (haSegnato) iconeEventi += ' ⚽';
+      if (eventoAmm) iconeEventi += ' 🟨';
+      if (eventoEsp) iconeEventi += ' 🟥';
+      if (haSubitoCambio) iconeEventi += ' 🔄';
+
       const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
-      const nomeCompleto = `${g.nome || ''}${fascia}`.toUpperCase();
+      const nomeCompleto = `${g.nome || ''}${fascia}${iconeEventi}`.toUpperCase();
       const minutiVal = g.minuti !== undefined && g.minuti !== null ? `${g.minuti}'` : "0'";
       const statoVal = (g.minuti === 0 && !g.isTitolare) ? "Panchina" : "Titolare";
       const votoVal = g.voto ? String(g.voto) : "-";
@@ -420,7 +426,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       doc.text(String(g.numero || ''), 18, y + 3.8);
       doc.text(nomeCompleto, 28, y + 3.8);
       doc.text(minutiVal, 115, y + 3.8);
-      doc.text(statoVal, 138, y + 3.8);
+      doc.text(statoVal, 135, y + 3.8);
       doc.text(votoVal, pageWidth - 18, y + 3.8, { align: "right" });
 
       y += 5.5;
