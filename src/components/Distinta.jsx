@@ -546,10 +546,10 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
             {/* Lista Scrollabile dei Convocati */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-800/80 bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-[350px]">
-              {giocatoriConvocatiRiepilogo.map((g, index) => (
+              {giocatoriConvocatiRiepilogo.map((g) => (
                 <div key={g.id} className={`pt-2 first:pt-0 flex items-center justify-between text-xs font-semibold ${g.isTitolare ? 'text-white' : 'text-slate-400'}`}>
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-6 h-6 rounded bg-slate-900 border border-slate-700 flex items-center justify-center font-mono text-emerald-400 text-xs font-bold flex-shrink-0">
+                    <span className="w-7 h-7 rounded bg-slate-900 border border-slate-700 flex items-center justify-center font-mono text-emerald-400 text-xs font-bold flex-shrink-0">
                       {g.numero}
                     </span>
                     <span className="uppercase truncate">{g.nome}</span>
