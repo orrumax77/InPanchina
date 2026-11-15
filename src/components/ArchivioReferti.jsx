@@ -237,7 +237,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     return t;
   };
   
-  // 📄 Funzione per generare il PDF ufficiale con eventi testuali chiari e minuti dei cambi
+  // 📄 Funzione per generare il PDF ufficiale con eventi perfettamente associati e righe dinamiche
   const generaPDFReferto = async (p) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -367,7 +367,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
     const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
 
-    // Righe Giocatori
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "normal");
 
@@ -381,30 +380,33 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     });
 
     rosaOrdinata.forEach((g, index) => {
-      if (y > 275) {
+      if (y > 270) {
         doc.addPage();
         y = 20;
-      }
-
-      if (index % 2 === 0) {
-        doc.setFillColor(248, 250, 252);
-        doc.rect(15, y, pageWidth - 30, 5.5, "F");
       }
 
       const numG = String(g.numero || '').trim();
       const idG = g.id;
       const nomeG = (g.nome || '').toUpperCase().trim();
 
+      // 🛡️ MATCHING RIGOROSO BASATO SU ID O RIScontro DIRETTO NEL DETTAGLIO
       const matchGiocatore = (ev) => {
         if (!ev) return false;
         if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
+        
         const det = (ev.dettagli || '').toUpperCase();
-        if (nomeG && det.includes(nomeG)) return true;
-        if (numG && (det.includes(`#${numG} `) || det.includes(` #${numG}`) || det.includes(`(${numG})`) || det.includes(`[${numG}]`))) return true;
+        // Cerca il nome solo se isolato o corrispondente in modo certo per evitare falsi positivi
+        if (nomeG && (det.includes(` #${numG} `) || det.includes(` ${nomeG}`) || det.includes(`#${numG}-${nomeG}`))) return true;
+        
+        if (numG) {
+          if (det.includes(`#${numG} `) || det.includes(` #${numG}`) || det.includes(`-#${numG}`) || det.includes(`(${numG})`) || det.includes(`[${numG}]`)) {
+            // Verifica ulteriore che il nome o il numero combacino davvero in questo specifico evento
+            if (det.includes(nomeG) || det.includes(`#${numG}`)) return true;
+          }
+        }
         return false;
       };
 
-      // Raccolta descrittiva testuale degli eventi per il giocatore
       let descEventi = [];
 
       reti.forEach(r => {
@@ -436,14 +438,22 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       const statoVal = (g.minuti === 0 && !g.isTitolare) ? "Panchina" : "Titolare";
       const votoVal = g.voto ? String(g.voto) : "-";
 
-      doc.text(String(g.numero || ''), 18, y + 3.8);
-      // Tronca il testo se troppo lungo per evitare sbordamenti nella tabella
-      doc.text(doc.splitTextToSize(nomeCompleto, 85), 28, y + 3.8);
-      doc.text(minutiVal, 115, y + 3.8);
-      doc.text(statoVal, 135, y + 3.8);
-      doc.text(votoVal, pageWidth - 18, y + 3.8, { align: "right" });
+      // Calcolo altezza riga dinamica per evitare sovrapposizioni
+      const lineeNome = doc.splitTextToSize(nomeCompleto, 82);
+      const altezzaRiga = Math.max(6, lineeNome.length * 4.5);
 
-      y += 5.5;
+      if (index % 2 === 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, y, pageWidth - 30, altezzaRiga, "F");
+      }
+
+      doc.text(String(g.numero || ''), 18, y + 4);
+      doc.text(lineeNome, 28, y + 4);
+      doc.text(minutiVal, 115, y + 4);
+      doc.text(statoVal, 135, y + 4);
+      doc.text(votoVal, pageWidth - 18, y + 4, { align: "right" });
+
+      y += altezzaRiga;
     });
 
     // --- 📥 DOWNLOAD DEL PDF ---
