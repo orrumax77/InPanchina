@@ -237,7 +237,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     return t;
   };
   
-  // 📄 Funzione per generare il PDF ufficiale con eventi perfettamente associati e righe dinamiche
+  // 📄 Funzione per generare il PDF ufficiale con associazione eventi pulita e mirata
   const generaPDFReferto = async (p) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -389,22 +389,35 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       const idG = g.id;
       const nomeG = (g.nome || '').toUpperCase().trim();
 
-      // 🛡️ MATCHING RIGOROSO BASATO SU ID O RIScontro DIRETTO NEL DETTAGLIO
+      // 🛡️ CONTROLLO ESTREMAMENTE SELETTIVO PER EVITARE FALSI POSITIVI SU PITASSI
       const matchGiocatore = (ev) => {
         if (!ev) return false;
-        if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
         
+        // Controllo diretto tramite ID univoci se presenti nell'evento
+        if (ev.giocatoreId && ev.giocatoreId === idG) return true;
+        if (ev.esceId && ev.esceId === idG) return true;
+        if (ev.entraId && ev.entraId === idG) return true;
+        if (ev.giocatore_id && ev.giocatore_id === idG) return true;
+
         const det = (ev.dettagli || '').toUpperCase();
-        // Cerca il nome solo se isolato o corrispondente in modo certo per evitare falsi positivi
-        if (nomeG && (det.includes(` #${numG} `) || det.includes(` ${nomeG}`) || det.includes(`#${numG}-${nomeG}`))) return true;
-        
-        if (numG) {
-          if (det.includes(`#${numG} `) || det.includes(` #${numG}`) || det.includes(`-#${numG}`) || det.includes(`(${numG})`) || det.includes(`[${numG}]`)) {
-            // Verifica ulteriore che il nome o il numero combacino davvero in questo specifico evento
-            if (det.includes(nomeG) || det.includes(`#${numG}`)) return true;
-          }
-        }
-        return false;
+        if (!det) return false;
+
+        // Cerca il numero di maglia esatto delimitato (es. "#7 " o "#7-" o "(7)")
+        const matchNumeroEsatto = numG && (
+          det.includes(`#${numG} `) || 
+          det.includes(` #${numG}`) || 
+          det.includes(`-#${numG}`) || 
+          det.includes(`(${numG})`) || 
+          det.includes(`[${numG}]`) ||
+          det.startsWith(`${numG} `) ||
+          det.endsWith(` #${numG}`)
+        );
+
+        // Cerca il cognome/nome esatto all'interno della stringa dell'evento
+        const matchNomeEsatto = nomeG && det.includes(nomeG);
+
+        // L'evento appartiene al giocatore SOLO SE il suo numero esatto O il suo nome compaiono nel dettaglio
+        return matchNumeroEsatto || matchNomeEsatto;
       };
 
       let descEventi = [];
@@ -422,12 +435,20 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       });
 
       cambi.forEach(c => {
-        if (c.esceId === idG || (numG && (c.dettagli || '').toUpperCase().includes(`ESCE #${numG}`))) {
-          descEventi.push(`[Esce ${c.minuto}']`);
-        }
-        if (c.entraId === idG || (numG && (c.dettagli || '').toUpperCase().includes(`ENTRA #${numG}`))) {
-          descEventi.push(`[Entra ${c.minuto}']`);
-        }
+        // Controllo specifico per i cambi in entrata/uscita basato su ID o numeri delimitati
+        const eEsce = c.esceId === idG || (numG && (
+          (c.dettagli || '').toUpperCase().includes(`ESCE #${numG} `) || 
+          (c.dettagli || '').toUpperCase().includes(`ESCE #${numG}`) ||
+          (c.dettagli || '').toUpperCase().includes(`-#${numG}`)
+        ));
+        
+        const eEntra = c.entraId === idG || (numG && (
+          (c.dettagli || '').toUpperCase().includes(`ENTRA #${numG} `) || 
+          (c.dettagli || '').toUpperCase().includes(`ENTRA #${numG}`)
+        ));
+
+        if (eEsce) descEventi.push(`[Esce ${c.minuto}']`);
+        if (eEntra) descEventi.push(`[Entra ${c.minuto}']`);
       });
 
       const suffissoEventi = descEventi.length > 0 ? ` - ${descEventi.join(' ')}` : '';
@@ -438,7 +459,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       const statoVal = (g.minuti === 0 && !g.isTitolare) ? "Panchina" : "Titolare";
       const votoVal = g.voto ? String(g.voto) : "-";
 
-      // Calcolo altezza riga dinamica per evitare sovrapposizioni
       const lineeNome = doc.splitTextToSize(nomeCompleto, 82);
       const altezzaRiga = Math.max(6, lineeNome.length * 4.5);
 
