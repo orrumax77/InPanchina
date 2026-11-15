@@ -237,7 +237,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     return t;
   };
   
-  // 📄 Funzione per generare il PDF ufficiale con associazione eventi pulita e mirata
+  // 📄 Funzione per generare il PDF ufficiale con associazione eventi sicura tramite ID e numeri certi
   const generaPDFReferto = async (p) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -387,68 +387,51 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
       const numG = String(g.numero || '').trim();
       const idG = g.id;
-      const nomeG = (g.nome || '').toUpperCase().trim();
-
-      // 🛡️ CONTROLLO ESTREMAMENTE SELETTIVO PER EVITARE FALSI POSITIVI SU PITASSI
-      const matchGiocatore = (ev) => {
-        if (!ev) return false;
-        
-        // Controllo diretto tramite ID univoci se presenti nell'evento
-        if (ev.giocatoreId && ev.giocatoreId === idG) return true;
-        if (ev.esceId && ev.esceId === idG) return true;
-        if (ev.entraId && ev.entraId === idG) return true;
-        if (ev.giocatore_id && ev.giocatore_id === idG) return true;
-
-        const det = (ev.dettagli || '').toUpperCase();
-        if (!det) return false;
-
-        // Cerca il numero di maglia esatto delimitato (es. "#7 " o "#7-" o "(7)")
-        const matchNumeroEsatto = numG && (
-          det.includes(`#${numG} `) || 
-          det.includes(` #${numG}`) || 
-          det.includes(`-#${numG}`) || 
-          det.includes(`(${numG})`) || 
-          det.includes(`[${numG}]`) ||
-          det.startsWith(`${numG} `) ||
-          det.endsWith(` #${numG}`)
-        );
-
-        // Cerca il cognome/nome esatto all'interno della stringa dell'evento
-        const matchNomeEsatto = nomeG && det.includes(nomeG);
-
-        // L'evento appartiene al giocatore SOLO SE il suo numero esatto O il suo nome compaiono nel dettaglio
-        return matchNumeroEsatto || matchNomeEsatto;
-      };
 
       let descEventi = [];
 
+      // 1. Controllo Gol tramite ID o match rigoroso del numero esatto (es. #7 o (7))
       reti.forEach(r => {
-        if (matchGiocatore(r)) descEventi.push(`[Gol ${r.minuto}']`);
+        const matchId = r.giocatoreId === idG || r.giocatore_id === idG;
+        const matchTesto = numG && (r.det || r.dettagli || '').toUpperCase().includes(`#${numG} `);
+        if (matchId || matchTesto) {
+          descEventi.push(`[Gol ${r.minuto}']`);
+        }
       });
 
+      // 2. Controllo Ammonizioni
       ammonizioniEventi.forEach(a => {
-        if (matchGiocatore(a)) descEventi.push(`[Ammonito ${a.minuto}']`);
+        const matchId = a.giocatoreId === idG || a.giocatore_id === idG;
+        const matchTesto = numG && (a.det || a.dettagli || '').toUpperCase().includes(`#${numG} `);
+        if (matchId || matchTesto) {
+          descEventi.push(`[Ammonito ${a.minuto}']`);
+        }
       });
 
+      // 3. Controllo Espulsioni
       espulsioniEventi.forEach(e => {
-        if (matchGiocatore(e)) descEventi.push(`[Espulso ${e.minuto}']`);
+        const matchId = e.giocatoreId === idG || e.giocatore_id === idG;
+        const matchTesto = numG && (e.det || e.dettagli || '').toUpperCase().includes(`#${numG} `);
+        if (matchId || matchTesto) {
+          descEventi.push(`[Espulso ${e.minuto}']`);
+        }
       });
 
+      // 4. Controllo Sostituzioni (esce / entra)
       cambi.forEach(c => {
-        // Controllo specifico per i cambi in entrata/uscita basato su ID o numeri delimitati
-        const eEsce = c.esceId === idG || (numG && (
-          (c.dettagli || '').toUpperCase().includes(`ESCE #${numG} `) || 
-          (c.dettagli || '').toUpperCase().includes(`ESCE #${numG}`) ||
-          (c.dettagli || '').toUpperCase().includes(`-#${numG}`)
-        ));
+        const matchEsceId = c.esceId === idG;
+        const matchEntraId = c.entraId === idG;
+        const detC = (c.det || c.dettagli || '').toUpperCase();
         
-        const eEntra = c.entraId === idG || (numG && (
-          (c.dettagli || '').toUpperCase().includes(`ENTRA #${numG} `) || 
-          (c.dettagli || '').toUpperCase().includes(`ENTRA #${numG}`)
-        ));
+        const matchEsceTesto = numG && (detC.includes(`ESCE #${numG} `) || detC.includes(`ESCE #${numG}`));
+        const matchEntraTesto = numG && (detC.includes(`ENTRA #${numG} `) || detC.includes(`ENTRA #${numG}`));
 
-        if (eEsce) descEventi.push(`[Esce ${c.minuto}']`);
-        if (eEntra) descEventi.push(`[Entra ${c.minuto}']`);
+        if (matchEsceId || matchEsceTesto) {
+          descEventi.push(`[Esce ${c.minuto}']`);
+        }
+        if (matchEntraId || matchEntraTesto) {
+          descEventi.push(`[Entra ${c.minuto}']`);
+        }
       });
 
       const suffissoEventi = descEventi.length > 0 ? ` - ${descEventi.join(' ')}` : '';
