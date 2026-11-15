@@ -876,3 +876,21 @@ export async function adminModificaPasswordUtente(utenteId, nuovaPassword) {
   if (error) throw error;
   return { success: true };
 }
+
+export async function salvaStaffBaseSocieta(societaId, staffBaseObj) {
+  try {
+    const { error } = await supabase
+      .from('societa')
+      .update({ staff_base: staffBaseObj })
+      .eq('id', societaId);
+
+    if (error) {
+      console.error("Errore salvataggio staff base:", error);
+      return { success: false, error };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error("Errore imprevisto in salvaStaffBaseSocieta:", err);
+    return { success: false, error: err };
+  }
+}
