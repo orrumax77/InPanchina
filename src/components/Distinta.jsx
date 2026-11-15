@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar, CheckCircle2, UserCog, ArrowUpDown } from 'lucide-react';
+import { UserCheck, Shield, Plus, Users, Trash2, MapPin, Pencil, Check, X, ArrowLeftRight, Calendar, CheckCircle2, UserCog, ArrowUpDown, AlertCircle } from 'lucide-react';
 import { 
   salvaRosaBaseSocieta, 
   salvaBozzaPartitaSuDb, 
@@ -49,6 +49,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
   const [giocatori, setGiocatori] = useState([]);
   const [salvataggioNotifica, setSalvataggioNotifica] = useState(false);
+  const [mostraModaleConferma, setMostraModaleConferma] = useState(false);
 
   // Campi per nuovo giocatore
   const [nuovoNome, setNuovoNome] = useState('');
@@ -324,15 +325,15 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const target = giocatori.find(g => g.id === id);
     if (!target || !target.isConvocato) return;
 
-    const nuevaLista = ordinaDistinta(giocatori.map(g => ({
+    const nuovaLista = ordinaDistinta(giocatori.map(g => ({
       ...g,
       isCapitano: g.id === id ? !g.isCapitano : false,
       isVice: g.id === id ? false : g.isVice
     })));
-    setGiocatori(nuevaLista);
-    aggiornaRosaGlobale(nuevaLista);
+    setGiocatori(nuovaLista);
+    aggiornaRosaGlobale(nuovaLista);
 
-    await salvaRosaBaseSocieta(societa.id, nuevaLista, undefined, campionato, annata);
+    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -340,15 +341,15 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const target = giocatori.find(g => g.id === id);
     if (!target || !target.isConvocato) return;
 
-    const nuevaLista = ordinaDistinta(giocatori.map(g => ({
+    const nuovaLista = ordinaDistinta(giocatori.map(g => ({
       ...g,
       isVice: g.id === id ? !g.isVice : false,
       isCapitano: g.id === id ? false : g.isCapitano
     })));
-    setGiocatori(nuevaLista);
-    aggiornaRosaGlobale(nuevaLista);
+    setGiocatori(nuovaLista);
+    aggiornaRosaGlobale(nuovaLista);
 
-    await salvaRosaBaseSocieta(societa.id, nuevaLista, undefined, campionato, annata);
+    await salvaRosaBaseSocieta(societa.id, nuovaLista, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -472,7 +473,8 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setEditNumero('');
   };
 
-  const handleConferma = () => {
+  // 🏁 Cliccando sul pulsante principale, apre prima il modale di riepilogo
+  const handleCliccaConferma = () => {
     if (!partitaInfo.squadraCasa.trim() || !partitaInfo.squadraOspite.trim()) {
       alert("Inserisci il nome di entrambe le squadre!");
       return;
@@ -485,6 +487,12 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       alert("Devi selezionare esattamente 11 titolari!");
       return;
     }
+    setMostraModaleConferma(true);
+  };
+
+  // 🚀 Conferma definitiva dentro il modale
+  const handleConfermaDefinitiva = () => {
+    setMostraModaleConferma(false);
 
     const giocatoriNormalizzati = giocatori
       .filter(g => g.isConvocato)
@@ -502,9 +510,86 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
   const numeroSuggeritoPlaceholder = trovaSuccessivoNumeroLibero();
   const giocatoriOrdinati = ordinaDistinta(giocatori, criterioOrdinamento);
+  const giocatoriConvocatiRiepilogo = giocatoriOrdinati.filter(g => g.isConvocato);
 
   return (
-    <div className="max-w-4xl mx-auto p-3 sm:p-4 space-y-5 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
+    <div className="max-w-4xl mx-auto p-3 sm:p-4 space-y-5 bg-slate-900 text-slate-100 rounded-2xl shadow-xl relative">
+      
+      {/* 🛑 MODALE DI RIEPILOGO CONVOCATI PRIMA DI AVVIARE LA LIVE */}
+      {mostraModaleConferma && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4 animate-in fade-in select-none">
+          <div className="bg-slate-900 border-2 border-emerald-500/80 rounded-3xl p-5 sm:p-6 max-w-xl w-full space-y-5 shadow-2xl shadow-emerald-950 max-h-[90vh] flex flex-col">
+            
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 flex-shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-white uppercase tracking-tight">Riepilogo Convocati e Titolari</h2>
+                <p className="text-xs text-slate-400 uppercase font-medium truncate">
+                  {partitaInfo.squadraCasa} vs {partitaInfo.squadraOspite}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase">
+              <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-1 rounded-full">
+                Convocati: {convocatiCount}
+              </span>
+              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full">
+                Titolari: {titolariCount} / 11
+              </span>
+              <span className="bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1 rounded-full">
+                Panchina / Tribuna: {convocatiCount - titolariCount}
+              </span>
+            </div>
+
+            {/* Lista Scrollabile dei Convocati */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-800/80 bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-[350px]">
+              {giocatoriConvocatiRiepilogo.map((g, index) => (
+                <div key={g.id} className={`pt-2 first:pt-0 flex items-center justify-between text-xs font-semibold ${g.isTitolare ? 'text-white' : 'text-slate-400'}`}>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-6 h-6 rounded bg-slate-900 border border-slate-700 flex items-center justify-center font-mono text-emerald-400 text-xs font-bold flex-shrink-0">
+                      {g.numero}
+                    </span>
+                    <span className="uppercase truncate">{g.nome}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {g.isCapitano && <span className="bg-amber-500 text-black px-1.5 py-0.5 rounded text-[9px] font-black">C</span>}
+                    {g.isVice && <span className="bg-sky-500 text-black px-1.5 py-0.5 rounded text-[9px] font-black">VC</span>}
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${g.isTitolare ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400'}`}>
+                      {g.isTitolare ? 'Titolare' : 'Panchina'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-slate-400 uppercase text-center font-medium">
+              Vuoi procedere con l'avvio della partita in tempo reale?
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setMostraModaleConferma(false)}
+                className="py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold uppercase transition cursor-pointer"
+              >
+                No, Torna Indietro
+              </button>
+              <button
+                type="button"
+                onClick={handleConfermaDefinitiva}
+                className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase transition cursor-pointer shadow-lg shadow-emerald-950"
+              >
+                Sì, Avvia Live
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-3 sm:gap-4 bg-slate-950 p-3 sm:p-4 rounded-xl border border-slate-800">
         {societa?.logo_url ? (
           <img
@@ -957,7 +1042,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
       <div className="pt-2">
         <button
-          onClick={handleConferma}
+          onClick={handleCliccaConferma}
           disabled={convocatiCount > 20 || titolariCount !== 11}
           className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider flex justify-center items-center gap-2 transition ${
             convocatiCount <= 20 && titolariCount === 11 
