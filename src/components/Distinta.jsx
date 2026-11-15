@@ -88,18 +88,9 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     };
   }, [societa?.id]);
 
-  // 🗂️ Ordinamento dinamico che accetta esplicitamente il criterio
+  // 🗂️ Ordinamento pulito per la distinta: segue rigorosamente la scelta dell'utente (numero o alfabetico)
   const ordinaDistinta = (lista, criterio = criterioOrdinamento) => {
     return [...lista].sort((a, b) => {
-      // 1. I titolari convocati vanno SEMPRE sopra i panchinari/tribuna
-      const titolareA = (a.isTitolare && a.isConvocato) ? 1 : 0;
-      const titolareB = (b.isTitolare && b.isConvocato) ? 1 : 0;
-
-      if (titolareA !== titolareB) {
-        return titolareB - titolareA;
-      }
-
-      // 2. A parità di ruolo, ordina secondo il criterio passato
       if (criterio === 'alfabetico') {
         const nomeA = (a.nome || '').trim().toUpperCase();
         const nomeB = (b.nome || '').trim().toUpperCase();
@@ -112,17 +103,15 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     });
   };
 
-  // Funzione per cambiare criterio, aggiornare lo stato e salvare sul DB
+  // Funzione per cambiare criterio, aggiornare la vista all'istante e salvarlo sul DB
   const handleCambiaCriterioOrdinamento = async (e) => {
     const nuovoCriterio = e.target.value;
     setCriterioOrdinamento(nuovoCriterio);
 
-    // Riordina subito la lista passando esplicitamente il nuovo criterio
     const listaOrdinata = ordinaDistinta(giocatori, nuovoCriterio);
     setGiocatori(listaOrdinata);
     aggiornaRosaGlobale(listaOrdinata);
 
-    // Salva sul Database Cloud
     if (societa?.id) {
       const nuovoStaffBase = {
         ...(societa.staff_base || {}),
