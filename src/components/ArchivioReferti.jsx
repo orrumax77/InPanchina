@@ -237,8 +237,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     return t;
   };
   
-  // 📄 Funzione per generare il PDF ufficiale, dinamico e formale con logo centrato in testa
-  // 📄 Funzione per generare il PDF ufficiale con eventi integrati nella tabella della rosa
+  // 📄 Funzione per generare il PDF ufficiale con eventi testuali chiari e minuti dei cambi
   const generaPDFReferto = async (p) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -361,7 +360,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     doc.text("VOTO", pageWidth - 18, y + 4.2, { align: "right" });
     y += 6;
 
-    // Estrazione eventi per il matching
+    // Estrazione eventi
     const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
     const reti = eventi.filter(e => e.tipo === 'GOL');
     const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
@@ -392,7 +391,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         doc.rect(15, y, pageWidth - 30, 5.5, "F");
       }
 
-      // Ricerca eventi associati al giocatore
       const numG = String(g.numero || '').trim();
       const idG = g.id;
       const nomeG = (g.nome || '').toUpperCase().trim();
@@ -406,25 +404,41 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         return false;
       };
 
-      const haSegnato = reti.some(r => matchGiocatore(r));
-      const eventoAmm = ammonizioniEventi.find(a => matchGiocatore(a));
-      const eventoEsp = espulsioniEventi.find(e => matchGiocatore(e));
-      const haSubitoCambio = cambi.some(c => c.esceId === idG || c.entraId === idG || (numG && (c.dettagli || '').toUpperCase().includes(`#${numG}`)));
+      // Raccolta descrittiva testuale degli eventi per il giocatore
+      let descEventi = [];
 
-      let iconeEventi = '';
-      if (haSegnato) iconeEventi += ' ⚽';
-      if (eventoAmm) iconeEventi += ' 🟨';
-      if (eventoEsp) iconeEventi += ' 🟥';
-      if (haSubitoCambio) iconeEventi += ' 🔄';
+      reti.forEach(r => {
+        if (matchGiocatore(r)) descEventi.push(`[Gol ${r.minuto}']`);
+      });
 
+      ammonizioniEventi.forEach(a => {
+        if (matchGiocatore(a)) descEventi.push(`[Ammonito ${a.minuto}']`);
+      });
+
+      espulsioniEventi.forEach(e => {
+        if (matchGiocatore(e)) descEventi.push(`[Espulso ${e.minuto}']`);
+      });
+
+      cambi.forEach(c => {
+        if (c.esceId === idG || (numG && (c.dettagli || '').toUpperCase().includes(`ESCE #${numG}`))) {
+          descEventi.push(`[Esce ${c.minuto}']`);
+        }
+        if (c.entraId === idG || (numG && (c.dettagli || '').toUpperCase().includes(`ENTRA #${numG}`))) {
+          descEventi.push(`[Entra ${c.minuto}']`);
+        }
+      });
+
+      const suffissoEventi = descEventi.length > 0 ? ` - ${descEventi.join(' ')}` : '';
       const fascia = g.isCapitano ? ' (C)' : g.isVice ? ' (VC)' : '';
-      const nomeCompleto = `${g.nome || ''}${fascia}${iconeEventi}`.toUpperCase();
+      const nomeCompleto = `${g.nome || ''}${fascia}${suffissoEventi}`.toUpperCase();
+      
       const minutiVal = g.minuti !== undefined && g.minuti !== null ? `${g.minuti}'` : "0'";
       const statoVal = (g.minuti === 0 && !g.isTitolare) ? "Panchina" : "Titolare";
       const votoVal = g.voto ? String(g.voto) : "-";
 
       doc.text(String(g.numero || ''), 18, y + 3.8);
-      doc.text(nomeCompleto, 28, y + 3.8);
+      // Tronca il testo se troppo lungo per evitare sbordamenti nella tabella
+      doc.text(doc.splitTextToSize(nomeCompleto, 85), 28, y + 3.8);
       doc.text(minutiVal, 115, y + 3.8);
       doc.text(statoVal, 135, y + 3.8);
       doc.text(votoVal, pageWidth - 18, y + 3.8, { align: "right" });
