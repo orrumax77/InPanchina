@@ -18,7 +18,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   const staffSocieta = societa?.staff_base || {};
   const nomeSocietaUfficiale = (societa?.nome || '').toUpperCase();
 
-  // 🗂️ Legge il criterio di ordinamento salvato nel DB della società (default 'numero')
+  // 🗂️ Legge il criterio salvato nel DB (default 'numero')
   const [criterioOrdinamento, setCriterioOrdinamento] = useState(() => {
     return staffSocieta?.criterio_ordinamento_distinta || 'numero';
   });
@@ -88,7 +88,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     };
   }, [societa?.id]);
 
-  // 🗂️ Ordinamento puro per la distinta senza vincoli sui titolari in cima
+  // 🗂️ Funzione di ordinamento basata sul criterio corrente (numero o alfabetico)
   const ordinaDistinta = (lista, criterio = criterioOrdinamento) => {
     return [...lista].sort((a, b) => {
       if (criterio === 'alfabetico') {
@@ -103,7 +103,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     });
   };
 
-  // Funzione per cambiare criterio, aggiornare la vista all'istante e salvarlo sul DB
+  // Funzione per cambiare criterio, aggiornare lo stato e salvarlo sul DB
   const handleCambiaCriterioOrdinamento = async (e) => {
     const nuovoCriterio = e.target.value;
     setCriterioOrdinamento(nuovoCriterio);
@@ -137,9 +137,8 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     
     const dataPartitaVal = partitaIniziale?.dataPartita || staff.dataPartita || oggiISO;
 
-    if (staff?.criterio_ordinamento_distinta) {
-      setCriterioOrdinamento(staff.criterio_ordinamento_distinta);
-    }
+    const criterioDb = staff?.criterio_ordinamento_distinta || 'numero';
+    setCriterioOrdinamento(criterioDb);
 
     setPartitaInfo(prev => ({
       ...prev,
@@ -167,7 +166,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         nome: (g.nome || '').toUpperCase(),
         isConvocato: g.isConvocato ?? (index < 20)
       }));
-      setGiocatori(ordinaDistinta(formattati, staff?.criterio_ordinamento_distinta || criterioOrdinamento));
+      setGiocatori(ordinaDistinta(formattati, criterioDb));
     }
 
     setTimeout(() => {
@@ -342,7 +341,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     const target = giocatori.find(g => g.id === id);
     if (!target || !target.isConvocato) return;
 
-    const nuovaLista = ordinaDistinta(giocatori.map(g => ({
+    const nuevaLista = ordinaDistinta(giocatori.map(g => ({
       ...g,
       isVice: g.id === id ? !g.isVice : false,
       isCapitano: g.id === id ? false : g.isCapitano
@@ -464,7 +463,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setEditingId(null);
 
     await dbModificaGiocatore(societa.id, aggiornato, campionato, annata);
-    await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined, campionato, annata);
+    await salvaRosaBaseSocieta(societa.id, nuevaRosa, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
 
@@ -498,7 +497,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
     onConfermaDistinta({ 
       partitaInfo, 
-      giocatori: ordinaDistinta(giocatoriNormalizzati) 
+      giocatori: ordinaDistinta(giocatoriNormalizzati, criterioOrdinamento) 
     });
   };
 
