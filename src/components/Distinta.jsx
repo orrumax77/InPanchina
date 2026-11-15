@@ -88,7 +88,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     };
   }, [societa?.id]);
 
-  // 🗂️ Ordinamento pulito per la distinta: segue rigorosamente la scelta dell'utente (numero o alfabetico)
+  // 🗂️ Ordinamento puro per la distinta senza vincoli sui titolari in cima
   const ordinaDistinta = (lista, criterio = criterioOrdinamento) => {
     return [...lista].sort((a, b) => {
       if (criterio === 'alfabetico') {
@@ -167,13 +167,13 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         nome: (g.nome || '').toUpperCase(),
         isConvocato: g.isConvocato ?? (index < 20)
       }));
-      setGiocatori(ordinaDistinta(formattati));
+      setGiocatori(ordinaDistinta(formattati, staff?.criterio_ordinamento_distinta || criterioOrdinamento));
     }
 
     setTimeout(() => {
       isLoaded.current = true;
     }, 200);
-  }, [societa, partitaIniziale, rosaIniziale, oggiISO, criterioOrdinamento]);
+  }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
 
   const mostraNotificaSalvataggio = () => {
     setSalvataggioNotifica(true);
