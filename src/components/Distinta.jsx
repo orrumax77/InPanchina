@@ -113,15 +113,37 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     });
   };
 
-  // Funzione per cambiare criterio e salvarlo subito sul Cloud (Database)
+  // Funzione per cambiare criterio, aggiornare la vista all'istante e salvarlo sul Cloud
   const handleCambiaCriterioOrdinamento = async (e) => {
     const nuovoCriterio = e.target.value;
     setCriterioOrdinamento(nuovoCriterio);
 
-    const listaOrdinata = ordinaDistinta(giocatori);
-    setGiocatori(listaOrdinata);
-    aggiornaRosaGlobale(listaOrdinata);
+    // 🚀 Forza subito il riordinamento immediato della lista a schermo
+    setGiocatori(prevGiocatori => {
+      return [...prevGiocatori].sort((a, b) => {
+        const titolareA = (a.isTitolare && a.isConvocato) ? 1 : 0;
+        const titolareB = (b.isTitolare && b.isConvocato) ? 1 : 0;
 
+        if (titolareA !== titolareB) {
+          return titolareB - titolareA;
+        }
+
+        if (nuovoCriterio === 'alfabetico') {
+          const nomeA = (a.nome || '').trim().toUpperCase();
+          const nomeB = (b.nome || '').trim().toUpperCase();
+          return nomeA.localeCompare(nomeB);
+        } else {
+          const numA = parseInt(a.numero, 10) || 0;
+          const numB = parseInt(b.numero, 10) || 0;
+          return numA - numB;
+        }
+      });
+    });
+
+    // Aggiorna anche la rosa globale per il componente padre
+    aggiornaRosaGlobale(giocatori);
+
+    // Salva la preferenza sul Database
     if (societa?.id) {
       const nuovoStaffBase = {
         ...(societa.staff_base || {}),
