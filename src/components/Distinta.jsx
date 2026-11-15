@@ -724,7 +724,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
           />
         </div>
         <div className="flex-1 min-w-[180px]">
-          <label className="text-[11px] sm:text-xs text-slate-400 uppercase font-semibold">Nome e Cognome Giocatore</label>
+          <label className="text-[11px] sm:text-xs text-slate-400 uppercase font-semibold">Cognome e Nome Giocatore</label>
           <input
             type="text"
             value={nuovoNome}
