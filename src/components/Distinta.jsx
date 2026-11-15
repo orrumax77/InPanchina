@@ -88,24 +88,23 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     };
   }, [societa?.id]);
 
-  // 🗂️ Ordinamento dinamico in base alla scelta salvata nel Database
-  const ordinaDistinta = (lista) => {
+  // 🗂️ Ordinamento dinamico che accetta esplicitamente il criterio
+  const ordinaDistinta = (lista, criterio = criterioOrdinamento) => {
     return [...lista].sort((a, b) => {
       // 1. I titolari convocati vanno SEMPRE sopra i panchinari/tribuna
       const titolareA = (a.isTitolare && a.isConvocato) ? 1 : 0;
       const titolareB = (b.isTitolare && b.isConvocato) ? 1 : 0;
 
       if (titolareA !== titolareB) {
-        return titolareB - titolareA; // Chi è titolare va in cima (-1)
+        return titolareB - titolareA;
       }
 
-      // 2. A parità di ruolo, ordina secondo il criterio scelto
-      if (criterioOrdinamento === 'alfabetico') {
+      // 2. A parità di ruolo, ordina secondo il criterio passato
+      if (criterio === 'alfabetico') {
         const nomeA = (a.nome || '').trim().toUpperCase();
         const nomeB = (b.nome || '').trim().toUpperCase();
         return nomeA.localeCompare(nomeB);
       } else {
-        // Default: numero di maglia crescente
         const numA = parseInt(a.numero, 10) || 0;
         const numB = parseInt(b.numero, 10) || 0;
         return numA - numB;
@@ -113,37 +112,17 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     });
   };
 
-  // Funzione per cambiare criterio, aggiornare la vista all'istante e salvarlo sul Cloud
+  // Funzione per cambiare criterio, aggiornare lo stato e salvare sul DB
   const handleCambiaCriterioOrdinamento = async (e) => {
     const nuovoCriterio = e.target.value;
     setCriterioOrdinamento(nuovoCriterio);
 
-    // 🚀 Forza subito il riordinamento immediato della lista a schermo
-    setGiocatori(prevGiocatori => {
-      return [...prevGiocatori].sort((a, b) => {
-        const titolareA = (a.isTitolare && a.isConvocato) ? 1 : 0;
-        const titolareB = (b.isTitolare && b.isConvocato) ? 1 : 0;
+    // Riordina subito la lista passando esplicitamente il nuovo criterio
+    const listaOrdinata = ordinaDistinta(giocatori, nuovoCriterio);
+    setGiocatori(listaOrdinata);
+    aggiornaRosaGlobale(listaOrdinata);
 
-        if (titolareA !== titolareB) {
-          return titolareB - titolareA;
-        }
-
-        if (nuovoCriterio === 'alfabetico') {
-          const nomeA = (a.nome || '').trim().toUpperCase();
-          const nomeB = (b.nome || '').trim().toUpperCase();
-          return nomeA.localeCompare(nomeB);
-        } else {
-          const numA = parseInt(a.numero, 10) || 0;
-          const numB = parseInt(b.numero, 10) || 0;
-          return numA - numB;
-        }
-      });
-    });
-
-    // Aggiorna anche la rosa globale per il componente padre
-    aggiornaRosaGlobale(giocatori);
-
-    // Salva la preferenza sul Database
+    // Salva sul Database Cloud
     if (societa?.id) {
       const nuovoStaffBase = {
         ...(societa.staff_base || {}),
@@ -535,7 +514,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   };
 
   const numeroSuggeritoPlaceholder = trovaSuccessivoNumeroLibero();
-  const giocatoriOrdinati = ordinaDistinta(giocatori);
+  const giocatoriOrdinati = ordinaDistinta(giocatori, criterioOrdinamento);
 
   return (
     <div className="max-w-4xl mx-auto p-3 sm:p-4 space-y-5 bg-slate-900 text-slate-100 rounded-2xl shadow-xl">
