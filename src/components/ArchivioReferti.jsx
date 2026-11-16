@@ -183,16 +183,9 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
           if (nomeG && det.includes(nomeG)) return true;
           
           if (numG) {
-            if (
-              det.includes(`#${numG} `) || 
-              det.includes(` #${numG}`) || 
-              det.includes(`-#${numG}`) || 
-              det.includes(`(${numG})`) ||
-              det.includes(`[${numG}]`) ||
-              det.endsWith(`#${numG}`)
-            ) {
-              return true;
-            }
+            // Utilizzo di una Regex con confine di parola (\b) per evitare che #1 matchi con #10, #11, ecc.
+            const regexNum = new RegExp(`#${numG}\\b`, 'i');
+            if (regexNum.test(det)) return true;
           }
           return false;
         };
@@ -208,7 +201,10 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const haSubitoCambio = cambi.some(c => {
           if (c.esceId === idG || c.entraId === idG) return true;
           const det = (c.dettagli || '').toUpperCase();
-          if (numG && (det.includes(`ESCE #${numG} `) || det.includes(`ENTRA #${numG} `))) return true;
+          if (numG) {
+            const regexCambio = new RegExp(`(ESCE|ENTRA)\\s*#${numG}\\b`, 'i');
+            if (regexCambio.test(det)) return true;
+          }
           return false;
         });
 
@@ -362,6 +358,10 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     // Estrazione eventi dal database
     const eventi = eventiDbDettaglio[p.id] || p.referto_eventi || [];
+    const reti = eventi.filter(e => e.tipo === 'GOL');
+    const cambi = eventi.filter(e => e.tipo === 'SOSTITUZIONE');
+    const ammonizioniEventi = eventi.filter(e => e.tipo === 'AMMONIZIONE');
+    const espulsioniEventi = eventi.filter(e => e.tipo === 'ESPULSIONE');
 
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "normal");
@@ -382,26 +382,43 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       }
 
       const idG = g.id;
+      const numG = String(g.numero || '').trim();
+      const nomeG = (g.nome || '').toUpperCase().trim();
       let descEventi = [];
 
-      // Filtro basato ESCLUSIVAMENTE sui puntamenti ID univoci salvati negli eventi
-      eventi.forEach(ev => {
-        const minEv = ev.minuto;
-        const eId = ev.giocatoreId || ev.esceId || ev.entraId || ev.giocatore_id;
+      // 🛡️ MATCHING BLINDATO IDENTICO A WHATSAPP CON REGEX DI PRECISIONE
+      const matchGiocatore = (ev) => {
+        if (!ev) return false;
+        if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
         
-        // Se l'ID corrisponde perfettamente al giocatore corrente
-        if (eId && eId === idG) {
-          if (ev.tipo === 'GOL') {
-            descEventi.push(`[Gol ${minEv}']`);
-          } else if (ev.tipo === 'AMMONIZIONE') {
-            descEventi.push(`[Ammonito ${minEv}']`);
-          } else if (ev.tipo === 'ESPULSIONE') {
-            descEventi.push(`[Espulso ${minEv}']`);
-          } else if (ev.tipo === 'SOSTITUZIONE') {
-            if (ev.esceId === idG) descEventi.push(`[Esce ${minEv}']`);
-            if (ev.entraId === idG) descEventi.push(`[Entra ${minEv}']`);
-          }
+        const det = (ev.dettagli || '').toUpperCase();
+        if (nomeG && det.includes(nomeG)) return true;
+        
+        if (numG) {
+          const regexNum = new RegExp(`#${numG}\\b`, 'i');
+          if (regexNum.test(det)) return true;
         }
+        return false;
+      };
+
+      reti.forEach(r => {
+        if (matchGiocatore(r)) descEventi.push(`[Gol ${r.minuto}']`);
+      });
+
+      ammonizioniEventi.forEach(a => {
+        if (matchGiocatore(a)) descEventi.push(`[Ammonito ${a.minuto}']`);
+      });
+
+      espulsioniEventi.forEach(e => {
+        if (matchGiocatore(e)) descEventi.push(`[Espulso ${e.minuto}']`);
+      });
+
+      cambi.forEach(c => {
+        const esceMatch = c.esceId === idG || (numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
+        const entraMatch = c.entraId === idG || (numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
+
+        if (esceMatch) descEventi.push(`[Esce ${c.minuto}']`);
+        if (entraMatch) descEventi.push(`[Entra ${c.minuto}']`);
       });
 
       const suffissoEventi = descEventi.length > 0 ? ` - ${descEventi.join(' ')}` : '';
