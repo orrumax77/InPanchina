@@ -477,10 +477,7 @@ export async function getSocietaById(societaId) {
   return data;
 }
 
-// ⏱️ Funzione con LOG DI DEBUG ESTREMO per tracciare ogni calcolo dei minuti
-// ⏱️ Funzione con LOG DI DEBUG ESTREMO per tracciare ogni calcolo dei minuti
-// ⏱️ Funzione Definitiva al Millimetro con Log
-// ⏱️ Funzione Definitiva basata sugli ID e sulla cronologia reale degli eventi
+// ⏱️ Funzione Definitiva con Correzione Blindata per il Portiere (#1)
 export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePartita) {
   const idG = String(giocatore.id || '').trim();
   const numG = String(giocatore.numero || '').trim();
@@ -490,7 +487,9 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
   const eventiCronologici = [...(eventiPartita || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
 
   let haSubitoIngresso = false;
-  let eraCertamenteTitolare = false;
+  
+  // 🛡️ CORRETTORE BLINDATO: Partiamo dallo stato reale salvato nel database (isTitolare / is_titolare)
+  let eraCertamenteTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
 
   for (const ev of eventiCronologici) {
     const entraId = String(ev.entraId || '').trim();
@@ -513,12 +512,7 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     }
   }
 
-  const flagDbTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
-  let inCampo = haSubitoIngresso ? false : (eraCertamenteTitolare || flagDbTitolare);
-  
-  if (!haSubitoIngresso && !eraCertamenteTitolare && !flagDbTitolare && giocatore.isTitolare !== false && giocatore.is_titolare !== false) {
-    inCampo = true; 
-  }
+  let inCampo = haSubitoIngresso ? false : eraCertamenteTitolare;
   if (haSubitoIngresso) {
     inCampo = false;
   }
