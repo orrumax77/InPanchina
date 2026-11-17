@@ -9,7 +9,8 @@ import {
   UserPlus, 
   Sparkles, 
   X, 
-  Check
+  Check,
+  FileText
 } from 'lucide-react';
 import { aggiornaGiocatoriCloud } from '../services/db';
 
@@ -37,6 +38,8 @@ export default function GestioneEventi({
   const [modalGol, setModalGol] = useState(false);
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
   const [modalSostituzione, setModalSostituzione] = useState(false);
+  const [modalNota, setModalNota] = useState(false); // 📝 Stato modale nota
+  const [testoNota, setTestoNota] = useState(''); // 📝 Testo inserito nella nota
 
   const [selezionatoEsce, setSelezionatoEsce] = useState(null);
   const [selezionatoEntra, setSelezionatoEntra] = useState(null);
@@ -111,6 +114,29 @@ export default function GestioneEventi({
     setModalAmmonizione(true);
   };
 
+  // 📝 Funzione per aprire il modale nota
+  const apriModalNota = () => {
+    if (!verificaTimerAvviato()) return;
+    setTestoNota('');
+    setModalNota(true);
+  };
+
+  // 📝 Funzione per salvare la nota
+  const handleSalvaNota = () => {
+    if (!testoNota.trim()) return;
+
+    onNuovoEvento({
+      id: Date.now().toString(),
+      minuto: minutoCorrente,
+      tempo: tempoGara,
+      tipo: 'NOTA',
+      dettagli: `Nota: ${testoNota.trim()}`
+    });
+
+    setModalNota(false);
+    setTestoNota('');
+  };
+
   const handleAmmonizione = async (giocatoreId) => {
     const target = giocatori.find(g => g.id === giocatoreId);
     if (!target) return;
@@ -141,7 +167,7 @@ export default function GestioneEventi({
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: espulso ? 'ESPULSIONE' : 'AMMONIZIONE',
-      giocatoreId: giocatoreId, // Passaggio esplicito dell'ID
+      giocatoreId: giocatoreId,
       dettagli: espulso 
         ? `Doppia Ammonizione / Espulsione: #${target.numero} ${target.nome}` 
         : `Ammonizione: #${target.numero} ${target.nome}`
@@ -176,7 +202,7 @@ export default function GestioneEventi({
       minuto: minutoCorrente,
       tempo: tempoGara,
       tipo: 'ESPULSIONE',
-      giocatoreId: giocatoreId, // Passaggio esplicito dell'ID
+      giocatoreId: giocatoreId,
       dettagli: `Espulsione Diretta: #${target.numero} ${target.nome}`
     });
 
@@ -255,8 +281,8 @@ export default function GestioneEventi({
         minuto: minutoDelCambio,
         tempo: isIntervalloEffettivo ? 1 : tempoGara,
         tipo: 'SOSTITUZIONE',
-        esceId: esce.id,   // Passaggio esplicito ID esce
-        entraId: entra.id, // Passaggio esplicito ID entra
+        esceId: esce.id,
+        entraId: entra.id,
         dettagli: `Cambio: Esce #${esce.numero} ${esce.nome} ➔ Entra #${entra.numero} ${entra.nome} ${notaSlot}`
       });
     });
@@ -347,7 +373,8 @@ export default function GestioneEventi({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      {/* Pulsantiera eventi con l'aggiunta del bottone Note */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
         <button
           type="button"
           onClick={apriModalGol}
@@ -398,6 +425,19 @@ export default function GestioneEventi({
         >
           <ArrowRightLeft className="w-4 h-4" /> Cambio ({cambiEffettuati}/7)
         </button>
+
+        {/* 📝 NUOVO BOTTONE NOTE */}
+        <button
+          type="button"
+          onClick={apriModalNota}
+          className={`font-bold py-3 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition shadow-md col-span-2 sm:col-span-1 ${
+            inEsecuzione 
+              ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-950 cursor-pointer' 
+              : 'bg-slate-800/80 text-slate-400 border border-slate-700/60 opacity-80'
+          }`}
+        >
+          <FileText className="w-4 h-4" /> Nota
+        </button>
       </div>
 
       {modalGol && (
@@ -432,6 +472,42 @@ export default function GestioneEventi({
             >
               Annulla
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 📝 MODALE INSERIMENTO NOTA */}
+      {modalNota && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-md w-full space-y-4 shadow-2xl">
+            <h4 className="text-sm font-bold text-white uppercase flex items-center gap-2">
+              <FileText className="w-4 h-4 text-purple-400" /> Inserisci Nota ({minutoCorrente}')
+            </h4>
+            <textarea
+              value={testoNota}
+              onChange={(e) => setTestoNota(e.target.value)}
+              placeholder="Scrivi qui eventuali note di gara..."
+              rows={4}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
+              autoFocus
+            />
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setModalNota(false)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase cursor-pointer"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={handleSalvaNota}
+                disabled={!testoNota.trim()}
+                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-black uppercase transition cursor-pointer disabled:cursor-not-allowed shadow-lg shadow-purple-950"
+              >
+                Salva Nota
+              </button>
+            </div>
           </div>
         </div>
       )}
