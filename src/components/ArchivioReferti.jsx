@@ -446,6 +446,34 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       y += altezzaRiga;
     });
 
+    // --- 📝 AGGIUNTA NOTE IN FONDO AL PDF ---
+    const noteEventi = eventi.filter(e => {
+      const tipo = (e.tipo || '').toUpperCase();
+      return tipo === 'NOTA' || tipo === 'NOTE';
+    });
+
+    if (noteEventi.length > 0) {
+      y += 8;
+      if (y > 255) { doc.addPage(); y = 20; }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text("NOTE E SEGNALAZIONI GARA", 15, y);
+      y += 5;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+
+      noteEventi.forEach(n => {
+        if (y > 275) { doc.addPage(); y = 20; }
+        const testoNota = `• [${n.minuto}'] ${n.dettagli || ''}`;
+        const lineeNota = doc.splitTextToSize(testoNota, pageWidth - 30);
+        doc.text(lineeNota, 18, y);
+        y += lineeNota.length * 4.5;
+      });
+    }
+    
     // --- 📥 DOWNLOAD DEL PDF ---
     const nomeFilePdf = `Referto_${p.squadra_casa}_vs_${p.squadra_ospite}_${p.data_gara}.pdf`.replace(/\s+/g, '_');
     doc.save(nomeFilePdf);
