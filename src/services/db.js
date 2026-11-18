@@ -742,17 +742,17 @@ export async function loginSistema(username, password, campionatoSelezionato) {
     };
   }
 
-  let query = supabase
+  const { data: utentiTrovati, error } = await supabase
     .from('utenti_panchina')
     .select('*, societa(*)')
     .eq('username', u)
     .eq('password_chiaro', p);
 
-  if (campionatoScelto) {
-    query = query.eq('campionato', campionatoScelto);
-  }
-
-  const { data: utente, error } = await query.maybeSingle();
+  const utente = (utentiTrovati || []).find((usr) => {
+    const campUtente = (usr.campionato || usr.stagione || '').trim();
+    if (!campionatoScelto || !campUtente) return true;
+    return campUtente === campionatoScelto;
+  });
 
   if (error || !utente) {
     return { 
@@ -797,7 +797,7 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
     data_scadenza_prova: dataScadenza.toISOString(),
     attiva: true,
     staff_base: {},
-    rosa_base: []
+    rosa_base: {}
   }).select().single();
 
   if (error) throw error;
@@ -805,15 +805,33 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
   return data;
 }
 
-export async function adminCreaUtente({ societaId, username, password, ruolo, stagione }) {
-  const { data, error } = await supabase.from('utenti_panchina').insert([{
+export async function adminCreaUtente({ societaId, username, password, ruolo, campionato, stagione }) {
+  const valoreStagione = (campionato || stagione || '').trim();
+  const baseRow = {
     id: `${societaId}_usr_${Date.now()}`,
     societa_id: societaId,
     username: username.trim(),
     password_chiaro: password.trim(),
     ruolo: ruolo || 'dirigente',
-    stagione: stagione || ''
-  }]).select().single();
+    stagione: valoreStagione
+  };
+
+  // Proviamo a salvare sia campionato che stagione; se la colonna 'campionato' non esiste nel DB, salviamo su 'stagione'
+  let { data, error } = await supabase
+    .from('utenti_panchina')
+    .insert([{ ...baseRow, campionato: valoreStagione }])
+    .select()
+    .single();
+
+  if (error) {
+    const retry = await supabase
+      .from('utenti_panchina')
+      .insert([baseRow])
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) throw error;
   return data;
