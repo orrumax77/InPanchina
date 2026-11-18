@@ -33,7 +33,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
   const ricaricaStorico = async () => {
     if (!societa?.id) return;
     setCaricamento(true);
-    const lista = await caricaStoricoReferti(societa.id);
+    const lista = await caricaStoricoReferti(societa.id, campionato, annata);
     setPartiteStorico(lista);
     setCaricamento(false);
   };
@@ -61,7 +61,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [societa?.id]);
+  }, [societa?.id, campionato, annata]);
 
   const toggleDettaglio = async (id) => {
     const nuovoStato = partitaApertaId === id ? null : id;
@@ -597,7 +597,9 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
           </div>
           <div>
             <h2 className="text-lg font-black text-white uppercase">Archivio Referti Ufficiali</h2>
-            <p className="text-xs text-slate-400 uppercase">{societa?.nome} • Tutte le gare concluse</p>
+            <p className="text-xs text-slate-400 uppercase">
+              {societa?.nome} {campionato ? `• Stagione ${campionato}` : ''} {annata ? `• Annata ${annata}` : '• Tutte le gare concluse'}
+            </p>
           </div>
         </div>
       </div>
