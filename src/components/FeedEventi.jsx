@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, Clock } from 'lucide-react';
+import { Trash2, Clock, NotebookPen } from 'lucide-react';
 
 // Icona Pallone da Calcio Ufficiale Realistico
 function IconaPalloneCalcio() {
@@ -152,6 +152,12 @@ export default function FeedEventi({ eventi, onEliminaEvento }) {
         return (
           <span className="w-8 h-8 rounded-xl bg-slate-950 border border-blue-500/30 flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-950/40" title="Sostituzione">
             <IconaSostituzioneCalcio />
+          </span>
+        );
+      case 'NOTA':
+        return (
+          <span className="w-8 h-8 rounded-xl bg-slate-950 border border-purple-500/30 flex items-center justify-center flex-shrink-0 shadow-md shadow-purple-950/40" title="Nota">
+            <NotebookPen className="w-4 h-4 text-purple-400" />
           </span>
         );
       default:
