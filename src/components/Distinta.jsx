@@ -116,10 +116,11 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     setGiocatori([...listaOrdinata]);
     aggiornaRosaGlobale(listaOrdinata);
 
-    // Salva la preferenza sul Database Cloud in background
+    // Salva la preferenza sul Database Cloud in background senza sovrascrivere le modifiche recenti allo staff
     if (societa?.id) {
       const nuovoStaffBase = {
         ...(societa.staff_base || {}),
+        ...partitaInfo,
         criterio_ordinamento_distinta: nuovoCriterio
       };
       await salvaStaffBaseSocieta(societa.id, nuovoStaffBase);
