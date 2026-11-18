@@ -233,7 +233,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
     return t;
   };
   
-  // 📄 Funzione per generare il PDF ufficiale con eventi sicuri e puliti
+  // 📄 Funzione per generare il PDF ufficiale con gestione intelligente dello spazio per le note
   const generaPDFReferto = async (p) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -386,7 +386,6 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       const nomeG = (g.nome || '').toUpperCase().trim();
       let descEventi = [];
 
-      // 🛡️ MATCHING BLINDATO IDENTICO A WHATSAPP CON REGEX DI PRECISIONE
       const matchGiocatore = (ev) => {
         if (!ev) return false;
         if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
@@ -446,7 +445,7 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       y += altezzaRiga;
     });
 
-    // --- 📝 AGGIUNTA NOTE IN FONDO AL PDF ---
+    // --- 📝 AGGIUNTA NOTE IN BASSO (CON CONTROLLO SPAZIO INTELLIGENTE) ---
     const noteEventi = eventi.filter(e => {
       const tipo = (e.tipo || '').toUpperCase();
       return tipo === 'NOTA' || tipo === 'NOTE';
@@ -454,7 +453,20 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
     if (noteEventi.length > 0) {
       y += 8;
-      if (y > 255) { doc.addPage(); y = 20; }
+
+      // Calcoliamo lo spazio totale richiesto dalle note
+      let altezzaRichiesta = 8; // Spazio per il titolo "NOTE E SEGNALAZIONI GARA"
+      noteEventi.forEach(n => {
+        const testoNota = `• [${n.minuto}'] ${n.dettagli || ''}`;
+        const lineeNota = doc.splitTextToSize(testoNota, pageWidth - 30);
+        altezzaRichiesta += lineeNota.length * 4.5;
+      });
+
+      // Se superiamo il limite inferiore della pagina (~280), andiamo a pagina nuova
+      if (y + altezzaRichiesta > 280) {
+        doc.addPage();
+        y = 20;
+      }
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
@@ -466,14 +478,19 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       doc.setFontSize(8.5);
 
       noteEventi.forEach(n => {
-        if (y > 275) { doc.addPage(); y = 20; }
         const testoNota = `• [${n.minuto}'] ${n.dettagli || ''}`;
         const lineeNota = doc.splitTextToSize(testoNota, pageWidth - 30);
+
+        if (y + lineeNota.length * 4.5 > 280) {
+          doc.addPage();
+          y = 20;
+        }
+
         doc.text(lineeNota, 18, y);
         y += lineeNota.length * 4.5;
       });
     }
-    
+
     // --- 📥 DOWNLOAD DEL PDF ---
     const nomeFilePdf = `Referto_${p.squadra_casa}_vs_${p.squadra_ospite}_${p.data_gara}.pdf`.replace(/\s+/g, '_');
     doc.save(nomeFilePdf);
