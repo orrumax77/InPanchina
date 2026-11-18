@@ -13,7 +13,9 @@ import {
 export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, partitaIniziale, rosaIniziale, campionato, annata }) {
   const dateInputRef = useRef(null);
   const oggiISO = new Date().toISOString().split('T')[0];
-  const partitaId = societa?.id ? `${societa.id}_PARTITA_LIVE` : null;
+  const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
+  const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
+  const partitaId = societa?.id ? `${societa.id}_${campionatoPulito}_${annataPulita}_PARTITA_LIVE` : null;
 
   const staffSocieta = societa?.staff_base || {};
   const nomeSocietaUfficiale = (societa?.nome || '').toUpperCase();
@@ -75,7 +77,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         clearTimeout(infoDebounceRef.current);
       }
       if (societa?.id && partitaInfoRef.current) {
-        salvaBozzaKeepalive(societa.id, partitaInfoRef.current);
+        salvaBozzaKeepalive(societa.id, partitaInfoRef.current, campionato, annata);
       }
     };
 
@@ -87,7 +89,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       window.removeEventListener('pagehide', salvaAllaChiusura);
       salvaAllaChiusura();
     };
-  }, [societa?.id]);
+  }, [societa?.id, campionato, annata]);
 
   // 🗂️ Funzione di ordinamento basata sul criterio corrente (numero o alfabetico)
   const ordinaDistinta = (lista, criterio = criterioOrdinamento) => {
