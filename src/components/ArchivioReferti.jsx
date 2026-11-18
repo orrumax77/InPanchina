@@ -218,8 +218,20 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const minutiValore = g.minuti !== undefined && g.minuti !== null ? g.minuti : 0;
         const minStr = `${minutiValore}'`;
 
+        const isSubentrato = cambi.some(c => {
+          if (String(c.entraId || '').trim() === String(idG).trim()) return true;
+          const det = (c.dettagli || '').toUpperCase();
+          if (numG) {
+            const regexEntra = new RegExp(`ENTRA\\s*#${numG}\\b`, 'i');
+            if (regexEntra.test(det)) return true;
+          }
+          return false;
+        });
+
         let statoStr = '';
-        if (minutiValore === 0 && !g.isTitolare) {
+        if (isSubentrato) {
+          statoStr = ' (SUBENTRATO)';
+        } else if (minutiValore === 0 && !g.isTitolare) {
           statoStr = ' (PANCHINA)';
         } else if (g.stato) {
           statoStr = ` (${g.stato})`;
@@ -412,12 +424,17 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         if (matchGiocatore(e)) descEventi.push(`[Espulso ${e.minuto}']`);
       });
 
+      let isSubentrato = false;
+
       cambi.forEach(c => {
-        const esceMatch = c.esceId === idG || (numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
-        const entraMatch = c.entraId === idG || (numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
+        const esceMatch = String(c.esceId || '').trim() === String(idG).trim() || (numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
+        const entraMatch = String(c.entraId || '').trim() === String(idG).trim() || (numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
 
         if (esceMatch) descEventi.push(`[Esce ${c.minuto}']`);
-        if (entraMatch) descEventi.push(`[Entra ${c.minuto}']`);
+        if (entraMatch) {
+          descEventi.push(`[Entra ${c.minuto}']`);
+          isSubentrato = true;
+        }
       });
 
       const suffissoEventi = descEventi.length > 0 ? ` - ${descEventi.join(' ')}` : '';
@@ -425,7 +442,11 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       const nomeCompleto = `${g.nome || ''}${fascia}${suffissoEventi}`.toUpperCase();
       
       const minutiVal = g.minuti !== undefined && g.minuti !== null ? `${g.minuti}'` : "0'";
-      const statoVal = (g.minuti === 0 && !g.isTitolare) ? "Panchina" : "Titolare";
+      const statoVal = isSubentrato
+        ? "Subentrato"
+        : (g.minuti === 0 && !g.isTitolare)
+          ? "Panchina"
+          : "Titolare";
       const votoVal = g.voto ? String(g.voto) : "-";
 
       const lineeNome = doc.splitTextToSize(nomeCompleto, 82);
