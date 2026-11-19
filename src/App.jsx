@@ -880,7 +880,7 @@ export default function App() {
       societaAttiva.id,
       partitaId,
       partitaInfo,
-      { golCasa, golOspiti },
+      { golCasa, golOspiti, minutoCorrente },
       eventi,
       giocatoriDaArchiviare,
       stagioneSelezionata,
