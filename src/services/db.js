@@ -1,5 +1,39 @@
 import { supabase } from '../supabaseClient';
 
+export async function registraLog({ societaId = null, societaNome = '', username = '', azione = '', dettagli = '' }) {
+  try {
+    await supabase.from('log_attivita').insert([{
+      societa_id: societaId || null,
+      societa_nome: societaNome || '',
+      username: username || '',
+      azione: azione || 'EVENTO',
+      dettagli: dettagli || '',
+      created_at: new Date().toISOString()
+    }]);
+  } catch (err) {
+    // Non blocchiamo mai il flusso dell'app se il log fallisce
+    console.warn('Avviso registraLog:', err);
+  }
+}
+
+export async function adminGetLogAttivita(limite = 100) {
+  try {
+    const { data, error } = await supabase
+      .from('log_attivita')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limite);
+    if (error) {
+      console.error('Errore adminGetLogAttivita:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('Errore adminGetLogAttivita:', err);
+    return [];
+  }
+}
+
 export async function getSocieta() {
   const { data, error } = await supabase
     .from('societa')
@@ -188,11 +222,24 @@ export async function dbEliminaGiocatore(societaId, giocatoreId, campionato, ann
   try {
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
+    const idRiga = `${societaId}_${campionatoPulito}_${annataPulita}_${giocatoreId}`;
+
+    const { data: gEsistente } = await supabase
+      .from('giocatori')
+      .select('nome, numero')
+      .eq('id', idRiga)
+      .maybeSingle();
 
     await supabase
       .from('giocatori')
       .delete()
-      .eq('id', `${societaId}_${campionatoPulito}_${annataPulita}_${giocatoreId}`);
+      .eq('id', idRiga);
+
+    await registraLog({
+      societaId,
+      azione: 'ELIMINAZIONE_GIOCATORE',
+      dettagli: `Eliminato giocatore ${gEsistente ? `#${gEsistente.numero} ${gEsistente.nome}` : `ID ${giocatoreId}`} (${campionato} - Annata ${annata})`
+    });
   } catch (err) {
     console.error('Errore dbEliminaGiocatore:', err);
   }
@@ -235,6 +282,13 @@ export async function salvaDistintaSuDb(societaId, partitaId, partitaInfo, gioca
     }));
 
     await supabase.from('giocatori').upsert(righeGiocatori);
+
+    await registraLog({
+      societaId,
+      azione: 'AVVIO_PARTITA_LIVE',
+      dettagli: `Avviata live: ${partitaInfo.squadraCasa} vs ${partitaInfo.squadraOspite} (${campionato} - Annata ${annata})`
+    });
+
     return { success: true };
   } catch (error) {
     console.error('Errore salvataggio distinta:', error);
@@ -693,6 +747,13 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     await aggiornaGiocatoriCloud(livePartitaId, societaId, listaDaSalvare, campionato, annata);
     await salvaRosaBaseSocieta(societaId, listaDaSalvare, undefined, campionato, annata);
 
+    await registraLog({
+      societaId,
+      societaNome: nomeNostraSocieta,
+      azione: 'ARCHIVIAZIONE_PARTITA',
+      dettagli: `Archiviata gara: ${partitaInfo.squadraCasa} ${datiGara.golCasa ?? 0} - ${datiGara.golOspiti ?? 0} ${partitaInfo.squadraOspite} (${campionato} - Annata ${annata})`
+    });
+
     return { success: true, storicoId };
   } catch (err) {
     console.error('Errore archiviaPartitaEResettaLive:', err);
@@ -726,9 +787,24 @@ export async function caricaStoricoReferti(societaId, campionato, annata) {
 
 export async function eliminaRefertoStorico(refertoId) {
   try {
+    const { data: partitaDaEliminare } = await supabase
+      .from('partite')
+      .select('societa_id, squadra_casa, squadra_ospite, gol_casa, gol_ospite, data_gara, campionato, annata')
+      .eq('id', refertoId)
+      .maybeSingle();
+
     await supabase.from('eventi').delete().eq('partita_id', refertoId);
     const { error } = await supabase.from('partite').delete().eq('id', refertoId);
     if (error) throw error;
+
+    await registraLog({
+      societaId: partitaDaEliminare?.societa_id || null,
+      azione: 'ELIMINAZIONE_REFERTO',
+      dettagli: partitaDaEliminare
+        ? `Eliminato referto: ${partitaDaEliminare.squadra_casa} ${partitaDaEliminare.gol_casa ?? 0}-${partitaDaEliminare.gol_ospite ?? 0} ${partitaDaEliminare.squadra_ospite} del ${partitaDaEliminare.data_gara} (${partitaDaEliminare.campionato || ''} ${partitaDaEliminare.annata || ''})`
+        : `Eliminato referto storico ID: ${refertoId}`
+    });
+
     return true;
   } catch (err) {
     console.error('Errore eliminaRefertoStorico:', err);
@@ -752,6 +828,13 @@ export async function loginSistema(username, password, campionatoSelezionato) {
     (usr) => (usr.ruolo || '').toLowerCase() === 'superadmin'
   );
   if (utenteAdminDb) {
+    await registraLog({
+      societaId: null,
+      societaNome: 'SUPERADMIN',
+      username: u,
+      azione: 'LOGIN_SUPERADMIN_OK',
+      dettagli: `Accesso effettuato al pannello SuperAdmin`
+    });
     return {
       success: true,
       isAdmin: true,
@@ -766,6 +849,13 @@ export async function loginSistema(username, password, campionatoSelezionato) {
   });
 
   if (error || !utente) {
+    await registraLog({
+      societaId: null,
+      societaNome: '',
+      username: u,
+      azione: 'LOGIN_FALLITO',
+      dettagli: `Tentativo fallito per utente "${u}" (Campionato: ${campionatoScelto || 'N/D'})`
+    });
     return { 
       success: false, 
       messaggio: 'Credenziali non valide o non abilitate per il campionato selezionato.' 
@@ -773,16 +863,37 @@ export async function loginSistema(username, password, campionatoSelezionato) {
   }
 
   if (!utente.societa) {
+    await registraLog({
+      societaId: utente.societa_id || null,
+      username: u,
+      azione: 'LOGIN_FALLITO',
+      dettagli: `Nessuna società associata all'utente "${u}"`
+    });
     return { success: false, messaggio: 'Nessuna società associata a questo profilo.' };
   }
 
   const scadenza = new Date(utente.societa.data_scadenza_prova);
   if (!utente.societa.attiva || new Date() > scadenza) {
+    await registraLog({
+      societaId: utente.societa.id,
+      societaNome: utente.societa.nome,
+      username: u,
+      azione: 'LOGIN_BLOCCATO_SCADENZA',
+      dettagli: `Accesso negato per licenza scaduta o disattivata (${utente.societa.nome})`
+    });
     return {
       success: false,
       messaggio: "Periodo di prova di 30 giorni scaduto. Contatta l'amministratore."
     };
   }
+
+  await registraLog({
+    societaId: utente.societa.id,
+    societaNome: utente.societa.nome,
+    username: u,
+    azione: 'LOGIN_OK',
+    dettagli: `Accesso dirigente effettuato (${campionatoScelto || utente.campionato || utente.stagione || 'N/D'})`
+  });
 
   return {
     success: true,
@@ -812,6 +923,14 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
   }).select().single();
 
   if (error) throw error;
+
+  await registraLog({
+    societaId: data.id,
+    societaNome: data.nome,
+    username: 'SUPERADMIN',
+    azione: 'ADMIN_CREA_SOCIETA',
+    dettagli: `Creata società "${data.nome}" (Codice: ${data.codice_societa})`
+  });
 
   return data;
 }
@@ -845,6 +964,14 @@ export async function adminCreaUtente({ societaId, username, password, ruolo, ca
   }
 
   if (error) throw error;
+
+  await registraLog({
+    societaId,
+    username: 'SUPERADMIN',
+    azione: 'ADMIN_CREA_UTENTE',
+    dettagli: `Creato utente "${username.trim()}" per società ID "${societaId}" (Campionato: ${valoreStagione || 'N/D'})`
+  });
+
   return data;
 }
 
@@ -869,10 +996,21 @@ export async function adminAggiornaStatoSocieta(societaId, { attiva, dataScadenz
     .single();
 
   if (error) throw error;
+
+  await registraLog({
+    societaId: data.id,
+    societaNome: data.nome,
+    username: 'SUPERADMIN',
+    azione: 'ADMIN_STATO_SOCIETA',
+    dettagli: `Aggiornato stato società "${data.nome}": Attiva=${data.attiva}, Scadenza=${new Date(data.data_scadenza_prova).toLocaleDateString('it-IT')}`
+  });
+
   return data;
 }
 
 export async function adminEliminaSocietaCompleta(societaId) {
+  const { data: soc } = await supabase.from('societa').select('nome').eq('id', societaId).maybeSingle();
+
   await supabase.from('eventi').delete().in(
     'partita_id',
     (await supabase.from('partite').select('id').eq('societa_id', societaId)).data?.map(p => p.id) || []
@@ -883,21 +1021,48 @@ export async function adminEliminaSocietaCompleta(societaId) {
    
   const { error } = await supabase.from('societa').delete().eq('id', societaId);
   if (error) throw error;
+
+  await registraLog({
+    societaId,
+    societaNome: soc?.nome || societaId,
+    username: 'SUPERADMIN',
+    azione: 'ADMIN_ELIMINA_SOCIETA',
+    dettagli: `Eliminata intera società "${soc?.nome || societaId}" e tutti i dati collegati`
+  });
+
   return { success: true };
 }
 
 export async function adminEliminaUtente(utenteId) {
+  const { data: usr } = await supabase.from('utenti_panchina').select('username, societa_id').eq('id', utenteId).maybeSingle();
   const { error } = await supabase.from('utenti_panchina').delete().eq('id', utenteId);
   if (error) throw error;
+
+  await registraLog({
+    societaId: usr?.societa_id || null,
+    username: 'SUPERADMIN',
+    azione: 'ADMIN_ELIMINA_UTENTE',
+    dettagli: `Eliminato utente "${usr?.username || utenteId}"`
+  });
+
   return { success: true };
 }
 
 export async function adminModificaPasswordUtente(utenteId, nuovaPassword) {
+  const { data: usr } = await supabase.from('utenti_panchina').select('username, societa_id').eq('id', utenteId).maybeSingle();
   const { error } = await supabase
     .from('utenti_panchina')
     .update({ password_chiaro: nuovaPassword.trim() })
     .eq('id', utenteId);
   if (error) throw error;
+
+  await registraLog({
+    societaId: usr?.societa_id || null,
+    username: 'SUPERADMIN',
+    azione: 'ADMIN_MODIFICA_PASSWORD',
+    dettagli: `Modificata password per l'utente "${usr?.username || utenteId}"`
+  });
+
   return { success: true };
 }
 
