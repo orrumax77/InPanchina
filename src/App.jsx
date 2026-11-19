@@ -188,7 +188,8 @@ export default function App() {
     
     const partitaDB = stato?.partita;
 
-    const isLiveInCorso = partitaDB && (
+    const isLiveInCorso = partitaDB && partitaDB.stato !== 'bozza' && (
+      partitaDB.stato === 'in-corso' ||
       partitaDB.in_esecuzione === true || 
       (partitaDB.secondi_gara !== undefined && partitaDB.secondi_gara > 0) || 
       partitaDB.tempo > 1 || 
@@ -196,8 +197,7 @@ export default function App() {
       partitaDB.slot_usati > 0 ||
       partitaDB.cambi_effettuati > 0 ||
       partitaDB.gol_casa > 0 ||
-      partitaDB.gol_ospite > 0 ||
-      (partitaDB.squadra_ospite && partitaDB.squadra_ospite.trim() !== '')
+      partitaDB.gol_ospite > 0
     );
 
     if (isLiveInCorso) {
@@ -395,7 +395,9 @@ export default function App() {
             isNostraCasa: p.is_nostra_casa ?? (prev?.isNostraCasa ?? true)
           }));
 
-          setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
+          if (p.stato === 'in-corso') {
+            setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
+          }
         }
 
         const stato = await caricaStatoPartita(partitaId);
@@ -648,8 +650,8 @@ export default function App() {
 
     const giocatoriConvocati = giocatori.filter(g => g.isConvocato === true);
 
-    await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatoriConvocati, stagioneSelezionata, annataSelezionata);
     await salvaBozzaPartitaSuDb(societaAttiva.id, partitaId, pInfo, stagioneSelezionata, annataSelezionata);
+    await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatoriConvocati, stagioneSelezionata, annataSelezionata);
 
     setRosa(giocatoriConvocati);
 
