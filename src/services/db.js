@@ -1,11 +1,39 @@
 import { supabase } from '../supabaseClient';
 
+let utenteSessioneAttiva = '';
+let societaNomeSessioneAttiva = '';
+
+function getUsernameAttivo(usernameEsplicito) {
+  if (usernameEsplicito && usernameEsplicito.trim()) return usernameEsplicito.trim();
+  if (utenteSessioneAttiva) return utenteSessioneAttiva;
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage.getItem('inpanchina_username') || 'N/D';
+  }
+  return 'N/D';
+}
+
 export async function registraLog({ societaId = null, societaNome = '', username = '', azione = '', dettagli = '' }) {
   try {
+    const userFinale = getUsernameAttivo(username);
+    let nomeSocFinale = societaNome || '';
+
+    if (!nomeSocFinale && societaId) {
+      const { data: soc } = await supabase
+        .from('societa')
+        .select('nome')
+        .eq('id', societaId)
+        .maybeSingle();
+      if (soc?.nome) nomeSocFinale = soc.nome;
+    }
+
+    if (!nomeSocFinale) {
+      nomeSocFinale = societaNomeSessioneAttiva || '';
+    }
+
     await supabase.from('log_attivita').insert([{
       societa_id: societaId || null,
-      societa_nome: societaNome || '',
-      username: username || '',
+      societa_nome: nomeSocFinale,
+      username: userFinale,
       azione: azione || 'EVENTO',
       dettagli: dettagli || '',
       created_at: new Date().toISOString()
@@ -828,6 +856,8 @@ export async function loginSistema(username, password, campionatoSelezionato) {
     (usr) => (usr.ruolo || '').toLowerCase() === 'superadmin'
   );
   if (utenteAdminDb) {
+    utenteSessioneAttiva = u;
+    societaNomeSessioneAttiva = 'SUPERADMIN';
     await registraLog({
       societaId: null,
       societaNome: 'SUPERADMIN',
@@ -887,6 +917,9 @@ export async function loginSistema(username, password, campionatoSelezionato) {
     };
   }
 
+  utenteSessioneAttiva = u;
+  societaNomeSessioneAttiva = utente.societa.nome || '';
+
   await registraLog({
     societaId: utente.societa.id,
     societaNome: utente.societa.nome,
@@ -927,7 +960,6 @@ export async function adminCreaSquadra({ codice, nome, indirizzoCampo, logoUrl }
   await registraLog({
     societaId: data.id,
     societaNome: data.nome,
-    username: 'SUPERADMIN',
     azione: 'ADMIN_CREA_SOCIETA',
     dettagli: `Creata società "${data.nome}" (Codice: ${data.codice_societa})`
   });
@@ -967,7 +999,6 @@ export async function adminCreaUtente({ societaId, username, password, ruolo, ca
 
   await registraLog({
     societaId,
-    username: 'SUPERADMIN',
     azione: 'ADMIN_CREA_UTENTE',
     dettagli: `Creato utente "${username.trim()}" per società ID "${societaId}" (Campionato: ${valoreStagione || 'N/D'})`
   });
@@ -1000,7 +1031,6 @@ export async function adminAggiornaStatoSocieta(societaId, { attiva, dataScadenz
   await registraLog({
     societaId: data.id,
     societaNome: data.nome,
-    username: 'SUPERADMIN',
     azione: 'ADMIN_STATO_SOCIETA',
     dettagli: `Aggiornato stato società "${data.nome}": Attiva=${data.attiva}, Scadenza=${new Date(data.data_scadenza_prova).toLocaleDateString('it-IT')}`
   });
@@ -1025,7 +1055,6 @@ export async function adminEliminaSocietaCompleta(societaId) {
   await registraLog({
     societaId,
     societaNome: soc?.nome || societaId,
-    username: 'SUPERADMIN',
     azione: 'ADMIN_ELIMINA_SOCIETA',
     dettagli: `Eliminata intera società "${soc?.nome || societaId}" e tutti i dati collegati`
   });
@@ -1040,7 +1069,6 @@ export async function adminEliminaUtente(utenteId) {
 
   await registraLog({
     societaId: usr?.societa_id || null,
-    username: 'SUPERADMIN',
     azione: 'ADMIN_ELIMINA_UTENTE',
     dettagli: `Eliminato utente "${usr?.username || utenteId}"`
   });
@@ -1058,7 +1086,6 @@ export async function adminModificaPasswordUtente(utenteId, nuovaPassword) {
 
   await registraLog({
     societaId: usr?.societa_id || null,
-    username: 'SUPERADMIN',
     azione: 'ADMIN_MODIFICA_PASSWORD',
     dettagli: `Modificata password per l'utente "${usr?.username || utenteId}"`
   });
