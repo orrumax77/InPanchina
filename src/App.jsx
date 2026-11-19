@@ -426,7 +426,11 @@ export default function App() {
                   const det = (e.dettagli || '').toUpperCase();
                   if (!det) return false;
                   if (regexNum && regexNum.test(det)) return true;
-                  if (nomeG && det.includes(` ${nomeG}`) && !det.includes('#')) return true;
+                  if (nomeG && !det.includes('#')) {
+                    const nomeEscaped = nomeG.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regexNomeFine = new RegExp(`:\\s*${nomeEscaped}\\s*$`, 'i');
+                    if (regexNomeFine.test(det)) return true;
+                  }
                   return false;
                 };
 
@@ -667,10 +671,11 @@ export default function App() {
 
     const giocatoriConvocati = giocatori.filter(g => g.isConvocato === true);
 
+    await salvaRosaBaseSocieta(societaAttiva.id, giocatori, undefined, stagioneSelezionata, annataSelezionata);
     await salvaBozzaPartitaSuDb(societaAttiva.id, partitaId, pInfo, stagioneSelezionata, annataSelezionata);
     await salvaDistintaSuDb(societaAttiva.id, partitaId, pInfo, giocatoriConvocati, stagioneSelezionata, annataSelezionata);
 
-    setRosa(giocatoriConvocati);
+    setRosa(giocatori);
 
     setSalvataggioInCorso(false);
     setFaseApp('partita');
@@ -806,7 +811,11 @@ export default function App() {
         const numG = String(g.numero || '').trim();
         if (numG && new RegExp(`#${numG}\\b`, 'i').test(det)) return true;
         const nomeG = (g.nome || '').toUpperCase().trim();
-        if (nomeG && det.includes(` ${nomeG}`) && !det.includes('#')) return true;
+        if (nomeG && !det.includes('#')) {
+          const nomeEscaped = nomeG.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regexNomeFine = new RegExp(`:\\s*${nomeEscaped}\\s*$`, 'i');
+          if (regexNomeFine.test(det)) return true;
+        }
         return false;
       };
 
