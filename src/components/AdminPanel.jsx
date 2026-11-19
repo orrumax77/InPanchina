@@ -1008,14 +1008,12 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagione
                           <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border uppercase ${getBadgeColoreLog(log.azione)}`}>
                             {log.azione}
                           </span>
+                          <span className="text-[11px] font-mono bg-slate-900 border border-slate-800 px-2 py-0.5 rounded text-slate-300">
+                            Utente: <strong className="text-emerald-400">{log.username || 'N/D'}</strong>
+                          </span>
                           {(log.societa_nome || log.societa_id) && (
                             <span className="text-[11px] font-bold text-white uppercase">
-                              {log.societa_nome || log.societa_id}
-                            </span>
-                          )}
-                          {log.username && (
-                            <span className="text-[11px] font-mono text-slate-400">
-                              • Utente: <strong className="text-slate-200">{log.username}</strong>
+                              • {log.societa_nome || log.societa_id}
                             </span>
                           )}
                         </div>
