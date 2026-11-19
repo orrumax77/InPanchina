@@ -629,8 +629,22 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       .update({ partita_id: storicoId })
       .eq('partita_id', livePartitaId);
 
+    const { data: socCorrente } = await supabase
+      .from('societa')
+      .select('nome, staff_base, rosa_base')
+      .eq('id', societaId)
+      .maybeSingle();
+
+    const nomeNostraSocieta = (
+      socCorrente?.nome ||
+      (partitaInfo.isNostraCasa === false ? partitaInfo.squadraOspite : partitaInfo.squadraCasa) ||
+      ''
+    ).toUpperCase();
+
     await supabase.from('partite').update({
+      squadra_casa: nomeNostraSocieta,
       squadra_ospite: '',
+      is_nostra_casa: true,
       gol_casa: 0,
       gol_ospite: 0,
       tempo: 1,
@@ -646,12 +660,6 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       updated_at: new Date().toISOString()
     }).eq('id', livePartitaId);
 
-    const { data: socCorrente } = await supabase
-      .from('societa')
-      .select('staff_base')
-      .eq('id', societaId)
-      .maybeSingle();
-
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const chiave = `${campionatoPulito}_${annataPulita}`;
@@ -659,27 +667,26 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     if (socCorrente?.staff_base && typeof socCorrente.staff_base === 'object') {
       let staffMap = { ...socCorrente.staff_base };
       if (staffMap[chiave]) {
-        staffMap[chiave].squadraOspite = ''; 
+        staffMap[chiave] = {
+          ...staffMap[chiave],
+          squadraCasa: nomeNostraSocieta,
+          squadraOspite: '',
+          isNostraCasa: true
+        };
       }
       await supabase.from('societa').update({ staff_base: staffMap }).eq('id', societaId);
     }
 
-    const { data: socData } = await supabase
-      .from('societa')
-      .select('rosa_base')
-      .eq('id', societaId)
-      .maybeSingle();
-
     let rosaCompleta = [];
-    if (socData?.rosa_base && socData.rosa_base[chiave]) {
-      rosaCompleta = socData.rosa_base[chiave];
+    if (socCorrente?.rosa_base && socCorrente.rosa_base[chiave]) {
+      rosaCompleta = socCorrente.rosa_base[chiave];
     }
 
-    const listaDaSalvare = (rosaCompleta.length > 0 ? rosaCompleta : giocatori).map(g => ({
+    const listaDaSalvare = (rosaCompleta.length > 0 ? rosaCompleta : giocatori).map((g, index) => ({
       ...g,
       ammonizioni: 0,
       espulso: false,
-      isConvocato: true,
+      isConvocato: g.isConvocato ?? (index < 20),
       minuti: 0
     }));
 
