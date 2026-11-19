@@ -457,7 +457,7 @@ export default function App() {
           }
         }
       })
-      .on('broadcast', { event: 'RESET_GARA_AUTOMATICO' }, () => {
+      .on('broadcast', { event: 'RESET_GARA_AUTOMATICO' }, async () => {
         setGolCasa(0);
         setGolOspiti(0);
         setTempoGara(1);
@@ -473,7 +473,16 @@ export default function App() {
         setPartitaConclusa(false);
         setAvvisoFineTempo(false);
 
-        setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+        if (societaAttiva?.id) {
+          const rosaCompletaDb = await caricaRosaSocieta(societaAttiva.id, stagioneSelezionata, annataSelezionata);
+          if (rosaCompletaDb && rosaCompletaDb.length > 0) {
+            setRosa(rosaCompletaDb.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+          } else {
+            setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+          }
+        } else {
+          setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+        }
 
         const campionatoPulitoStaff = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
         const annataPulitaStaff = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -494,7 +503,7 @@ export default function App() {
           preparatoreAtletico: (staffSpecificoAnnata.preparatoreAtletico || societaAttiva?.preparatore_atletico_predefinito || '').toUpperCase(),
           preparatorePortieri: (staffSpecificoAnnata.preparatorePortieri || societaAttiva?.preparatore_portieri_predefinito || '').toUpperCase(),
           dataPartita: new Date().toLocaleDateString('en-CA'),
-          isNostraCasa: staffSpecificoAnnata.isNostraCasa ?? true
+          isNostraCasa: true
         });
 
         setFaseApp('distinta');
@@ -864,7 +873,16 @@ export default function App() {
       setEventi([]);
       setPartitaConclusa(false);
 
-      setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+      if (societaAttiva?.id) {
+        const rosaCompletaDb = await caricaRosaSocieta(societaAttiva.id, stagioneSelezionata, annataSelezionata);
+        if (rosaCompletaDb && rosaCompletaDb.length > 0) {
+          setRosa(rosaCompletaDb.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+        } else {
+          setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+        }
+      } else {
+        setRosa(prev => prev.map(g => ({ ...g, ammonizioni: 0, espulso: false })));
+      }
 
       const campionatoPulitoStaff = (stagioneSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
       const annataPulitaStaff = (annataSelezionata || '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -885,7 +903,7 @@ export default function App() {
         preparatoreAtletico: (staffSpecificoAnnata.preparatoreAtletico || societaAttiva?.preparatore_atletico_predefinito || '').toUpperCase(),
         preparatorePortieri: (staffSpecificoAnnata.preparatorePortieri || societaAttiva?.preparatore_portieri_predefinito || '').toUpperCase(),
         dataPartita: new Date().toLocaleDateString('en-CA'),
-        isNostraCasa: staffSpecificoAnnata.isNostraCasa ?? true
+        isNostraCasa: true
       });
 
       setFaseApp('distinta');
@@ -1247,7 +1265,11 @@ export default function App() {
           onFinePrimoTempo={() => cambiaFaseGara(2)}
           onFinePartita={() => cambiaFaseGara('fine')}
           recupero={recupero}
-          setRecupero={setRecupero}
+          setRecupero={(valOrFn) => {
+            const nuovoRec = typeof valOrFn === 'function' ? valOrFn(recupero) : valOrFn;
+            setRecupero(nuovoRec);
+            syncStatoLive({ recupero: nuovoRec });
+          }}
           onTick={(min) => setMinutoCorrente(min)}
           onTriggerScadenzaTempo={(t) => {
             if (t === 2) {
@@ -1258,6 +1280,10 @@ export default function App() {
         />
 
         <GestioneEventi
+          societaId={societaAttiva?.id}
+          campionato={stagioneSelezionata}
+          annata={annataSelezionata}
+          partitaId={partitaId}
           giocatori={rosa.filter(g => g.isConvocato)}
           setGiocatori={handleAggiornaRosa}
           eventi={eventi}
