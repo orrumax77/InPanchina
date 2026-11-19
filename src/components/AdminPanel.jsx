@@ -8,7 +8,8 @@ import {
   adminAggiornaStatoSocieta, 
   adminEliminaSocietaCompleta, 
   adminEliminaUtente, 
-  adminModificaPasswordUtente 
+  adminModificaPasswordUtente,
+  adminGetLogAttivita
 } from '../services/db';
 import { 
   Shield, 
@@ -27,7 +28,9 @@ import {
   Pencil, 
   MapPin, 
   X,
-  Upload
+  Upload,
+  Activity,
+  RefreshCw
 } from 'lucide-react';
 
 export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagioneCorrente, listaStagioni = [] }) {
@@ -62,6 +65,33 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagione
     logo_url: ''
   });
   const editLogoInputRef = useRef(null);
+
+  // Stati per il Registro Attività (Log)
+  const [mostraLogModal, setMostraLogModal] = useState(false);
+  const [listaLog, setListaLog] = useState([]);
+  const [caricamentoLog, setCaricamentoLog] = useState(false);
+
+  const apriRegistroAttivita = async () => {
+    setMostraLogModal(true);
+    setCaricamentoLog(true);
+    const logs = await adminGetLogAttivita(100);
+    setListaLog(logs);
+    setCaricamentoLog(false);
+  };
+
+  const getBadgeColoreLog = (azione = '') => {
+    const a = azione.toUpperCase();
+    if (a.includes('FALLITO') || a.includes('BLOCCATO') || a.includes('ELIMINA')) {
+      return 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+    }
+    if (a.includes('AVVIO') || a.includes('ARCHIVIAZIONE') || a.includes('CREA')) {
+      return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+    }
+    if (a.includes('LOGIN')) {
+      return 'bg-blue-500/15 text-blue-400 border-blue-500/30';
+    }
+    return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+  };
 
   const mostraNotifica = (msg) => {
     setNotifica(msg);
@@ -350,8 +380,17 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagione
           </div>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
-          <span className="text-xs font-mono font-bold bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl text-emerald-400 flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-between sm:justify-end w-full sm:w-auto gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+          <button
+            type="button"
+            onClick={apriRegistroAttivita}
+            className="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer min-h-[40px]"
+            title="Visualizza gli ultimi eventi registrati"
+          >
+            <Activity className="w-3.5 h-3.5" /> Registro Attività
+          </button>
+
+          <span className="text-xs font-mono font-bold bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl text-emerald-400 flex items-center gap-1.5 min-h-[40px]">
             <CheckCircle2 className="w-3.5 h-3.5" /> SuperAdmin
           </span>
           <button
@@ -896,6 +935,103 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagione
                     );
                   })}
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REGISTRO ATTIVITÀ (LOG) */}
+      {mostraLogModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 max-w-4xl w-full max-h-[92vh] flex flex-col space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="min-w-0 pr-2">
+                <h3 className="text-sm sm:text-base font-black text-white uppercase flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-blue-400 flex-shrink-0" /> Registro Attività (Ultimi 100 Eventi)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Accessi, partite live, archiviazioni, eliminazioni e modifiche amministrative
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={apriRegistroAttivita}
+                  disabled={caricamentoLog}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Aggiorna elenco log"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${caricamentoLog ? 'animate-spin text-blue-400' : ''}`} />
+                  <span className="hidden sm:inline">Aggiorna</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMostraLogModal(false)}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                  title="Chiudi finestra"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {caricamentoLog ? (
+                <div className="text-center py-12 text-xs text-slate-400 uppercase animate-pulse">
+                  Caricamento registro attività in corso...
+                </div>
+              ) : listaLog.length === 0 ? (
+                <div className="text-center py-12 text-xs text-slate-500 uppercase bg-slate-950 rounded-xl border border-dashed border-slate-800">
+                  Nessuna attività registrata finora.
+                </div>
+              ) : (
+                listaLog.map((log) => {
+                  const dataOra = log.created_at
+                    ? new Date(log.created_at).toLocaleString('it-IT', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                      })
+                    : 'N/D';
+
+                  return (
+                    <div
+                      key={log.id}
+                      className="p-3 bg-slate-950 border border-slate-800/90 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border uppercase ${getBadgeColoreLog(log.azione)}`}>
+                            {log.azione}
+                          </span>
+                          {(log.societa_nome || log.societa_id) && (
+                            <span className="text-[11px] font-bold text-white uppercase">
+                              {log.societa_nome || log.societa_id}
+                            </span>
+                          )}
+                          {log.username && (
+                            <span className="text-[11px] font-mono text-slate-400">
+                              • Utente: <strong className="text-slate-200">{log.username}</strong>
+                            </span>
+                          )}
+                        </div>
+                        {log.dettagli && (
+                          <p className="text-xs text-slate-300 break-words">
+                            {log.dettagli}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="text-[11px] font-mono text-slate-400 flex-shrink-0 sm:text-right">
+                        {dataOra}
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
