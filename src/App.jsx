@@ -411,38 +411,55 @@ export default function App() {
             setRosa(prevRosa => {
               return rosaBaseFresco.map(gOriginale => {
                 let isTit = gOriginale.isTitolare;
+                const idG = String(gOriginale.id || '').trim();
+                const numG = String(gOriginale.numero || '').trim();
+                const nomeG = (gOriginale.nome || '').toUpperCase().trim();
+                const regexNum = numG ? new RegExp(`#${numG}\\b`, 'i') : null;
+                const regexEsceNum = numG ? new RegExp(`ESCE\\s*#${numG}\\b`, 'i') : null;
+                const regexEntraNum = numG ? new RegExp(`ENTRA\\s*#${numG}\\b`, 'i') : null;
+
+                const matchCartellinoGiocatore = (e) => {
+                  const idEv = String(e.giocatoreId || e.giocatore_id || '').trim();
+                  if (idEv && idG) {
+                    return idEv === idG;
+                  }
+                  const det = (e.dettagli || '').toUpperCase();
+                  if (!det) return false;
+                  if (regexNum && regexNum.test(det)) return true;
+                  if (nomeG && det.includes(` ${nomeG}`) && !det.includes('#')) return true;
+                  return false;
+                };
 
                 const eventiInOrdine = [...eventiAggiornati].reverse();
                 eventiInOrdine.forEach(e => {
                   if (e.tipo === 'SOSTITUZIONE' && e.dettagli) {
-                    if (e.esceId === gOriginale.id || e.dettagli.toUpperCase().includes(`ESCE #${gOriginale.numero}`) || e.dettagli.toUpperCase().includes(`ESCE ${gOriginale.nome}`)) {
-                      isTit = false;
-                    }
-                    if (e.entraId === gOriginale.id || e.dettagli.toUpperCase().includes(`ENTRA #${gOriginale.numero}`) || e.dettagli.toUpperCase().includes(`ENTRA ${gOriginale.nome}`)) {
-                      isTit = true;
-                    }
+                    const esceIdEv = String(e.esceId || e.esce_id || '').trim();
+                    const entraIdEv = String(e.entraId || e.entra_id || '').trim();
+                    const detUpper = e.dettagli.toUpperCase();
+
+                    const isMioEsce = (esceIdEv && idG)
+                      ? esceIdEv === idG
+                      : ((regexEsceNum && regexEsceNum.test(detUpper)) || (nomeG && detUpper.includes(`ESCE ${nomeG}`)));
+
+                    const isMioEntra = (entraIdEv && idG)
+                      ? entraIdEv === idG
+                      : ((regexEntraNum && regexEntraNum.test(detUpper)) || (nomeG && detUpper.includes(`ENTRA ${nomeG}`)));
+
+                    if (isMioEsce) isTit = false;
+                    if (isMioEntra) isTit = true;
                   }
                 });
 
                 const ammonizioniNormaliRimaste = eventiAggiornati.filter(e => 
-                  e.tipo === 'AMMONIZIONE' && (
-                    e.giocatoreId === gOriginale.id || 
-                    (e.dettagli && (e.dettagli.toUpperCase().includes(gOriginale.nome.toUpperCase()) || e.dettagli.includes(`#${gOriginale.numero} `)))
-                  )
+                  e.tipo === 'AMMONIZIONE' && matchCartellinoGiocatore(e)
                 ).length;
 
                 const doppieAmmonizioniRimaste = eventiAggiornati.filter(e => 
-                  e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                    e.giocatoreId === gOriginale.id || 
-                    (e.dettagli && (e.dettagli.toUpperCase().includes(gOriginale.nome.toUpperCase()) || e.dettagli.includes(`#${gOriginale.numero} `)))
-                  )
+                  e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && matchCartellinoGiocatore(e)
                 ).length;
 
                 const espulsioniDiretteRimaste = eventiAggiornati.filter(e => 
-                  e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && (
-                    e.giocatoreId === gOriginale.id || 
-                    (e.dettagli && (e.dettagli.toUpperCase().includes(gOriginale.nome.toUpperCase()) || e.dettagli.includes(`#${gOriginale.numero} `)))
-                  )
+                  e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && matchCartellinoGiocatore(e)
                 ).length;
 
                 const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
@@ -739,22 +756,28 @@ export default function App() {
       setCambiEffettuati(nuoviCambi);
       setSlotUsati(nuoviSlot);
 
-      let idEsce = eventoDaEliminare.esceId;
-      let idEntra = eventoDaEliminare.entraId;
+      let idEsce = eventoDaEliminare.esceId || eventoDaEliminare.esce_id;
+      let idEntra = eventoDaEliminare.entraId || eventoDaEliminare.entra_id;
 
       if ((!idEsce || !idEntra) && eventoDaEliminare.dettagli) {
-        const giocatoriCoinvolti = rosa.filter(g => eventoDaEliminare.dettagli.includes(`#${g.numero}`) || eventoDaEliminare.dettagli.includes(g.nome));
-        if (giocatoriCoinvolti.length >= 2) {
-          const candidatoEsce = giocatoriCoinvolti.find(g => eventoDaEliminare.dettagli.includes(`ESCE #${g.numero}`) || eventoDaEliminare.dettagli.includes(`ESCE ${g.nome}`));
-          const candidatoEntra = giocatoriCoinvolti.find(g => eventoDaEliminare.dettagli.includes(`ENTRA #${g.numero}`) || eventoDaEliminare.dettagli.includes(`ENTRA ${g.nome}`));
-          if (candidatoEsce) idEsce = candidatoEsce.id;
-          if (candidatoEntra) idEntra = candidatoEntra.id;
-        }
+        const detUpper = eventoDaEliminare.dettagli.toUpperCase();
+        const candidatoEsce = rosa.find(g => {
+          const numG = String(g.numero || '').trim();
+          const nomeG = (g.nome || '').toUpperCase().trim();
+          return (numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(detUpper)) || (nomeG && detUpper.includes(`ESCE ${nomeG}`));
+        });
+        const candidatoEntra = rosa.find(g => {
+          const numG = String(g.numero || '').trim();
+          const nomeG = (g.nome || '').toUpperCase().trim();
+          return (numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(detUpper)) || (nomeG && detUpper.includes(`ENTRA ${nomeG}`));
+        });
+        if (candidatoEsce) idEsce = candidatoEsce.id;
+        if (candidatoEntra) idEntra = candidatoEntra.id;
       }
 
       const rosaAggiornataPerCambio = rosa.map(g => {
-        if (g.id === idEsce) return { ...g, isTitolare: true };
-        if (g.id === idEntra) return { ...g, isTitolare: false };
+        if (String(g.id) === String(idEsce)) return { ...g, isTitolare: true };
+        if (String(g.id) === String(idEntra)) return { ...g, isTitolare: false };
         return g;
       });
 
@@ -772,36 +795,36 @@ export default function App() {
     }
 
     if (eventoDaEliminare.tipo === 'AMMONIZIONE' || eventoDaEliminare.tipo === 'ESPULSIONE') {
-      const giocatoreCoinvolto = rosa.find(g => 
-        eventoDaEliminare.giocatoreId === g.id ||
-        (eventoDaEliminare.dettagli && (
-          eventoDaEliminare.dettagli.toUpperCase().includes(g.nome.toUpperCase()) ||
-          eventoDaEliminare.dettagli.includes(`#${g.numero} `)
-        ))
-      );
+      const matchCartellinoConGiocatore = (ev, g) => {
+        const idG = String(g.id || '').trim();
+        const idEv = String(ev.giocatoreId || ev.giocatore_id || '').trim();
+        if (idEv && idG) {
+          return idEv === idG;
+        }
+        const det = (ev.dettagli || '').toUpperCase();
+        if (!det) return false;
+        const numG = String(g.numero || '').trim();
+        if (numG && new RegExp(`#${numG}\\b`, 'i').test(det)) return true;
+        const nomeG = (g.nome || '').toUpperCase().trim();
+        if (nomeG && det.includes(` ${nomeG}`) && !det.includes('#')) return true;
+        return false;
+      };
+
+      const giocatoreCoinvolto = rosa.find(g => matchCartellinoConGiocatore(eventoDaEliminare, g));
 
       if (giocatoreCoinvolto) {
         const rosaAggiornataPerCartellini = rosa.map(g => {
-          if (g.id === giocatoreCoinvolto.id) {
+          if (String(g.id) === String(giocatoreCoinvolto.id)) {
             const ammonizioniNormaliRimaste = eventiRimasti.filter(e => 
-              (e.tipo === 'AMMONIZIONE') && (
-                e.giocatoreId === g.id || 
-                (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-              )
+              e.tipo === 'AMMONIZIONE' && matchCartellinoConGiocatore(e, g)
             ).length;
 
             const doppieAmmonizioniRimaste = eventiRimasti.filter(e => 
-              (e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE')) && (
-                e.giocatoreId === g.id || 
-                (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-              )
+              e.tipo === 'ESPULSIONE' && e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && matchCartellinoConGiocatore(e, g)
             ).length;
 
             const espulsioniDiretteRimaste = eventiRimasti.filter(e => 
-              (e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE')) && (
-                e.giocatoreId === g.id || 
-                (e.dettagli && (e.dettagli.toUpperCase().includes(g.nome.toUpperCase()) || e.dettagli.includes(`#${g.numero} `)))
-              )
+              e.tipo === 'ESPULSIONE' && !e.dettagli?.toUpperCase().includes('DOPPIA AMMONIZIONE') && matchCartellinoConGiocatore(e, g)
             ).length;
 
             const totaleGialliEffettivi = ammonizioniNormaliRimaste + (doppieAmmonizioniRimaste * 2);
@@ -827,7 +850,10 @@ export default function App() {
   };
   
   const handleAggiornaRosa = async (nuovaRosa) => {
-    setRosa(nuovaRosa);
+    setRosa(prevRosa => {
+      const mappaAggiornati = new Map(nuovaRosa.map(g => [String(g.id), g]));
+      return prevRosa.map(g => mappaAggiornati.get(String(g.id)) || g);
+    });
     await aggiornaGiocatoriCloud(partitaId, societaAttiva.id, nuovaRosa, stagioneSelezionata, annataSelezionata);
   };
 
