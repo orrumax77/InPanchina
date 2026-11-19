@@ -361,6 +361,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     if (!nuovoNome.trim()) return;
 
     let numeroScelto = nuovoNumero.trim();
+    let giocatoreDaSpostare = null;
 
     if (!numeroScelto) {
       numeroScelto = trovaSuccessivoNumeroLibero();
@@ -368,12 +369,15 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       const giaPresente = giocatori.find(g => String(g.numero) === String(numeroScelto));
       if (giaPresente) {
         const successivoLibero = trovaSuccessivoNumeroLibero(parseInt(numeroScelto, 10));
-        const accettaSuggerito = window.confirm(
-          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi procedere dal numero successivo libero (#${successivoLibero})?\n\n• Clicca OK per usare il #${successivoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
+        const confermaSwitch = window.confirm(
+          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi assegnare il #${numeroScelto} a "${nuovoNome.trim().toUpperCase()}" e spostare "${giaPresente.nome}" al #${successivoLibero}?\n\n• Clicca OK per fare lo switch\n• Clicca ANNULLA per lasciare tutto invariato`
         );
 
-        if (accettaSuggerito) {
-          numeroScelto = successivoLibero;
+        if (confermaSwitch) {
+          giocatoreDaSpostare = {
+            ...giaPresente,
+            numero: successivoLibero
+          };
         } else {
           return;
         }
@@ -396,13 +400,20 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       isVice: false
     };
 
-    const nuovaRosa = ordinaDistinta([...giocatori, nuovo]);
+    const listaAggiornata = giocatori.map(g =>
+      giocatoreDaSpostare && g.id === giocatoreDaSpostare.id ? giocatoreDaSpostare : g
+    );
+
+    const nuovaRosa = ordinaDistinta([...listaAggiornata, nuovo]);
     setGiocatori(nuovaRosa);
     aggiornaRosaGlobale(nuovaRosa);
     setNuovoNome('');
     setNuovoNumero('');
 
     await dbAggiungiGiocatore(societa.id, nuovo, campionato, annata);
+    if (giocatoreDaSpostare) {
+      await dbModificaGiocatore(societa.id, giocatoreDaSpostare, campionato, annata);
+    }
     await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
@@ -430,20 +441,25 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     if (!target) return;
 
     let numeroScelto = editNumero.trim();
+    const vecchioNumeroTarget = String(target.numero || '').trim();
+    let giocatoreConCuiScambiare = null;
 
     if (!numeroScelto) {
       numeroScelto = trovaSuccessivoNumeroLibero(null, id);
     } else {
       const giaPresente = giocatori.find(g => g.id !== id && String(g.numero) === String(numeroScelto));
       if (giaPresente) {
-        const successivoLibero = trovaSuccessivoNumeroLibero(parseInt(numeroScelto, 10), id);
-        const accettaSuggerito = window.confirm(
-          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi procedere dal numero successivo libero (#${successivoLibero})?\n\n• Clicca OK per usare il #${successivoLibero}\n• Clicca ANNULLA per scegliere tu un altro numero`
+        const confermaSwitch = window.confirm(
+          `ATTENZIONE: Il numero ${numeroScelto} è già assegnato a "${giaPresente.nome}".\n\nVuoi scambiare i numeri di maglia tra i due giocatori?\n\n• Clicca OK per fare lo switch (${editNome.trim().toUpperCase()} → #${numeroScelto}, ${giaPresente.nome} → #${vecchioNumeroTarget})\n• Clicca ANNULLA per lasciare tutto invariato`
         );
 
-        if (accettaSuggerito) {
-          numeroScelto = successivoLibero;
+        if (confermaSwitch) {
+          giocatoreConCuiScambiare = {
+            ...giaPresente,
+            numero: vecchioNumeroTarget
+          };
         } else {
+          annullaModifica();
           return;
         }
       }
@@ -460,12 +476,22 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       nome: editNome.trim().toUpperCase()
     };
 
-    const nuovaRosa = ordinaDistinta(giocatori.map(g => (g.id === id ? aggiornato : g)));
+    const nuovaRosa = ordinaDistinta(
+      giocatori.map(g => {
+        if (g.id === id) return aggiornato;
+        if (giocatoreConCuiScambiare && g.id === giocatoreConCuiScambiare.id) return giocatoreConCuiScambiare;
+        return g;
+      })
+    );
+
     setGiocatori(nuovaRosa);
     aggiornaRosaGlobale(nuovaRosa);
     setEditingId(null);
 
     await dbModificaGiocatore(societa.id, aggiornato, campionato, annata);
+    if (giocatoreConCuiScambiare) {
+      await dbModificaGiocatore(societa.id, giocatoreConCuiScambiare, campionato, annata);
+    }
     await salvaRosaBaseSocieta(societa.id, nuovaRosa, undefined, campionato, annata);
     mostraNotificaSalvataggio();
   };
