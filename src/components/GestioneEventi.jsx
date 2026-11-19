@@ -313,9 +313,31 @@ export default function GestioneEventi({
     setCoppieInAttesa([]);
   };
   
+  const isGiocatoreUscito = (g) => {
+    const idG = String(g.id || '').trim();
+    const numG = String(g.numero || '').trim();
+    return eventi.some(e => {
+      if (e.tipo !== 'SOSTITUZIONE') return false;
+      const esceIdEv = String(e.esceId || e.esce_id || '').trim();
+      if (esceIdEv && idG) return esceIdEv === idG;
+      return Boolean(numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(e.dettagli || ''));
+    });
+  };
+
+  const isGiocatoreEntrato = (g) => {
+    const idG = String(g.id || '').trim();
+    const numG = String(g.numero || '').trim();
+    return eventi.some(e => {
+      if (e.tipo !== 'SOSTITUZIONE') return false;
+      const entraIdEv = String(e.entraId || e.entra_id || '').trim();
+      if (entraIdEv && idG) return entraIdEv === idG;
+      return Boolean(numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(e.dettagli || ''));
+    });
+  };
+
   const titolariInCampo = giocatori.filter(g => {
-    const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `)));
-    const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `)));
+    const eUscito = isGiocatoreUscito(g);
+    const eEntrato = isGiocatoreEntrato(g);
     
     if (eUscito && !eEntrato) return false;
     return (g.isTitolare || eEntrato) && !g.espulso;
@@ -518,8 +540,8 @@ export default function GestioneEventi({
             <h4 className="text-sm font-bold text-white uppercase">Seleziona Giocatore Sanzionato</h4>
             <div className="max-h-60 overflow-y-auto space-y-1.5">
               {giocatori.filter(g => {
-                const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `)));
-                const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `)));
+                const eUscito = isGiocatoreUscito(g);
+                const eEntrato = isGiocatoreEntrato(g);
                 const attualmenteInCampo = (g.isTitolare && (!eUscito || eEntrato)) || (!g.isTitolare && eEntrato);
                 return (attualmenteInCampo || g.espulso);
               }).map(g => {
@@ -673,8 +695,8 @@ export default function GestioneEventi({
 
                 <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
                   {giocatori.filter(g => !g.espulso).map(g => {
-                    const eUscito = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.esceId === g.id || e.dettagli?.toUpperCase().includes(`ESCE #${g.numero} `)));
-                    const eEntrato = eventi.some(e => e.tipo === 'SOSTITUZIONE' && (e.entraId === g.id || e.dettagli?.toUpperCase().includes(`ENTRA #${g.numero} `)));
+                    const eUscito = isGiocatoreUscito(g);
+                    const eEntrato = isGiocatoreEntrato(g);
                     
                     const giaUscito = (g.isTitolare && eUscito && !eEntrato) || (!g.isTitolare && eUscito);
                     const eInCampoAttr = (g.isTitolare && !eUscito) || (!g.isTitolare && eEntrato);
