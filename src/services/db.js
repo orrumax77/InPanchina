@@ -122,19 +122,30 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       const rosaBaseAnnata = soc.rosa_base[chiave] || [];
 
       if (Array.isArray(rosaBaseAnnata) && rosaBaseAnnata.length > 0) {
-        return rosaBaseAnnata.map((g, index) => ({
-          id: String(g.id),
-          numero: String(g.numero),
-          nome: (g.nome || '').toUpperCase(),
-          ruolo: g.ruolo || '',
-          isConvocato: g.isConvocato ?? (index < 20),
-          isTitolare: g.isTitolare ?? g.is_titolare ?? false,
-          isCapitano: g.isCapitano ?? g.is_capitano ?? false,
-          isVice: g.isVice ?? g.is_vice ?? false,
-          ammonizioni: g.ammonizioni || 0,
-          espulso: g.espulso || false,
-          minuti: g.minuti !== undefined ? g.minuti : 0
-        }));
+        const idsVisti = new Set();
+        return rosaBaseAnnata.map((g, index) => {
+          let rawId = g.id !== undefined && g.id !== null && String(g.id).trim() !== '' && String(g.id) !== 'undefined' && String(g.id) !== 'null'
+            ? String(g.id).trim()
+            : `player_${index}_${g.numero || index}`;
+          if (idsVisti.has(rawId)) {
+            rawId = `${rawId}_${index}`;
+          }
+          idsVisti.add(rawId);
+
+          return {
+            id: rawId,
+            numero: String(g.numero),
+            nome: (g.nome || '').toUpperCase(),
+            ruolo: g.ruolo || '',
+            isConvocato: g.isConvocato ?? (index < 20),
+            isTitolare: g.isTitolare ?? g.is_titolare ?? false,
+            isCapitano: g.isCapitano ?? g.is_capitano ?? false,
+            isVice: g.isVice ?? g.is_vice ?? false,
+            ammonizioni: g.ammonizioni || 0,
+            espulso: g.espulso || false,
+            minuti: g.minuti !== undefined ? g.minuti : 0
+          };
+        });
       }
     }
 
@@ -148,19 +159,34 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       //.order('numero', { ascending: true });
 
     if (!errG && gList && gList.length > 0) {
-      return gList.map((g, index) => ({
-        id: String(g.id).replace(`${societaId}_${campionatoPulito}_${annataPulita}_`, '').replace(`${societaId}_`, ''),
-        numero: String(g.numero),
-        nome: (g.nome || '').toUpperCase(),
-        ruolo: g.ruolo || '',
-        isConvocato: g.isConvocato ?? (index < 20),
-        isTitolare: g.is_titolare ?? false,
-        isCapitano: g.is_capitano ?? false,
-        isVice: g.is_vice ?? false,
-        ammonizioni: g.ammonizioni || 0,
-        espulso: g.espulso || false,
-        minuti: g.minuti !== undefined ? g.minuti : 0
-      }));
+      const idsVisti = new Set();
+      return gList.map((g, index) => {
+        let rawId = String(g.id || '')
+          .replace(`${societaId}_${campionatoPulito}_${annataPulita}_`, '')
+          .replace(`${societaId}_`, '')
+          .trim();
+        if (!rawId || rawId === 'undefined' || rawId === 'null') {
+          rawId = `player_${index}_${g.numero || index}`;
+        }
+        if (idsVisti.has(rawId)) {
+          rawId = `${rawId}_${index}`;
+        }
+        idsVisti.add(rawId);
+
+        return {
+          id: rawId,
+          numero: String(g.numero),
+          nome: (g.nome || '').toUpperCase(),
+          ruolo: g.ruolo || '',
+          isConvocato: g.isConvocato ?? (index < 20),
+          isTitolare: g.is_titolare ?? false,
+          isCapitano: g.is_capitano ?? false,
+          isVice: g.is_vice ?? false,
+          ammonizioni: g.ammonizioni || 0,
+          espulso: g.espulso || false,
+          minuti: g.minuti !== undefined ? g.minuti : 0
+        };
+      });
     }
 
     return [];
@@ -432,7 +458,8 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
 
 export async function registraEventoCloud(partitaId, evento, campionato, annata) {
   if (!campionato || !annata) return;
-  await supabase.from('eventi').insert([{
+
+  const { error } = await supabase.from('eventi').insert([{
     id: evento.id,
     partita_id: partitaId,
     campionato: campionato,
@@ -445,6 +472,19 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
     esceId: evento.esceId || null,
     entraId: evento.entraId || null
   }]);
+
+  if (error) {
+    await supabase.from('eventi').insert([{
+      id: evento.id,
+      partita_id: partitaId,
+      campionato: campionato,
+      annata: annata,
+      minuto: evento.minuto,
+      tempo: evento.tempo,
+      tipo: evento.tipo,
+      dettagli: evento.dettagli
+    }]);
+  }
 
   if (partitaId) {
     await supabase.from('partite').update({ updated_at: new Date().toISOString() }).eq('id', partitaId);
@@ -580,14 +620,16 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     const tipo = (ev.tipo || '').toUpperCase();
     const dett = (ev.dettagli || '').toUpperCase();
 
-    const eMioEntrata = entraId === idG;
-    const eMioUscitaOEventi = esceId === idG || giocatoreIdEv === idG;
-    const eMioTesto = (numG && dett.includes(`#${numG}`)) || (nomeG && dett.includes(nomeG));
+    const eMioEntrata = Boolean(idG && entraId && entraId === idG);
+    const eMioUscitaOEventi = Boolean(idG && ((esceId && esceId === idG) || (giocatoreIdEv && giocatoreIdEv === idG)));
+    const matchNumero = Boolean(numG && new RegExp(`#${numG}\\b`, 'i').test(dett));
+    const matchNomeSenzaNum = Boolean(nomeG && !dett.includes('#') && dett.includes(nomeG));
+    const eMioTesto = matchNumero || matchNomeSenzaNum;
 
-    if (eMioEntrata || (entraId === '' && tipo === 'SOSTITUZIONE' && eMioTesto && dett.includes('ENTRA'))) {
+    if (eMioEntrata || (entraId === '' && tipo === 'SOSTITUZIONE' && ((numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(dett)) || (matchNomeSenzaNum && dett.includes('ENTRA'))))) {
       haSubitoIngresso = true;
     }
-    if (eMioUscitaOEventi || (esceId === '' && giocatoreIdEv === '' && eMioTesto)) {
+    if (eMioUscitaOEventi || (esceId === '' && giocatoreIdEv === '' && (tipo === 'SOSTITUZIONE' ? ((numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(dett)) || (matchNomeSenzaNum && dett.includes('ESCE'))) : eMioTesto))) {
       if (!haSubitoIngresso) {
         eraCertamenteTitolare = true;
       }
@@ -611,13 +653,15 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     const giocatoreIdEv = String(ev.giocatoreId || ev.giocatore_id || '').trim();
     const dett = (ev.dettagli || '').toUpperCase();
 
-    const eMioIdEntrata = entraId === idG;
-    const eMioIdUscita = esceId === idG;
-    const eMioIdEvento = giocatoreIdEv === idG;
-    const eMioTesto = (numG && (dett.includes(`#${numG} `) || dett.includes(` #${numG}`) || dett.includes(`#${numG}-`))) || (nomeG && dett.includes(nomeG));
+    const eMioIdEntrata = Boolean(idG && entraId && entraId === idG);
+    const eMioIdUscita = Boolean(idG && esceId && esceId === idG);
+    const eMioIdEvento = Boolean(idG && giocatoreIdEv && giocatoreIdEv === idG);
+    const matchNumero = Boolean(numG && new RegExp(`#${numG}\\b`, 'i').test(dett));
+    const matchNomeSenzaNum = Boolean(nomeG && !dett.includes('#') && dett.includes(nomeG));
+    const eMioTesto = matchNumero || matchNomeSenzaNum;
 
     // A. ENTRATA IN CAMPO
-    if (tipo === 'SOSTITUZIONE' && (eMioIdEntrata || (entraId === '' && eMioTesto && dett.includes('ENTRA')))) {
+    if (tipo === 'SOSTITUZIONE' && (eMioIdEntrata || (entraId === '' && ((numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(dett)) || (matchNomeSenzaNum && dett.includes('ENTRA')))))) {
       if (!inCampo) {
         inCampo = true;
         minutoInizioSpezzone = minEv;
@@ -626,7 +670,7 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     }
 
     // B. USCITA DAL CAMPO (Cambio)
-    if (tipo === 'SOSTITUZIONE' && (eMioIdUscita || (esceId === '' && eMioTesto && dett.includes('ESCE'))) && inCampo) {
+    if (tipo === 'SOSTITUZIONE' && (eMioIdUscita || (esceId === '' && ((numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(dett)) || (matchNomeSenzaNum && dett.includes('ESCE'))))) && inCampo) {
       if (minutoInizioSpezzone !== null) {
         minutiAccumulati += Math.max(0, minEv - minutoInizioSpezzone);
       }
@@ -636,7 +680,7 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
     }
 
     // C. ESPULSIONE
-    if (tipo === 'ESPULSIONE' && (eMioIdEvento || eMioTesto) && inCampo) {
+    if (tipo === 'ESPULSIONE' && (eMioIdEvento || (!giocatoreIdEv && eMioTesto)) && inCampo) {
       if (minutoInizioSpezzone !== null) {
         minutiAccumulati += Math.max(0, minEv - minutoInizioSpezzone);
       }
