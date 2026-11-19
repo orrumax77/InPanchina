@@ -734,19 +734,23 @@ export async function loginSistema(username, password, campionatoSelezionato) {
   const p = password.trim();
   const campionatoScelto = (campionatoSelezionato || '').trim();
 
-  if (u === 'admin' && p === 'admin2026') {
-    return {
-      success: true,
-      isAdmin: true,
-      utente: { username: 'admin', ruolo: 'superadmin' }
-    };
-  }
-
   const { data: utentiTrovati, error } = await supabase
     .from('utenti_panchina')
     .select('*, societa(*)')
     .eq('username', u)
     .eq('password_chiaro', p);
+
+  // Se l'utente è registrato su Supabase con ruolo superadmin, entra come Admin
+  const utenteAdminDb = (utentiTrovati || []).find(
+    (usr) => (usr.ruolo || '').toLowerCase() === 'superadmin'
+  );
+  if (utenteAdminDb) {
+    return {
+      success: true,
+      isAdmin: true,
+      utente: utenteAdminDb
+    };
+  }
 
   const utente = (utentiTrovati || []).find((usr) => {
     const campUtente = (usr.campionato || usr.stagione || '').trim();
