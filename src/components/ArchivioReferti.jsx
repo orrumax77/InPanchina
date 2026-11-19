@@ -177,15 +177,21 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
         const matchGiocatore = (ev) => {
           if (!ev) return false;
-          if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
+          const idGStr = String(idG || '').trim();
+          const idEvStr = String(ev.giocatoreId || ev.giocatore_id || '').trim();
+          if (idEvStr && idGStr) {
+            return idEvStr === idGStr;
+          }
           
           const det = (ev.dettagli || '').toUpperCase();
-          if (nomeG && det.includes(nomeG)) return true;
-          
           if (numG) {
-            // Utilizzo di una Regex con confine di parola (\b) per evitare che #1 matchi con #10, #11, ecc.
             const regexNum = new RegExp(`#${numG}\\b`, 'i');
             if (regexNum.test(det)) return true;
+          }
+          if (nomeG && !det.includes('#')) {
+            const nomeEscaped = nomeG.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regexNomeFine = new RegExp(`:\\s*${nomeEscaped}\\s*$`, 'i');
+            if (regexNomeFine.test(det)) return true;
           }
           return false;
         };
@@ -199,7 +205,12 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const eAmmonito = !!eventoAmm && !isDoppia;
         
         const haSubitoCambio = cambi.some(c => {
-          if (c.esceId === idG || c.entraId === idG) return true;
+          const idGStr = String(idG || '').trim();
+          const esceIdStr = String(c.esceId || c.esce_id || '').trim();
+          const entraIdStr = String(c.entraId || c.entra_id || '').trim();
+          if ((esceIdStr || entraIdStr) && idGStr) {
+            return esceIdStr === idGStr || entraIdStr === idGStr;
+          }
           const det = (c.dettagli || '').toUpperCase();
           if (numG) {
             const regexCambio = new RegExp(`(ESCE|ENTRA)\\s*#${numG}\\b`, 'i');
@@ -219,7 +230,11 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
         const minStr = `${minutiValore}'`;
 
         const isSubentrato = cambi.some(c => {
-          if (String(c.entraId || '').trim() === String(idG).trim()) return true;
+          const idGStr = String(idG || '').trim();
+          const entraIdStr = String(c.entraId || c.entra_id || '').trim();
+          if (entraIdStr && idGStr) {
+            return entraIdStr === idGStr;
+          }
           const det = (c.dettagli || '').toUpperCase();
           if (numG) {
             const regexEntra = new RegExp(`ENTRA\\s*#${numG}\\b`, 'i');
@@ -400,14 +415,21 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
 
       const matchGiocatore = (ev) => {
         if (!ev) return false;
-        if (ev.giocatoreId === idG || ev.esceId === idG || ev.entraId === idG || ev.giocatore_id === idG) return true;
+        const idGStr = String(idG || '').trim();
+        const idEvStr = String(ev.giocatoreId || ev.giocatore_id || '').trim();
+        if (idEvStr && idGStr) {
+          return idEvStr === idGStr;
+        }
         
         const det = (ev.dettagli || '').toUpperCase();
-        if (nomeG && det.includes(nomeG)) return true;
-        
         if (numG) {
           const regexNum = new RegExp(`#${numG}\\b`, 'i');
           if (regexNum.test(det)) return true;
+        }
+        if (nomeG && !det.includes('#')) {
+          const nomeEscaped = nomeG.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regexNomeFine = new RegExp(`:\\s*${nomeEscaped}\\s*$`, 'i');
+          if (regexNomeFine.test(det)) return true;
         }
         return false;
       };
@@ -427,8 +449,16 @@ export default function ArchivioReferti({ societa, campionato, annata, onTornaIn
       let isSubentrato = false;
 
       cambi.forEach(c => {
-        const esceMatch = String(c.esceId || '').trim() === String(idG).trim() || (numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
-        const entraMatch = String(c.entraId || '').trim() === String(idG).trim() || (numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
+        const idGStr = String(idG || '').trim();
+        const esceIdStr = String(c.esceId || c.esce_id || '').trim();
+        const entraIdStr = String(c.entraId || c.entra_id || '').trim();
+
+        const esceMatch = (esceIdStr && idGStr)
+          ? esceIdStr === idGStr
+          : (numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
+        const entraMatch = (entraIdStr && idGStr)
+          ? entraIdStr === idGStr
+          : (numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(c.dettagli || ''));
 
         if (esceMatch) descEventi.push(`[Esce ${c.minuto}']`);
         if (entraMatch) {
