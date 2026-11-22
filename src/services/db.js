@@ -600,6 +600,7 @@ export async function getSocietaById(societaId) {
 }
 
 // ⏱️ Funzione Definitiva con Correzione Blindata per il Portiere (#1)
+/*
 export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePartita) {
   const idG = String(giocatore.id || '').trim();
   const numG = String(giocatore.numero || '').trim();
@@ -696,25 +697,162 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
 
   return Math.min(durataTotalePartita, Math.max(0, minutiAccumulati));
 }
+*/
 
-export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato, annata) {
-  if (!campionato || !annata) return { success: false, error: 'Mancano campionato o annata' };
-  try {
-    const storicoId = `STORICO_${societaId}_${Date.now()}`;
+// ⏱️ Calcolo Minutaggio Preciso con Recuperi 1° e 2° Tempo
+export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePartita, recupero1T = 0, recupero2T = 0) {
+  const idG = String(giocatore.id || '').trim();
+  const numG = String(giocatore.numero || '').trim();
+  const nomeG = (giocatore.nome || '').toUpperCase().trim();
 
-    let durataTotalePartita = 90;
-    if (eventi && eventi.length > 0) {
-      const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
-      if (ultimoMinutoEvento > 90) {
-        durataTotalePartita = ultimoMinutoEvento;
+  // Helper per associare un evento al giocatore (tramite ID, maglia o nome)
+  const matchEvento = (ev, azione) => {
+    const entraId = String(ev.entraId || ev.entra_id || '').trim();
+    const esceId = String(ev.esceId || ev.esce_id || '').trim();
+    const dett = (ev.dettagli || '').toUpperCase();
+    const matchNumero = Boolean(numG && new RegExp(`#${numG}\\b`, 'i').test(dett));
+    const matchNome = Boolean(nomeG && !dett.includes('#') && dett.includes(nomeG));
+
+    if (azione === 'ENTRA') {
+      return (idG && entraId && entraId === idG) ||
+             (entraId === '' && ((numG && new RegExp(`ENTRA\\s*#${numG}\\b`, 'i').test(dett)) || (matchNome && dett.includes('ENTRA'))));
+    }
+    if (azione === 'ESCE') {
+      return (idG && esceId && esceId === idG) ||
+             (esceId === '' && ((numG && new RegExp(`ESCE\\s*#${numG}\\b`, 'i').test(dett)) || (matchNome && dett.includes('ESCE'))));
+    }
+    if (azione === 'ESPULSIONE') {
+      const gId = String(ev.giocatoreId || ev.giocatore_id || '').trim();
+      return (idG && gId && gId === idG) || (!gId && (matchNumero || matchNome));
+    }
+    return false;
+  };
+
+  const eventi = [...(eventiPartita || [])].sort((a, b) => (a.minuto || 0) - (b.minuto || 0));
+
+  // Rileva automaticamente se ci sono stati eventi oltre il 45' o il 90'
+  const maxMinuto1T = Math.max(45, ...(eventi.filter(e => Number(e.tempo) === 1).map(e => Number(e.minuto || 0))));
+  const rec1Effettivo = Math.max(Number(recupero1T || 0), maxMinuto1T - 45);
+
+  const maxMinuto2T = Math.max(90, ...(eventi.filter(e => Number(e.tempo) === 2).map(e => Number(e.minuto || 0))));
+  const rec2Effettivo = Math.max(Number(recupero2T || 0), maxMinuto2T - 90);
+
+  const finePrimoTempoReale = 45 + rec1Effettivo;
+  const fineGaraReale = Math.max(90 + rec2Effettivo, Number(durataTotalePartita || 90));
+
+  let eraTitolare = giocatore.isTitolare === true || giocatore.is_titolare === true;
+
+  // Controlla se ha subito un ingresso prima di essere titolare (correzione panchina)
+  const haSubitoIngressoPrima = eventi.some(e => matchEvento(e, 'ENTRA'));
+  if (haSubitoIngressoPrima) eraTitolare = false;
+
+  // ==========================================
+  // 1️⃣ CALCOLO MINUTI PRIMO TEMPO
+  // ==========================================
+  let inCampo1T = eraTitolare;
+  let minInizio1T = inCampo1T ? 0 : null;
+  let minuti1T = 0;
+
+  for (const ev of eventi) {
+    const tempoEv = Number(ev.tempo || (ev.minuto <= 45 ? 1 : 2));
+    const minEv = Number(ev.minuto || 0);
+
+    if (tempoEv === 1) {
+      if (matchEvento(ev, 'ENTRA')) {
+        inCampo1T = true;
+        minInizio1T = minEv;
+      } else if (matchEvento(ev, 'ESCE') && inCampo1T) {
+        minuti1T += Math.max(0, minEv - minInizio1T);
+        inCampo1T = false;
+        minInizio1T = null;
+      } else if (matchEvento(ev, 'ESPULSIONE') && inCampo1T) {
+        minuti1T += Math.max(0, minEv - minInizio1T);
+        inCampo1T = false;
+        minInizio1T = null;
       }
     }
-    if (datiGara?.minutoCorrente && datiGara.minutoCorrente > durataTotalePartita) {
-      durataTotalePartita = datiGara.minutoCorrente;
+  }
+
+  // Se ha finito il 1° tempo in campo, riceve tutto il recupero del 1° tempo!
+  if (inCampo1T && minInizio1T !== null) {
+    minuti1T += Math.max(0, finePrimoTempoReale - minInizio1T);
+  }
+
+  // ==========================================
+  // 2️⃣ CALCOLO MINUTI SECONDO TEMPO
+  // ==========================================
+  // Verifica se è uscito o entrato durante l'intervallo (cambio al 45')
+  const cambioIntervalloEsce = eventi.some(e => (e.minuto === 45 || e.tempo === 1) && matchEvento(e, 'ESCE'));
+  const cambioIntervalloEntra = eventi.some(e => (e.minuto === 45 || e.tempo === 1) && matchEvento(e, 'ENTRA'));
+
+  let inCampo2T = (inCampo1T && !cambioIntervalloEsce) || cambioIntervalloEntra;
+  let minInizio2T = inCampo2T ? 45 : null;
+  let minuti2T = 0;
+
+  for (const ev of eventi) {
+    const tempoEv = Number(ev.tempo || (ev.minuto > 45 ? 2 : 1));
+    const minEv = Number(ev.minuto || 0);
+
+    if (tempoEv === 2) {
+      if (matchEvento(ev, 'ENTRA')) {
+        inCampo2T = true;
+        minInizio2T = minEv;
+      } else if (matchEvento(ev, 'ESCE') && inCampo2T) {
+        minuti2T += Math.max(0, minEv - minInizio2T);
+        inCampo2T = false;
+        minInizio2T = null;
+      } else if (matchEvento(ev, 'ESPULSIONE') && inCampo2T) {
+        minuti2T += Math.max(0, minEv - minInizio2T);
+        inCampo2T = false;
+        minInizio2T = null;
+      }
+    }
+  }
+
+  // Se finisce la gara in campo, riceve tutto il recupero del 2° tempo!
+  if (inCampo2T && minInizio2T !== null) {
+    minuti2T += Math.max(0, fineGaraReale - minInizio2T);
+  }
+
+  return Math.max(0, minuti1T + minuti2T);
+}
+
+export async function archiviaPartitaEResettaLive(
+  societaId, 
+  livePartitaId, 
+  partitaInfo, 
+  datiGara, 
+  eventi, 
+  giocatori, 
+  campionato, 
+  annata
+) {
+  if (!campionato || !annata) return { success: false, error: 'Mancano campionato o annata' };
+  
+  try {
+    const storicoId = `STORICO_${societaId}_${Date.now()}`;
+    const eventiValidi = eventi || [];
+
+    // 1️⃣ Recupero dei minuti addizionali (passati da datiGara o auto-rilevati dagli eventi)
+    const rec1Param = Number(datiGara?.recupero1T ?? datiGara?.recuperoPrimoTempo ?? 0);
+    const rec2Param = Number(datiGara?.recupero2T ?? datiGara?.recupero ?? 0);
+
+    // Auto-rilevamento di sicurezza: se ci sono eventi oltre il 45' (1°T) o oltre il 90' (2°T)
+    const maxMinuto1T = Math.max(45, ...(eventiValidi.filter(e => Number(e.tempo) === 1).map(e => Number(e.minuto || 0))));
+    const rec1Effettivo = Math.max(rec1Param, maxMinuto1T - 45);
+
+    const maxMinuto2T = Math.max(90, ...(eventiValidi.filter(e => Number(e.tempo) === 2).map(e => Number(e.minuto || 0))));
+    const rec2Effettivo = Math.max(rec2Param, maxMinuto2T - 90);
+
+    // 2️⃣ Durata totale effettiva comprensiva dei due recuperi
+    let durataTotalePartita = 90 + rec1Effettivo + rec2Effettivo;
+    if (datiGara?.minutoCorrente && (Number(datiGara.minutoCorrente) + rec1Effettivo) > durataTotalePartita) {
+      durataTotalePartita = Number(datiGara.minutoCorrente) + rec1Effettivo;
     }
 
-    const giocatoriDaArchiviare = giocatori.map(g => {
-      const minutiReali = calcolaMinutiGiocatore(g, eventi, durataTotalePartita);
+    // 3️⃣ Calcolo dei minuti effettivi giocati per ciascun giocatore
+    const giocatoriDaArchiviare = (giocatori || []).map(g => {
+      const minutiReali = calcolaMinutiGiocatore(g, eventiValidi, durataTotalePartita, rec1Effettivo, rec2Effettivo);
       const eraTitolare = g.isTitolare === true || g.is_titolare === true;
 
       return {
@@ -725,6 +863,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       };
     });
       
+    // 4️⃣ Inserimento del referto completo nello storico su Supabase
     await supabase.from('partite').insert([{
       id: storicoId,
       societa_id: societaId,
@@ -736,7 +875,8 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       campionato: campionato,
       annata: annata,
       stato: 'completata',
-      referto_eventi: eventi,
+      recupero: rec2Effettivo,
+      referto_eventi: eventiValidi,
       referto_giocatori: giocatoriDaArchiviare,
       terminata_il: new Date().toISOString(),
       allenatore: partitaInfo.allenatore || '',
@@ -750,11 +890,13 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       preparatore_portieri: partitaInfo.preparatorePortieri || ''
     }]);
 
+    // 5️⃣ Assegna gli eventi live allo storicoId archiviato
     await supabase
       .from('eventi')
       .update({ partita_id: storicoId })
       .eq('partita_id', livePartitaId);
 
+    // 6️⃣ Reset della partita live a stato iniziale ("bozza")
     const { data: socCorrente } = await supabase
       .from('societa')
       .select('nome, staff_base, rosa_base')
@@ -786,6 +928,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       updated_at: new Date().toISOString()
     }).eq('id', livePartitaId);
 
+    // 7️⃣ Ripristino staff predefinito per la società
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
     const chiave = `${campionatoPulito}_${annataPulita}`;
@@ -803,6 +946,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       await supabase.from('societa').update({ staff_base: staffMap }).eq('id', societaId);
     }
 
+    // 8️⃣ Reset stato giocatori per la gara successiva (azzeramento ammonizioni, espulsioni e minuti)
     let rosaCompleta = [];
     if (socCorrente?.rosa_base && socCorrente.rosa_base[chiave]) {
       rosaCompleta = socCorrente.rosa_base[chiave];
@@ -819,11 +963,12 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
     await aggiornaGiocatoriCloud(livePartitaId, societaId, listaDaSalvare, campionato, annata);
     await salvaRosaBaseSocieta(societaId, listaDaSalvare, undefined, campionato, annata);
 
+    // 9️⃣ Registrazione nei log di sistema
     await registraLog({
       societaId,
       societaNome: nomeNostraSocieta,
       azione: 'ARCHIVIAZIONE_PARTITA',
-      dettagli: `Archiviata gara: ${partitaInfo.squadraCasa} ${datiGara.golCasa ?? 0} - ${datiGara.golOspiti ?? 0} ${partitaInfo.squadraOspite} (${campionato} - Annata ${annata})`
+      dettagli: `Archiviata gara: ${partitaInfo.squadraCasa} ${datiGara.golCasa ?? 0} - ${datiGara.golOspiti ?? 0} ${partitaInfo.squadraOspite} (${campionato} - Annata ${annata}) [Recupero: 1°T +${rec1Effettivo}' / 2°T +${rec2Effettivo}']`
     });
 
     return { success: true, storicoId };
