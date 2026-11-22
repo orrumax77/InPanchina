@@ -109,6 +109,7 @@ export default function App() {
   const [avviatoAlle, setAvviatoAlle] = useState(null);
   const [inEsecuzione, setInEsecuzione] = useState(false);
   const [recupero, setRecupero] = useState(0);
+  const [recuperoPrimoTempo, setRecuperoPrimoTempo] = useState(0);
   const [minutoCorrente, setMinutoCorrente] = useState(1);
   const [golCasa, setGolCasa] = useState(0);
   const [golOspiti, setGolOspiti] = useState(0);
@@ -627,6 +628,8 @@ export default function App() {
       setTempoGara(2);
       setSecondiGara(0);
       setSecondiBase(0);
+      // ⏱️ SALVA IL RECUPERO DEL 1° TEMPO PRIMA DI AZZERARE
+      setRecuperoPrimoTempo(recupero);
       setRecupero(0);
       setMinutoCorrente(46);
 
@@ -638,6 +641,7 @@ export default function App() {
         inEsecuzione: false,
         avviatoAlle: null,
         recupero: 0,
+        recuperoPrimoTempo: recupero,
         minutoCorrente: 46,
         slotUsati,
         cambiEffettuati
@@ -875,12 +879,16 @@ export default function App() {
       : rosa;
 
     const giocatoriDaArchiviare = giocatoriBase.filter(g => g.isConvocato === true);
+
+    // ⏱️ RECUPERI EFFETTIVI DEI DUE TEMPI
+    const rec1T = tempoGara === 1 ? recupero : recuperoPrimoTempo;
+    const rec2T = tempoGara === 2 ? recupero : 0;
     
     const res = await archiviaPartitaEResettaLive(
       societaAttiva.id,
       partitaId,
       partitaInfo,
-      { golCasa, golOspiti, minutoCorrente },
+      { golCasa, golOspiti, minutoCorrente, recupero1T: rec1T, recupero2T: rec2T },
       eventi,
       giocatoriDaArchiviare,
       stagioneSelezionata,
@@ -904,6 +912,7 @@ export default function App() {
       setAvviatoAlle(null);
       setInEsecuzione(false);
       setRecupero(0);
+      setRecuperoPrimoTempo(0);
       setMinutoCorrente(1);
       setSlotUsati(0);
       setCambiEffettuati(0);
