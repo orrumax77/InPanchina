@@ -33,7 +33,8 @@ export default function GestioneEventi({
   setCambiEffettuati,
   onAggiornaCambiSlot,
   onGolSegnato,
-  inEsecuzione
+  inEsecuzione,
+  durataTempo
 }) {
   const [modalGol, setModalGol] = useState(false);
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
@@ -259,7 +260,7 @@ export default function GestioneEventi({
     }
 
     let nuevaRosa = [...giocatori];
-    const minutoDelCambio = isIntervalloEffettivo ? 45 : minutoCorrente;
+    const minutoDelCambio = isIntervalloEffettivo ? durataTempo : minutoCorrente;
 
     listaCambi.forEach(({ esce, entra }) => {
       nuevaRosa = nuevaRosa.map(g => {
