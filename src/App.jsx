@@ -384,17 +384,24 @@ export default function App() {
           setSecondiGara(p.secondi_gara || 0);
         }
 
-        if (p.squadra_casa && p.squadra_ospite) {
+        if (p) {
           setPartitaInfo(prev => ({
             ...(prev || {}),
-            squadraCasa: p.squadra_casa,
-            squadraOspite: p.squadra_ospite,
-            allenatore: p.allenatore || prev?.allenatore || '',
-            dirigente: p.dirigente || prev?.dirigente || '',
+            squadraCasa: p.squadra_casa ?? prev?.squadraCasa ?? '',
+            squadraOspite: p.squadra_ospite ?? prev?.squadraOspite ?? '',
+            // 🚀 Accetta la cancellazione ("") e sincronizza tutti i ruoli:
+            allenatore: p.allenatore !== undefined ? p.allenatore : (prev?.allenatore ?? ''),
+            allenatoreSeconda: p.allenatore_seconda !== undefined ? p.allenatore_seconda : (prev?.allenatoreSeconda ?? ''),
+            dirigente: p.dirigente !== undefined ? p.dirigente : (prev?.dirigente ?? ''),
+            dirigenteUfficiali: p.dirigente_ufficiali !== undefined ? p.dirigente_ufficiali : (prev?.dirigenteUfficiali ?? ''),
+            assistenteArbitro: p.assistente_arbitro !== undefined ? p.assistente_arbitro : (prev?.assistenteArbitro ?? ''),
+            medicoSociale: p.medico_sociale !== undefined ? p.medico_sociale : (prev?.medicoSociale ?? ''),
+            massaggiatore: p.massaggiatore !== undefined ? p.massaggiatore : (prev?.massaggiatore ?? ''),
+            preparatoreAtletico: p.preparatore_atletico !== undefined ? p.preparatore_atletico : (prev?.preparatoreAtletico ?? ''),
+            preparatorePortieri: p.preparatore_portieri !== undefined ? p.preparatore_portieri : (prev?.preparatorePortieri ?? ''),
             dataPartita: p.data_gara || prev?.dataPartita || '',
             isNostraCasa: p.is_nostra_casa ?? (prev?.isNostraCasa ?? true)
           }));
-
           if (p.stato === 'in-corso') {
             setFaseApp(prevFase => (prevFase === 'distinta' ? 'partita' : prevFase));
           }
