@@ -52,7 +52,6 @@ const getCategoriaLND = (stagione, annataStr) => {
   if (eta === 15) return `Under 16 (${annataStr})`;
   if (eta === 14) return `Under 15 (${annataStr})`;
   if (eta === 13) return `Under 14 (${annataStr})`;
-  if (eta <= 12) return `Attività di Base / Esordienti (${annataStr})`;
   return `Annata ${annataStr}`;
   */
 
@@ -1110,10 +1109,7 @@ export default function App() {
                     annoBase - 16,
                     annoBase - 15,
                     annoBase - 14,
-                    annoBase - 13,
-                    annoBase - 12,
-                    annoBase - 11,
-                    annoBase - 10
+                    annoBase - 13
                   ];
                   return annateComuni.map(anno => (
                     <option key={anno} value={String(anno)} className="bg-slate-900 text-white">
