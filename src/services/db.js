@@ -706,15 +706,38 @@ export function calcolaMinutiGiocatore(giocatore, eventiPartita, durataTotalePar
   return Math.min(durataTotalePartita, Math.max(0, minutiAccumulati));
 }
 
+// ⏱️ Calcola dinamicamente la durata regolamentare in base a Campionato e Annata
+export const getDurataPartita = (stagione, annataStr) => {
+  if (!annataStr || isNaN(annataStr)) {
+    return { durataTotale: 90, durataTempo: 45 };
+  }
+  const annoNascita = parseInt(annataStr, 10);
+  const annoInizioStagione = parseInt(String(stagione || '').split('/')[0], 10) || new Date().getFullYear();
+  const eta = annoInizioStagione - annoNascita;
+
+  if (eta <= 14) {
+    // Esordienti / Under 14 / Under 15: 70 minuti totali (2 tempi da 35')
+    return { durataTotale: 70, durataTempo: 35 };
+  } else if (eta === 15) {
+    // Under 16: 80 minuti totali (2 tempi da 40')
+    return { durataTotale: 80, durataTempo: 40 };
+  } else {
+    // Under 17, Under 18, Under 19, Adulti: 90 minuti totali (2 tempi da 45')
+    return { durataTotale: 90, durataTempo: 45 };
+  }
+};
+
 export async function archiviaPartitaEResettaLive(societaId, livePartitaId, partitaInfo, datiGara, eventi, giocatori, campionato, annata) {
   if (!campionato || !annata) return { success: false, error: 'Mancano campionato o annata' };
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    let durataTotalePartita = 90;
+    // ⏱️ Durata dinamica (70', 80' o 90' in base all'annata)
+    const { durataTotale } = getDurataPartita(campionato, annata);
+    let durataTotalePartita = durataTotale;
     if (eventi && eventi.length > 0) {
       const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
-      if (ultimoMinutoEvento > 90) {
+      if (ultimoMinutoEvento > durataTotalePartita) {
         durataTotalePartita = ultimoMinutoEvento;
       }
     }
