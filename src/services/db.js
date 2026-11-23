@@ -916,10 +916,11 @@ export async function eliminaRefertoStorico(refertoId) {
   }
 }
 
-export async function loginSistema(username, password, campionatoSelezionato) {
+export async function loginSistema(username, password, campionatoSelezionato, annataSelezionata) {
   const u = username.trim();
   const p = password.trim();
   const campionatoScelto = (campionatoSelezionato || '').trim();
+  const annataScel = (annataSelezionata || '').trim();
 
   const { data: utentiTrovati, error } = await supabase
     .from('utenti_panchina')
@@ -1001,7 +1002,8 @@ export async function loginSistema(username, password, campionatoSelezionato) {
     societaNome: utente.societa.nome,
     username: u,
     azione: 'LOGIN_OK',
-    dettagli: `Accesso dirigente effettuato (${campionatoScelto || utente.campionato || utente.stagione || 'N/D'})`
+    //dettagli: `Accesso dirigente effettuato (${campionatoScelto || utente.campionato || utente.stagione || 'N/D'})`
+    dettagli: `Accesso dirigente effettuato (${campionatoScelto || utente.campionato || utente.stagione || 'N/D'} • Annata ${annataScel || 'N/D'})`
   });
 
   return {
