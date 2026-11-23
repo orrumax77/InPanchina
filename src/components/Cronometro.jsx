@@ -66,6 +66,8 @@ export default function Cronometro({
   inEsecuzione,
   avviatoAlle,       // Timestamp ISO assoluto di avvio condiviso da Supabase
   secondiBase,       // Secondi accumulati prima dell'ultimo avvio
+  durataTempo,
+  durataTotale,
   onAvvia,
   onPausa,
   onAvanzaTempo,     // Notifica ad App.jsx per l'avanzamento senza fermare il timer
@@ -76,14 +78,14 @@ export default function Cronometro({
   onTick,
   onTriggerScadenzaTempo
 }) {
-  const SECONDI_45_MIN = 45 * 60;
-  const LIMITE_MASSIMO_CON_RECUPERO = SECONDI_45_MIN + (recupero * 60);
+  const SECONDI_TEMPO = durataTempo * 60;
+  const LIMITE_MASSIMO_CON_RECUPERO = SECONDI_TEMPO + (recupero * 60);
 
   const secondiTrascorsi = Math.max(0, secondi);
   const minutiTempo = Math.floor(secondiTrascorsi / 60);
   const secondiTempo = secondiTrascorsi % 60;
 
-  const offsetMinutiPartita = tempo === 2 ? 45 : 0;
+  const offsetMinutiPartita = tempo === 2 ? durataTempo : 0;
   const minutoTotalePartita = offsetMinutiPartita + minutiTempo;
 
   const tempoScaduto = secondiTrascorsi >= LIMITE_MASSIMO_CON_RECUPERO;
@@ -195,7 +197,9 @@ export default function Cronometro({
       <div className="flex flex-wrap justify-between items-center gap-2 text-xs sm:text-sm font-semibold tracking-wider uppercase text-slate-400">
         <span className="flex items-center gap-1.5 text-emerald-400 font-bold truncate">
           <Clock className="w-4 h-4 flex-shrink-0" />
-          <span className="truncate">{tempo === 1 ? '1° Tempo (00:00 ➔ 45:00)' : '2° Tempo (00:00 ➔ 45:00)'}</span>
+          <span className="truncate">
+            {tempo === 1 ? `1° Tempo (00:00 ➔ ${durataTempo}:00)` : `2° Tempo (00:00 ➔ ${durataTempo}:00)`}
+          </span>
         </span>
 
         <div className="flex items-center gap-1.5 flex-wrap">
