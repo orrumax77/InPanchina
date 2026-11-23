@@ -414,6 +414,15 @@ export async function salvaBozzaPartitaSuDb(societaId, partitaId, partitaInfo, c
           campionato: campionato,
           annata: annata,
           stato: 'bozza',
+          allenatore: partitaInfo.allenatore ?? '',
+          allenatore_seconda: partitaInfo.allenatoreSeconda ?? '',
+          dirigente: partitaInfo.dirigente ?? '',
+          dirigente_ufficiali: partitaInfo.dirigenteUfficiali ?? '',
+          assistente_arbitro: partitaInfo.assistenteArbitro ?? '',
+          medico_sociale: partitaInfo.medicoSociale ?? '',
+          massaggiatore: partitaInfo.massaggiatore ?? '',
+          preparatore_atletico: partitaInfo.preparatoreAtletico ?? '',
+          preparatore_portieri: partitaInfo.preparatorePortieri ?? '',
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       } catch (errP) {
