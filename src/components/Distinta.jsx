@@ -128,42 +128,15 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
     }
   };
 
-  useEffect(() => {
-    const staff = societa?.staff_base || {};
-
-    const allenatoreVal = (staff.allenatore || partitaIniziale?.allenatore || societa?.allenatore_predefinito || '').toUpperCase();
-    const allenatoreSecVal = (staff.allenatoreSeconda || partitaIniziale?.allenatoreSeconda || societa?.allenatore_seconda_predefinito || '').toUpperCase();
-    const dirigenteVal = (staff.dirigente || partitaIniziale?.dirigente || societa?.dirigente_predefinito || '').toUpperCase();
-    const dirigenteUffVal = (staff.dirigenteUfficiali || partitaIniziale?.dirigenteUfficiali || societa?.dirigente_ufficiali_predefinito || '').toUpperCase();
-    const assistenteVal = (staff.assistenteArbitro || partitaIniziale?.assistenteArbitro || societa?.assistente_arbitro_predefinito || '').toUpperCase();
-    const medicoVal = (staff.medicoSociale || partitaIniziale?.medicoSociale || '').toUpperCase();
-    const massaggiatoreVal = (staff.massaggiatore || partitaIniziale?.massaggiatore || '').toUpperCase();
-    const prepAtlVal = (staff.preparatoreAtletico || partitaIniziale?.preparatoreAtletico || '').toUpperCase();
-    const prepPortVal = (staff.preparatorePortieri || partitaIniziale?.preparatorePortieri || '').toUpperCase();
-    
-    const dataPartitaVal = partitaIniziale?.dataPartita || staff.dataPartita || oggiISO;
-
-    setPartitaInfo(prev => ({
-      ...prev,
-      allenatore: allenatoreVal || prev.allenatore,
-      allenatoreSeconda: allenatoreSecVal || prev.allenatoreSeconda,
-      dirigente: dirigenteVal || prev.dirigente,
-      dirigenteUfficiali: dirigenteUffVal || prev.dirigenteUfficiali,
-      assistenteArbitro: assistenteVal || prev.assistenteArbitro,
-      medicoSociale: medicoVal || prev.medicoSociale,
-      massaggiatore: massaggiatoreVal || prev.massaggiatore,
-      preparatoreAtletico: prepAtlVal || prev.preparatoreAtletico,
-      preparatorePortieri: prepPortVal || prev.preparatorePortieri,
-      dataPartita: dataPartitaVal
-    }));
-
+    useEffect(() => {
+    // 1. Carica la rosa dei giocatori (solo se la lista locale è ancora vuota o cambia la rosa iniziale)
     const rosaDaCaricare = (rosaIniziale && rosaIniziale.length > 0)
       ? rosaIniziale
       : (societa?.rosa_base && societa.rosa_base.length > 0)
         ? societa.rosa_base
         : [];
 
-    if (rosaDaCaricare.length > 0) {
+    if (rosaDaCaricare.length > 0 && giocatori.length === 0) {
       const formattati = rosaDaCaricare.map((g, index) => ({
         ...g,
         nome: (g.nome || '').toUpperCase(),
@@ -172,11 +145,48 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       setGiocatori(ordinaDistinta(formattati, criterioOrdinamento));
     }
 
-    setTimeout(() => {
-      isLoaded.current = true;
-    }, 200);
-  }, [societa, partitaIniziale, rosaIniziale, oggiISO]);
+    // 2. Recupero dello staff societario per l'annata corrente
+    const staffRaw = societa?.staff_base || {};
+    const chiaveAnnata = `${(campionato || '').replace(/[^a-zA-Z0-9]/g, '_')}_${(annata || '').replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const staff = (staffRaw[chiaveAnnata] && typeof staffRaw[chiaveAnnata] === 'object')
+      ? staffRaw[chiaveAnnata]
+      : staffRaw;
 
+    // 3. Sincronizzazione Staff & Dati Partita
+    if (!isLoaded.current) {
+      // Primo caricamento: usa partitaIniziale se esiste, altrimenti carica lo staff base societario
+      setPartitaInfo(prev => ({
+        ...prev,
+        allenatore: (partitaIniziale?.allenatore !== undefined ? partitaIniziale.allenatore : (staff.allenatore || societa?.allenatore_predefinito || '')).toUpperCase(),
+        allenatoreSeconda: (partitaIniziale?.allenatoreSeconda !== undefined ? partitaIniziale.allenatoreSeconda : (staff.allenatoreSeconda || societa?.allenatore_seconda_predefinito || '')).toUpperCase(),
+        dirigente: (partitaIniziale?.dirigente !== undefined ? partitaIniziale.dirigente : (staff.dirigente || societa?.dirigente_predefinito || '')).toUpperCase(),
+        dirigenteUfficiali: (partitaIniziale?.dirigenteUfficiali !== undefined ? partitaIniziale.dirigenteUfficiali : (staff.dirigenteUfficiali || societa?.dirigente_ufficiali_predefinito || '')).toUpperCase(),
+        assistenteArbitro: (partitaIniziale?.assistenteArbitro !== undefined ? partitaIniziale.assistenteArbitro : (staff.assistenteArbitro || societa?.assistente_arbitro_predefinito || '')).toUpperCase(),
+        medicoSociale: (partitaIniziale?.medicoSociale !== undefined ? partitaIniziale.medicoSociale : (staff.medicoSociale || '')).toUpperCase(),
+        massaggiatore: (partitaIniziale?.massaggiatore !== undefined ? partitaIniziale.massaggiatore : (staff.massaggiatore || '')).toUpperCase(),
+        preparatoreAtletico: (partitaIniziale?.preparatoreAtletico !== undefined ? partitaIniziale.preparatoreAtletico : (staff.preparatoreAtletico || '')).toUpperCase(),
+        preparatorePortieri: (partitaIniziale?.preparatorePortieri !== undefined ? partitaIniziale.preparatorePortieri : (staff.preparatorePortieri || '')).toUpperCase(),
+        dataPartita: partitaIniziale?.dataPartita || staff.dataPartita || oggiISO
+      }));
+      isLoaded.current = true;
+    } else if (partitaIniziale) {
+      // Aggiornamento Real-time dagli altri dispositivi: rispetta anche le stringhe vuote "" (se cancellato da un altro dispositivo)
+      setPartitaInfo(prev => ({
+        ...prev,
+        allenatore: partitaIniziale.allenatore !== undefined ? partitaIniziale.allenatore.toUpperCase() : prev.allenatore,
+        allenatoreSeconda: partitaIniziale.allenatoreSeconda !== undefined ? partitaIniziale.allenatoreSeconda.toUpperCase() : prev.allenatoreSeconda,
+        dirigente: partitaIniziale.dirigente !== undefined ? partitaIniziale.dirigente.toUpperCase() : prev.dirigente,
+        dirigenteUfficiali: partitaIniziale.dirigenteUfficiali !== undefined ? partitaIniziale.dirigenteUfficiali.toUpperCase() : prev.dirigenteUfficiali,
+        assistenteArbitro: partitaIniziale.assistenteArbitro !== undefined ? partitaIniziale.assistenteArbitro.toUpperCase() : prev.assistenteArbitro,
+        medicoSociale: partitaIniziale.medicoSociale !== undefined ? partitaIniziale.medicoSociale.toUpperCase() : prev.medicoSociale,
+        massaggiatore: partitaIniziale.massaggiatore !== undefined ? partitaIniziale.massaggiatore.toUpperCase() : prev.massaggiatore,
+        preparatoreAtletico: partitaIniziale.preparatoreAtletico !== undefined ? partitaIniziale.preparatoreAtletico.toUpperCase() : prev.preparatoreAtletico,
+        preparatorePortieri: partitaIniziale.preparatorePortieri !== undefined ? partitaIniziale.preparatorePortieri.toUpperCase() : prev.preparatorePortieri,
+        dataPartita: partitaIniziale.dataPartita || prev.dataPartita
+      }));
+    }
+  }, [societa, partitaIniziale, rosaIniziale, oggiISO, campionato, annata]);
+  
   const mostraNotificaSalvataggio = () => {
     setSalvataggioNotifica(true);
     setTimeout(() => setSalvataggioNotifica(false), 2000);
@@ -223,16 +233,25 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
   const handleAggiornaCampo = (campo, valore) => {
     const valoreFormattato = (campo === 'dataPartita') ? valore : valore.toUpperCase();
-    const nuoveInfo = { ...partitaInfo, [campo]: valoreFormattato };
-    setPartitaInfo(nuoveInfo);
     
-    if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
-    salvaSubitoSuCloud(nuoveInfo);
+    // Aggiorna subito lo schermo locale per permettere la cancellazione
+    setPartitaInfo(prev => {
+      const nuoveInfo = { ...prev, [campo]: valoreFormattato };
+      
+      // Invia il salvataggio cloud dopo 400ms (aggiorna tutti gli altri dispositivi in Realtime)
+      if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
+      infoDebounceRef.current = setTimeout(() => {
+        salvaSubitoSuCloud(nuoveInfo);
+      }, 400);
+      return nuoveInfo;
+    });
   };
 
   const handleBlurCampo = () => {
-    if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
-    salvaSubitoSuCloud(partitaInfo);
+    if (infoDebounceRef.current) {
+      clearTimeout(infoDebounceRef.current);
+      salvaSubitoSuCloud(partitaInfoRef.current);
+    }
   };
 
   const invertiCasaTrasferta = () => {
