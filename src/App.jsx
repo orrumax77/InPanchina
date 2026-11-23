@@ -18,7 +18,8 @@ import {
   salvaBozzaPartitaSuDb,
   getSocietaById,
   caricaRosaSocieta,
-  archiviaPartitaEResettaLive
+  archiviaPartitaEResettaLive,
+  getDurataPartita
 } from './services/db';
 import { supabase } from './supabaseClient';
 import { 
@@ -39,9 +40,12 @@ import {
 const getCategoriaLND = (stagione, annataStr) => {
   if (!annataStr || isNaN(annataStr)) return annataStr;
   const annoNascita = parseInt(annataStr, 10);
-  const annoInizioStagione = parseInt(stagione.split('/')[0], 10);
+  //const annoInizioStagione = parseInt(stagione.split('/')[0], 10);
+  const annoInizioStagione = parseInt(String(stagione || '').split('/')[0], 10) || new Date().getFullYear();
   const eta = annoInizioStagione - annoNascita;
+  const { durataTotale } = getDurataPartita(stagione, annataStr);
 
+  /*
   if (eta === 18) return `Under 19 (${annataStr})`;
   if (eta === 17) return `Under 18 (${annataStr})`;
   if (eta === 16) return `Under 17 (${annataStr})`;
@@ -50,6 +54,17 @@ const getCategoriaLND = (stagione, annataStr) => {
   if (eta === 13) return `Under 14 (${annataStr})`;
   if (eta <= 12) return `Attività di Base / Esordienti (${annataStr})`;
   return `Annata ${annataStr}`;
+  */
+
+  let categoria = `Annata ${annataStr}`;
+  if (eta === 18) categoria = `Under 19 (${annataStr})`;
+  else if (eta === 17) categoria = `Under 18 (${annataStr})`;
+  else if (eta === 16) categoria = `Under 17 (${annataStr})`;
+  else if (eta === 15) categoria = `Under 16 (${annataStr})`;
+  else if (eta === 14) categoria = `Under 15 (${annataStr})`;
+  else if (eta === 13) categoria = `Under 14 (${annataStr})`;
+  else if (eta <= 12) categoria = `Attività di Base / Esordienti (${annataStr})`;
+  return `${categoria} • ${durataTotale}'`;
 };
 
 const getStagioneDinamicaCorrente = () => {
@@ -96,6 +111,8 @@ export default function App() {
     const match = salvata.match(/\d{4}/);
     return match ? match[0] : '2010';
   });
+
+  const { durataTotale, durataTempo } = getDurataPartita(stagioneSelezionata, annataSelezionata);
   
   const [loginError, setLoginError] = useState('');
 
@@ -586,7 +603,7 @@ export default function App() {
   };
 
   const gestisciAvanzamentoTempo = (secondiDelta, nuovoTotale) => {
-    const limiteMax = 45 * 60 + (recupero * 60);
+    const limiteMax = durataTempo * 60 + (recupero * 60);
     const secondiFinali = Math.min(limiteMax, nuovoTotale);
 
     setSecondiGara(secondiFinali);
@@ -635,7 +652,7 @@ export default function App() {
       setSecondiGara(0);
       setSecondiBase(0);
       setRecupero(0);
-      setMinutoCorrente(46);
+      setMinutoCorrente(durataTempo + 1);
 
       syncStatoPartitaSuDb(partitaId, {
         golCasa,
@@ -645,7 +662,7 @@ export default function App() {
         inEsecuzione: false,
         avviatoAlle: null,
         recupero: 0,
-        minutoCorrente: 46,
+        minutoCorrente: durataTempo + 1,
         slotUsati,
         cambiEffettuati
       });
@@ -1303,6 +1320,8 @@ export default function App() {
           inEsecuzione={inEsecuzione}
           avviatoAlle={avviatoAlle}
           secondiBase={secondiBase}
+          durataTempo={durataTempo}  
+          durataTotale={durataTotale}
           onAvvia={avviaTimer}
           onPausa={mettiInPausaTimer}
           onAvanzaTempo={gestisciAvanzamentoTempo}
@@ -1343,6 +1362,7 @@ export default function App() {
           onAggiornaCambiSlot={handleAggiornaCambiSlot}
           onGolSegnato={handleGolSegnato}
           inEsecuzione={inEsecuzione}
+          durataTempo={durataTempo}
         />
 
         <FeedEventi eventi={eventi} onEliminaEvento={eliminaEvento} />
