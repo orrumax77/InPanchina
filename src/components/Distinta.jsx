@@ -129,7 +129,7 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
   };
 
     useEffect(() => {
-    // 1. Carica la rosa dei giocatori (solo se la lista locale è ancora vuota o cambia la rosa iniziale)
+    // 1. Caricamento della rosa se non ancora presente
     const rosaDaCaricare = (rosaIniziale && rosaIniziale.length > 0)
       ? rosaIniziale
       : (societa?.rosa_base && societa.rosa_base.length > 0)
@@ -145,16 +145,14 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
       setGiocatori(ordinaDistinta(formattati, criterioOrdinamento));
     }
 
-    // 2. Recupero dello staff societario per l'annata corrente
-    const staffRaw = societa?.staff_base || {};
-    const chiaveAnnata = `${(campionato || '').replace(/[^a-zA-Z0-9]/g, '_')}_${(annata || '').replace(/[^a-zA-Z0-9]/g, '_')}`;
-    const staff = (staffRaw[chiaveAnnata] && typeof staffRaw[chiaveAnnata] === 'object')
-      ? staffRaw[chiaveAnnata]
-      : staffRaw;
+    // 2. Inizializzazione Staff (eseguita SOLO al primo caricamento della schermata)
+    if (!isLoaded.current && societa?.id) {
+      const staffRaw = societa?.staff_base || {};
+      const chiaveAnnata = `${(campionato || '').replace(/[^a-zA-Z0-9]/g, '_')}_${(annata || '').replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const staff = (staffRaw[chiaveAnnata] && typeof staffRaw[chiaveAnnata] === 'object')
+        ? staffRaw[chiaveAnnata]
+        : staffRaw;
 
-    // 3. Sincronizzazione Staff & Dati Partita
-    if (!isLoaded.current) {
-      // Primo caricamento: usa partitaIniziale se esiste, altrimenti carica lo staff base societario
       setPartitaInfo(prev => ({
         ...prev,
         allenatore: (partitaIniziale?.allenatore !== undefined ? partitaIniziale.allenatore : (staff.allenatore || societa?.allenatore_predefinito || '')).toUpperCase(),
@@ -168,22 +166,8 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
         preparatorePortieri: (partitaIniziale?.preparatorePortieri !== undefined ? partitaIniziale.preparatorePortieri : (staff.preparatorePortieri || '')).toUpperCase(),
         dataPartita: partitaIniziale?.dataPartita || staff.dataPartita || oggiISO
       }));
+
       isLoaded.current = true;
-    } else if (partitaIniziale) {
-      // Aggiornamento Real-time dagli altri dispositivi: rispetta anche le stringhe vuote "" (se cancellato da un altro dispositivo)
-      setPartitaInfo(prev => ({
-        ...prev,
-        allenatore: partitaIniziale.allenatore !== undefined ? partitaIniziale.allenatore.toUpperCase() : prev.allenatore,
-        allenatoreSeconda: partitaIniziale.allenatoreSeconda !== undefined ? partitaIniziale.allenatoreSeconda.toUpperCase() : prev.allenatoreSeconda,
-        dirigente: partitaIniziale.dirigente !== undefined ? partitaIniziale.dirigente.toUpperCase() : prev.dirigente,
-        dirigenteUfficiali: partitaIniziale.dirigenteUfficiali !== undefined ? partitaIniziale.dirigenteUfficiali.toUpperCase() : prev.dirigenteUfficiali,
-        assistenteArbitro: partitaIniziale.assistenteArbitro !== undefined ? partitaIniziale.assistenteArbitro.toUpperCase() : prev.assistenteArbitro,
-        medicoSociale: partitaIniziale.medicoSociale !== undefined ? partitaIniziale.medicoSociale.toUpperCase() : prev.medicoSociale,
-        massaggiatore: partitaIniziale.massaggiatore !== undefined ? partitaIniziale.massaggiatore.toUpperCase() : prev.massaggiatore,
-        preparatoreAtletico: partitaIniziale.preparatoreAtletico !== undefined ? partitaIniziale.preparatoreAtletico.toUpperCase() : prev.preparatoreAtletico,
-        preparatorePortieri: partitaIniziale.preparatorePortieri !== undefined ? partitaIniziale.preparatorePortieri.toUpperCase() : prev.preparatorePortieri,
-        dataPartita: partitaIniziale.dataPartita || prev.dataPartita
-      }));
     }
   }, [societa, partitaIniziale, rosaIniziale, oggiISO, campionato, annata]);
   
@@ -233,18 +217,15 @@ export default function Distinta({ onConfermaDistinta, onAggiornaRosa, societa, 
 
   const handleAggiornaCampo = (campo, valore) => {
     const valoreFormattato = (campo === 'dataPartita') ? valore : valore.toUpperCase();
+    const nuoveInfo = { ...partitaInfo, [campo]: valoreFormattato };
+    // Aggiornamento ISTANTANEO a schermo (nessun ritardo nella digitazione)
+    setPartitaInfo(nuoveInfo);
     
-    // Aggiorna subito lo schermo locale per permettere la cancellazione
-    setPartitaInfo(prev => {
-      const nuoveInfo = { ...prev, [campo]: valoreFormattato };
-      
-      // Invia il salvataggio cloud dopo 400ms (aggiorna tutti gli altri dispositivi in Realtime)
-      if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
-      infoDebounceRef.current = setTimeout(() => {
-        salvaSubitoSuCloud(nuoveInfo);
-      }, 400);
-      return nuoveInfo;
-    });
+    // ⏱️ VERO DEBOUNCE: aspetta 700ms dall'ultimo tasto prima di inviare al cloud
+    if (infoDebounceRef.current) clearTimeout(infoDebounceRef.current);
+    infoDebounceRef.current = setTimeout(() => {
+      salvaSubitoSuCloud(nuoveInfo);
+    }, 700);
   };
 
   const handleBlurCampo = () => {
