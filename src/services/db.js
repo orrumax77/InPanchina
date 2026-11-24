@@ -445,21 +445,31 @@ export async function salvaBozzaKeepalive(societaId, partitaInfo, campionato, an
 }
 
 export async function syncStatoPartitaSuDb(partitaId, dati) {
-  if (!partitaId) return;
-  const baseUpdate = {
-    gol_casa: dati.golCasa,
-    gol_ospite: dati.golOspiti,
-    tempo: dati.tempoGara,
-    secondi_gara: dati.secondiGara,
-    in_esecuzione: dati.inEsecuzione,
+  if (!partitaId || !dati) return;
+
+  const payload = {
+    gol_casa: dati.golCasa ?? 0,
+    gol_ospite: dati.golOspiti ?? 0,
+    tempo: dati.tempoGara ?? 1,
+    secondi_gara: dati.secondiGara ?? 0,
+    in_esecuzione: Boolean(dati.inEsecuzione),
     avviato_alle: dati.avviatoAlle !== undefined ? dati.avviatoAlle : null,
-    recupero: dati.recupero,
-    minuto_corrente: dati.minutoCorrente,
-    slot_usati: dati.slotUsati,
-    cambi_effettuati: dati.cambiEffettuati,
+    recupero: dati.recupero ?? 0,
+    minuto_corrente: dati.minutoCorrente ?? 1,
+    slot_usati: dati.slotUsati ?? 0,
+    cambi_effettuati: dati.cambiEffettuati ?? 0,
     updated_at: new Date().toISOString()
   };
 
+  const { error } = await supabase
+    .from('partite')
+    .update(payload)
+    .eq('id', partitaId);
+
+  if (error) {
+    console.error('Errore syncStatoPartitaSuDb:', error);
+  }
+}
   const updateConRecuperi = { ...baseUpdate };
   if (dati.recuperoPrimoTempo !== undefined) {
     updateConRecuperi.recupero_primo_tempo = Number(dati.recuperoPrimoTempo) || 0;
