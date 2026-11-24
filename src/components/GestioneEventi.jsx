@@ -25,6 +25,8 @@ export default function GestioneEventi({
   setEventi,
   onNuovoEvento,
   minutoCorrente,
+  minutoLabel,
+  minutoRecupero = 0,
   tempoGara,
   secondiGara = 0,
   slotUsati,
@@ -39,8 +41,8 @@ export default function GestioneEventi({
   const [modalGol, setModalGol] = useState(false);
   const [modalAmmonizione, setModalAmmonizione] = useState(false);
   const [modalSostituzione, setModalSostituzione] = useState(false);
-  const [modalNota, setModalNota] = useState(false); // 📝 Stato modale nota
-  const [testoNota, setTestoNota] = useState(''); // 📝 Testo inserito nella nota
+  const [modalNota, setModalNota] = useState(false);
+  const [testoNota, setTestoNota] = useState('');
 
   const [selezionatoEsce, setSelezionatoEsce] = useState(null);
   const [selezionatoEntra, setSelezionatoEntra] = useState(null);
@@ -55,6 +57,9 @@ export default function GestioneEventi({
   const isIntervalloAutomatico = tempoGara === 2 && !inEsecuzione && secondiGara === 0;
   const [forzaIntervallo, setForzaIntervallo] = useState(false);
   const isIntervalloEffettivo = isIntervalloAutomatico || forzaIntervallo;
+
+  const etichettaMinutoAttuale = minutoLabel || `${minutoCorrente}'`;
+  const recuperoAttuale = Math.max(0, Number(minutoRecupero) || 0);
 
   const [avvisoTimerFermo, setAvvisoTimerFermo] = useState(false);
 
@@ -84,6 +89,8 @@ export default function GestioneEventi({
     onNuovoEvento({
       id: Date.now().toString(),
       minuto: minutoCorrente,
+      minutoLabel: etichettaMinutoAttuale,
+      minutoRecupero: recuperoAttuale,
       tempo: tempoGara,
       tipo: 'GOL',
       squadra: 'NOSTRA',
@@ -101,6 +108,8 @@ export default function GestioneEventi({
     onNuovoEvento({
       id: Date.now().toString(),
       minuto: minutoCorrente,
+      minutoLabel: etichettaMinutoAttuale,
+      minutoRecupero: recuperoAttuale,
       tempo: tempoGara,
       tipo: 'GOL',
       squadra: 'AVVERSARIA',
@@ -115,20 +124,20 @@ export default function GestioneEventi({
     setModalAmmonizione(true);
   };
 
-  // 📝 Funzione per aprire il modale nota
   const apriModalNota = () => {
     if (!verificaTimerAvviato()) return;
     setTestoNota('');
     setModalNota(true);
   };
 
-  // 📝 Funzione per salvare la nota
   const handleSalvaNota = () => {
     if (!testoNota.trim()) return;
 
     onNuovoEvento({
       id: Date.now().toString(),
       minuto: minutoCorrente,
+      minutoLabel: etichettaMinutoAttuale,
+      minutoRecupero: recuperoAttuale,
       tempo: tempoGara,
       tipo: 'NOTA',
       dettagli: `Nota: ${testoNota.trim()}`
@@ -166,6 +175,8 @@ export default function GestioneEventi({
     onNuovoEvento({
       id: Date.now().toString(),
       minuto: minutoCorrente,
+      minutoLabel: etichettaMinutoAttuale,
+      minutoRecupero: recuperoAttuale,
       tempo: tempoGara,
       tipo: espulso ? 'ESPULSIONE' : 'AMMONIZIONE',
       giocatoreId: giocatoreId,
@@ -201,6 +212,8 @@ export default function GestioneEventi({
     onNuovoEvento({
       id: Date.now().toString(),
       minuto: minutoCorrente,
+      minutoLabel: etichettaMinutoAttuale,
+      minutoRecupero: recuperoAttuale,
       tempo: tempoGara,
       tipo: 'ESPULSIONE',
       giocatoreId: giocatoreId,
@@ -261,6 +274,8 @@ export default function GestioneEventi({
 
     let nuevaRosa = [...giocatori];
     const minutoDelCambio = isIntervalloEffettivo ? durataTempo : minutoCorrente;
+    const labelDelCambio = isIntervalloEffettivo ? `${durataTempo}'` : etichettaMinutoAttuale;
+    const recDelCambio = isIntervalloEffettivo ? 0 : recuperoAttuale;
 
     listaCambi.forEach(({ esce, entra }) => {
       nuevaRosa = nuevaRosa.map(g => {
@@ -280,6 +295,8 @@ export default function GestioneEventi({
       onNuovoEvento({
         id: (Date.now() + Math.random()).toString(),
         minuto: minutoDelCambio,
+        minutoLabel: labelDelCambio,
+        minutoRecupero: recDelCambio,
         tempo: isIntervalloEffettivo ? 1 : tempoGara,
         tipo: 'SOSTITUZIONE',
         esceId: esce.id,
@@ -396,7 +413,6 @@ export default function GestioneEventi({
         </div>
       </div>
 
-      {/* Pulsantiera eventi con l'aggiunta del bottone Note */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
         <button
           type="button"
@@ -449,7 +465,6 @@ export default function GestioneEventi({
           <ArrowRightLeft className="w-4 h-4" /> Cambio ({cambiEffettuati}/7)
         </button>
 
-        {/* 📝 NUOVO BOTTONE NOTE */}
         <button
           type="button"
           onClick={apriModalNota}
@@ -499,12 +514,11 @@ export default function GestioneEventi({
         </div>
       )}
 
-      {/* 📝 MODALE INSERIMENTO NOTA */}
       {modalNota && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-md w-full space-y-4 shadow-2xl">
             <h4 className="text-sm font-bold text-white uppercase flex items-center gap-2">
-              <FileText className="w-4 h-4 text-purple-400" /> Inserisci Nota ({minutoCorrente}')
+              <FileText className="w-4 h-4 text-purple-400" /> Inserisci Nota ({etichettaMinutoAttuale})
             </h4>
             <textarea
               value={testoNota}
@@ -600,7 +614,7 @@ export default function GestioneEventi({
             <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-3 gap-2">
               <div>
                 <h4 className="text-sm font-black text-white uppercase flex items-center gap-2">
-                  <ArrowRightLeft className="w-4 h-4 text-blue-400" /> Gestione Sostituzioni ({minutoCorrente}')
+                  <ArrowRightLeft className="w-4 h-4 text-blue-400" /> Gestione Sostituzioni ({etichettaMinutoAttuale})
                 </h4>
                 <p className="text-[11px] text-slate-400">Tocca prima chi <strong className="text-rose-400">Esce</strong> dal campo, poi chi <strong className="text-emerald-400">Entra</strong> dalla panchina.</p>
               </div>
