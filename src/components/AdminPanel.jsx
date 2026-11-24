@@ -30,11 +30,13 @@ import {
   X,
   Upload,
   Activity,
-  RefreshCw
+  RefreshCw,
+  Radio
 } from 'lucide-react';
 
 export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagioneCorrente, listaStagioni = [] }) {
   const [societaList, setSocietaList] = useState([]);
+  const [partiteLivePerSocieta, setPartiteLivePerSocieta] = useState({});
   const [caricamento, setCaricamento] = useState(true);
   const [notifica, setNotifica] = useState('');
 
@@ -98,15 +100,65 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagione
     setTimeout(() => setNotifica(''), 3000);
   };
 
+  const caricaPartiteLive = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('partite')
+        .select('id, societa_id, squadra_casa, squadra_ospite, gol_casa, gol_ospite, tempo, minuto_corrente, in_esecuzione, stato, annata, campionato, updated_at')
+        .eq('stato', 'in-corso')
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        console.error('Errore caricamento partite live:', error);
+        return;
+      }
+
+      const mappa = {};
+      (data || []).forEach((p) => {
+        if (!p.societa_id) return;
+        if (!mappa[p.societa_id]) {
+          mappa[p.societa_id] = [];
+        }
+        mappa[p.societa_id].push(p);
+      });
+      setPartiteLivePerSocieta(mappa);
+    } catch (err) {
+      console.error('Errore caricaPartiteLive:', err);
+    }
+  };
+
   const caricaDati = async () => {
     setCaricamento(true);
-    const lista = await getSocieta();
+    const [lista] = await Promise.all([
+      getSocieta(),
+      caricaPartiteLive()
+    ]);
     setSocietaList(lista);
     setCaricamento(false);
   };
 
   useEffect(() => {
     caricaDati();
+
+    // Ascolto Realtime su tutte le partite per aggiornare subito i banner Live
+    const channel = supabase
+      .channel('admin-partite-live-monitor')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'partite'
+        },
+        () => {
+          caricaPartiteLive();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Aggiorna il campionato predefinito dell'utente se cambia la prop
@@ -527,13 +579,18 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagione
               const scadenza = new Date(soc.data_scadenza_prova);
               const isScaduta = new Date() > scadenza || !soc.attiva;
               const dataFormatted = soc.data_scadenza_prova ? scadenza.toLocaleDateString('it-IT') : 'N/D';
+              const gareLiveSocieta = partiteLivePerSocieta[soc.id] || [];
 
               return (
                 <div 
                   key={soc.id}
-                  className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 hover:border-slate-700 transition"
+                  className={`bg-slate-950 border rounded-2xl p-4 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 transition ${
+                    gareLiveSocieta.length > 0
+                      ? 'border-emerald-500/50 shadow-lg shadow-emerald-950/30'
+                      : 'border-slate-800/90 hover:border-slate-700'
+                  }`}
                 >
-                  <div className="flex items-start gap-3 min-w-0">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
                     {soc.logo_url ? (
                       <img 
                         src={soc.logo_url} 
@@ -579,6 +636,50 @@ export default function AdminPanel({ onEsci, onSelezionaSquadraDaAdmin, stagione
                           <Calendar className="w-3 h-3 text-slate-500" /> Scadenza: {dataFormatted}
                         </span>
                       </div>
+
+                      {/* BANNER PARTITA LIVE IN CORSO (ANCHE DURANTE INTERVALLO / CRONOMETRO FERMO) */}
+                      {gareLiveSocieta.length > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          {gareLiveSocieta.map((live) => (
+                            <div
+                              key={live.id}
+                              className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-3 py-2 flex flex-wrap items-center justify-between gap-2"
+                            >
+                              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                  Live in corso
+                                </span>
+                                {live.annata && (
+                                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 uppercase">
+                                    {live.annata}
+                                  </span>
+                                )}
+                                <span className="text-xs font-bold text-white uppercase truncate">
+                                  {(live.squadra_casa || 'CASA')}{' '}
+                                  <span className="font-mono text-emerald-300 px-1">
+                                    {live.gol_casa ?? 0} - {live.gol_ospite ?? 0}
+                                  </span>{' '}
+                                  {(live.squadra_ospite || 'OSPITE')}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold">
+                                <span className="text-emerald-300 flex items-center gap-1">
+                                  <Radio className="w-3 h-3 text-emerald-400" />
+                                  {live.tempo ? `${live.tempo}°T` : ''}
+                                  {live.minuto_corrente ? ` • ${live.minuto_corrente}'` : ''}
+                                </span>
+                                {!live.in_esecuzione && (
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase">
+                                    Intervallo / Pausa
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
