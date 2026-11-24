@@ -471,20 +471,6 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
   }
 }
 
-const updateConRecuperi = { ...baseUpdate };
-  if (dati.recuperoPrimoTempo !== undefined) {
-    updateConRecuperi.recupero_primo_tempo = Number(dati.recuperoPrimoTempo) || 0;
-  }
-  if (dati.recuperoSecondoTempo !== undefined) {
-    updateConRecuperi.recupero_secondo_tempo = Number(dati.recuperoSecondoTempo) || 0;
-  }
-
-  const { error } = await supabase.from('partite').update(updateConRecuperi).eq('id', partitaId);
-  if (error) {
-    await supabase.from('partite').update(baseUpdate).eq('id', partitaId);
-  }
-}
-
 export async function registraEventoCloud(partitaId, evento, campionato, annata) {
   if (!campionato || !annata || !evento) return;
 
