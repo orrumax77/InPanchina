@@ -767,7 +767,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       };
     });
 
-    const rigaStoricoBase = {
+    const rigaStorico = {
       id: storicoId,
       societa_id: societaId,
       squadra_casa: partitaInfo.squadraCasa,
@@ -792,14 +792,10 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       preparatore_portieri: partitaInfo.preparatorePortieri || ''
     };
 
-    const { error: errStorico } = await supabase.from('partite').insert([{
-      ...rigaStoricoBase,
-      recupero_primo_tempo: rec1T,
-      recupero_secondo_tempo: rec2T
-    }]);
-
+    const { error: errStorico } = await supabase.from('partite').insert([rigaStorico]);
     if (errStorico) {
-      await supabase.from('partite').insert([rigaStoricoBase]);
+      console.error('Errore inserimento storico partita:', errStorico);
+      return { success: false, error: errStorico };
     }
 
     await supabase
@@ -819,7 +815,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       ''
     ).toUpperCase();
 
-    const resetPartitaBase = {
+    const resetPartita = {
       squadra_casa: nomeNostraSocieta,
       squadra_ospite: '',
       is_nostra_casa: true,
@@ -838,14 +834,13 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       updated_at: new Date().toISOString()
     };
 
-    const { error: errReset } = await supabase.from('partite').update({
-      ...resetPartitaBase,
-      recupero_primo_tempo: 0,
-      recupero_secondo_tempo: 0
-    }).eq('id', livePartitaId);
+    const { error: errReset } = await supabase
+      .from('partite')
+      .update(resetPartita)
+      .eq('id', livePartitaId);
 
     if (errReset) {
-      await supabase.from('partite').update(resetPartitaBase).eq('id', livePartitaId);
+      console.error('Errore reset partita live:', errReset);
     }
 
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
