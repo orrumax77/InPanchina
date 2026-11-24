@@ -470,7 +470,8 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
     console.error('Errore syncStatoPartitaSuDb:', error);
   }
 }
-  const updateConRecuperi = { ...baseUpdate };
+
+const updateConRecuperi = { ...baseUpdate };
   if (dati.recuperoPrimoTempo !== undefined) {
     updateConRecuperi.recupero_primo_tempo = Number(dati.recuperoPrimoTempo) || 0;
   }
