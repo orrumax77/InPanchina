@@ -49,7 +49,7 @@ const calcolaMinutoEffettivoLive = (live, nowMs = Date.now()) => {
   }
 
   if (Number.isFinite(secondiEffettivi) && secondiEffettivi >= 0) {
-    return Math.floor(secondiEffettivi / 60) + 1;
+    return Math.floor(secondiEffettivi / 60);
   }
 
   return Number(live.minuto_corrente) || 1;
