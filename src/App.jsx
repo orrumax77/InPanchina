@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Distinta from './components/Distinta';
 import Cronometro from './components/Cronometro';
 import GestioneEventi from './components/GestioneEventi';
@@ -31,7 +31,6 @@ import {
   CheckCircle2, 
   UserCircle2, 
   Archive, 
-  RotateCcw, 
   AlertOctagon, 
   Volume2, 
   ArrowRight 
@@ -40,20 +39,9 @@ import {
 const getCategoriaLND = (stagione, annataStr) => {
   if (!annataStr || isNaN(annataStr)) return annataStr;
   const annoNascita = parseInt(annataStr, 10);
-  //const annoInizioStagione = parseInt(stagione.split('/')[0], 10);
   const annoInizioStagione = parseInt(String(stagione || '').split('/')[0], 10) || new Date().getFullYear();
   const eta = annoInizioStagione - annoNascita;
   const { durataTotale } = getDurataPartita(stagione, annataStr);
-
-  /*
-  if (eta === 18) return `Under 19 (${annataStr})`;
-  if (eta === 17) return `Under 18 (${annataStr})`;
-  if (eta === 16) return `Under 17 (${annataStr})`;
-  if (eta === 15) return `Under 16 (${annataStr})`;
-  if (eta === 14) return `Under 15 (${annataStr})`;
-  if (eta === 13) return `Under 14 (${annataStr})`;
-  return `Annata ${annataStr}`;
-  */
 
   let categoria = `Annata ${annataStr}`;
   if (eta === 18) categoria = `Under 19 (${annataStr})`;
@@ -124,8 +112,15 @@ export default function App() {
   const [secondiBase, setSecondiBase] = useState(0);
   const [avviatoAlle, setAvviatoAlle] = useState(null);
   const [inEsecuzione, setInEsecuzione] = useState(false);
+
+  const [recuperoPrimoTempo, setRecuperoPrimoTempo] = useState(0);
+  const [recuperoSecondoTempo, setRecuperoSecondoTempo] = useState(0);
   const [recupero, setRecupero] = useState(0);
+
   const [minutoCorrente, setMinutoCorrente] = useState(1);
+  const [minutoLabel, setMinutoLabel] = useState("1'");
+  const [minutoRecupero, setMinutoRecupero] = useState(0);
+
   const [golCasa, setGolCasa] = useState(0);
   const [golOspiti, setGolOspiti] = useState(0);
 
@@ -193,7 +188,6 @@ export default function App() {
     const preparatorePortieriBase = (staffBase.preparatorePortieri || socFresca.preparatore_portieri_predefinito || '').toUpperCase();
     
     const nomeSocietaUfficiale = (socFresca.nome || '').toUpperCase();
-    const squadraCasaBase = nomeSocietaUfficiale;
     const squadraOspiteBase = (staffBase.squadraOspite || '').toUpperCase();
     const isNostraCasaBase = staffBase.isNostraCasa ?? true;
     
@@ -239,7 +233,8 @@ export default function App() {
       setPartitaInfo(pInfo);
       setGolCasa(partitaDB.gol_casa || 0);
       setGolOspiti(partitaDB.gol_ospite || 0);
-      setTempoGara(partitaDB.tempo || 1);
+      const tGara = partitaDB.tempo || 1;
+      setTempoGara(tGara);
       
       const inEsec = partitaDB.in_esecuzione || false;
       const secGara = partitaDB.secondi_gara || 0;
@@ -256,8 +251,23 @@ export default function App() {
         setSecondiGara(secGara);
       }
 
-      setRecupero(partitaDB.recupero || 0);
-      setMinutoCorrente(partitaDB.minuto_corrente || 1);
+      const recDb = Number(partitaDB.recupero || 0);
+      const rec1Db = partitaDB.recupero_primo_tempo !== undefined
+        ? Number(partitaDB.recupero_primo_tempo || 0)
+        : (tGara === 1 ? recDb : 0);
+      const rec2Db = partitaDB.recupero_secondo_tempo !== undefined
+        ? Number(partitaDB.recupero_secondo_tempo || 0)
+        : (tGara === 2 ? recDb : 0);
+
+      setRecuperoPrimoTempo(rec1Db);
+      setRecuperoSecondoTempo(rec2Db);
+      setRecupero(tGara === 1 ? rec1Db : rec2Db);
+
+      const minDb = partitaDB.minuto_corrente || 1;
+      setMinutoCorrente(minDb);
+      setMinutoLabel(`${minDb}'`);
+      setMinutoRecupero(0);
+
       setSlotUsati(partitaDB.slot_usati || 0);
       setCambiEffettuati(partitaDB.cambi_effettuati || 0);
       setEventi(stato.eventi || []);
@@ -291,8 +301,12 @@ export default function App() {
       setSecondiBase(0);
       setAvviatoAlle(null);
       setInEsecuzione(false);
+      setRecuperoPrimoTempo(0);
+      setRecuperoSecondoTempo(0);
       setRecupero(0);
       setMinutoCorrente(1);
+      setMinutoLabel("1'");
+      setMinutoRecupero(0);
       setSlotUsati(0);
       setCambiEffettuati(0);
       setEventi([]);
@@ -353,6 +367,8 @@ export default function App() {
       inEsecuzione,
       avviatoAlle: adessoISO,
       recupero,
+      recuperoPrimoTempo,
+      recuperoSecondoTempo,
       minutoCorrente,
       slotUsati,
       cambiEffettuati,
@@ -381,10 +397,21 @@ export default function App() {
         const p = payload.new;
         if (!p) return;
 
+        const tGara = p.tempo || 1;
+        const recDb = Number(p.recupero || 0);
+        const rec1Db = p.recupero_primo_tempo !== undefined
+          ? Number(p.recupero_primo_tempo || 0)
+          : (tGara === 1 ? recDb : undefined);
+        const rec2Db = p.recupero_secondo_tempo !== undefined
+          ? Number(p.recupero_secondo_tempo || 0)
+          : (tGara === 2 ? recDb : undefined);
+
         setGolCasa(p.gol_casa || 0);
         setGolOspiti(p.gol_ospite || 0);
-        setTempoGara(p.tempo || 1);
-        setRecupero(p.recupero || 0);
+        setTempoGara(tGara);
+        if (rec1Db !== undefined) setRecuperoPrimoTempo(rec1Db);
+        if (rec2Db !== undefined) setRecuperoSecondoTempo(rec2Db);
+        setRecupero(recDb);
         setMinutoCorrente(p.minuto_corrente || 1);
         setSlotUsati(p.slot_usati || 0);
         setCambiEffettuati(p.cambi_effettuati || 0);
@@ -405,7 +432,6 @@ export default function App() {
             ...(prev || {}),
             squadraCasa: p.squadra_casa ?? prev?.squadraCasa ?? '',
             squadraOspite: p.squadra_ospite ?? prev?.squadraOspite ?? '',
-            // 🚀 Accetta la cancellazione ("") e sincronizza tutti i ruoli:
             allenatore: p.allenatore !== undefined ? p.allenatore : (prev?.allenatore ?? ''),
             allenatoreSeconda: p.allenatore_seconda !== undefined ? p.allenatore_seconda : (prev?.allenatoreSeconda ?? ''),
             dirigente: p.dirigente !== undefined ? p.dirigente : (prev?.dirigente ?? ''),
@@ -511,8 +537,12 @@ export default function App() {
         setSecondiBase(0);
         setAvviatoAlle(null);
         setInEsecuzione(false);
+        setRecuperoPrimoTempo(0);
+        setRecuperoSecondoTempo(0);
         setRecupero(0);
         setMinutoCorrente(1);
+        setMinutoLabel("1'");
+        setMinutoRecupero(0);
         setSlotUsati(0);
         setCambiEffettuati(0);
         setEventi([]);
@@ -575,6 +605,8 @@ export default function App() {
       inEsecuzione: true,
       avviatoAlle: adessoISO,
       recupero,
+      recuperoPrimoTempo,
+      recuperoSecondoTempo,
       minutoCorrente,
       slotUsati,
       cambiEffettuati
@@ -595,6 +627,8 @@ export default function App() {
       inEsecuzione: false,
       avviatoAlle: null,
       recupero,
+      recuperoPrimoTempo,
+      recuperoSecondoTempo,
       minutoCorrente,
       slotUsati,
       cambiEffettuati
@@ -620,6 +654,8 @@ export default function App() {
         inEsecuzione: true,
         avviatoAlle: adessoISO,
         recupero,
+        recuperoPrimoTempo,
+        recuperoSecondoTempo,
         minutoCorrente,
         slotUsati,
         cambiEffettuati
@@ -634,9 +670,33 @@ export default function App() {
         inEsecuzione: false,
         avviatoAlle: null,
         recupero,
+        recuperoPrimoTempo,
+        recuperoSecondoTempo,
         minutoCorrente,
         slotUsati,
         cambiEffettuati
+      });
+    }
+  };
+
+  const incrementaRecuperoCorrente = async () => {
+    if (tempoGara === 1) {
+      const nuovo1T = (Number(recuperoPrimoTempo) || 0) + 1;
+      setRecuperoPrimoTempo(nuovo1T);
+      setRecupero(nuovo1T);
+      await syncStatoLive({
+        recupero: nuovo1T,
+        recuperoPrimoTempo: nuovo1T,
+        recuperoSecondoTempo
+      });
+    } else {
+      const nuovo2T = (Number(recuperoSecondoTempo) || 0) + 1;
+      setRecuperoSecondoTempo(nuovo2T);
+      setRecupero(nuovo2T);
+      await syncStatoLive({
+        recupero: nuovo2T,
+        recuperoPrimoTempo,
+        recuperoSecondoTempo: nuovo2T
       });
     }
   };
@@ -645,13 +705,17 @@ export default function App() {
     setModaleBloccoTempo(null);
 
     if (nuovoTempo === 2) {
+      const minInizio2T = durataTempo + (Number(recuperoPrimoTempo) || 0) + 1;
       setInEsecuzione(false);
       setAvviatoAlle(null);
       setTempoGara(2);
       setSecondiGara(0);
       setSecondiBase(0);
+      setRecuperoSecondoTempo(0);
       setRecupero(0);
-      setMinutoCorrente(durataTempo + 1);
+      setMinutoCorrente(minInizio2T);
+      setMinutoLabel(`${minInizio2T}'`);
+      setMinutoRecupero(0);
 
       syncStatoPartitaSuDb(partitaId, {
         golCasa,
@@ -661,7 +725,9 @@ export default function App() {
         inEsecuzione: false,
         avviatoAlle: null,
         recupero: 0,
-        minutoCorrente: durataTempo + 1,
+        recuperoPrimoTempo,
+        recuperoSecondoTempo: 0,
+        minutoCorrente: minInizio2T,
         slotUsati,
         cambiEffettuati
       });
@@ -669,7 +735,6 @@ export default function App() {
       alert("Fine 1° Tempo! Il cronometro del 2° Tempo è azzerato a 00:00 e sincronizzato.");
     } else if (nuovoTempo === 'fine') {
       mettiInPausaTimer();
-      // 🚀 SALTA IL REFERTO E ARCHIVIA SUBITO
       handleTerminaLiveEResetta();
     }
   };
@@ -903,7 +968,13 @@ export default function App() {
       societaAttiva.id,
       partitaId,
       partitaInfo,
-      { golCasa, golOspiti, minutoCorrente },
+      {
+        golCasa,
+        golOspiti,
+        minutoCorrente,
+        recuperoPrimoTempo,
+        recuperoSecondoTempo
+      },
       eventi,
       giocatoriDaArchiviare,
       stagioneSelezionata,
@@ -926,8 +997,12 @@ export default function App() {
       setSecondiBase(0);
       setAvviatoAlle(null);
       setInEsecuzione(false);
+      setRecuperoPrimoTempo(0);
+      setRecuperoSecondoTempo(0);
       setRecupero(0);
       setMinutoCorrente(1);
+      setMinutoLabel("1'");
+      setMinutoRecupero(0);
       setSlotUsati(0);
       setCambiEffettuati(0);
       setEventi([]);
@@ -1011,7 +1086,12 @@ export default function App() {
                 type="button"
                 onClick={async () => {
                   const nuovoRecupero = recupero + 1;
+                  const nuovo1T = tempoGara === 1 ? (Number(recuperoPrimoTempo) || 0) + 1 : recuperoPrimoTempo;
+                  const nuovo2T = tempoGara === 2 ? (Number(recuperoSecondoTempo) || 0) + 1 : recuperoSecondoTempo;
+
                   setRecupero(nuovoRecupero);
+                  setRecuperoPrimoTempo(nuovo1T);
+                  setRecuperoSecondoTempo(nuovo2T);
                   setAvvisoFineTempo(false);
 
                   const adessoISO = new Date().toISOString();
@@ -1027,6 +1107,8 @@ export default function App() {
                     inEsecuzione: true,
                     avviatoAlle: adessoISO,
                     recupero: nuovoRecupero,
+                    recuperoPrimoTempo: nuovo1T,
+                    recuperoSecondoTempo: nuovo2T,
                     minutoCorrente,
                     slotUsati,
                     cambiEffettuati
@@ -1324,12 +1406,24 @@ export default function App() {
           onFinePrimoTempo={() => cambiaFaseGara(2)}
           onFinePartita={() => cambiaFaseGara('fine')}
           recupero={recupero}
+          recuperoPrimoTempo={recuperoPrimoTempo}
+          onAggiungiRecupero={incrementaRecuperoCorrente}
           setRecupero={(valOrFn) => {
             const nuovoRec = typeof valOrFn === 'function' ? valOrFn(recupero) : valOrFn;
             setRecupero(nuovoRec);
-            syncStatoLive({ recupero: nuovoRec });
+            if (tempoGara === 1) {
+              setRecuperoPrimoTempo(nuovoRec);
+              syncStatoLive({ recupero: nuovoRec, recuperoPrimoTempo: nuovoRec });
+            } else {
+              setRecuperoSecondoTempo(nuovoRec);
+              syncStatoLive({ recupero: nuovoRec, recuperoSecondoTempo: nuovoRec });
+            }
           }}
-          onTick={(min) => setMinutoCorrente(min)}
+          onTick={(min, info) => {
+            setMinutoCorrente(min);
+            setMinutoLabel(info?.minutoLabel || `${min}'`);
+            setMinutoRecupero(info?.minutoRecupero || 0);
+          }}
           onTriggerScadenzaTempo={(t) => {
             if (t === 2) {
               setAvvisoFineTempo(true);
@@ -1349,6 +1443,8 @@ export default function App() {
           setEventi={setEventi}
           onNuovoEvento={handleNuovoEvento}
           minutoCorrente={minutoCorrente}
+          minutoLabel={minutoLabel}
+          minutoRecupero={minutoRecupero}
           tempoGara={tempoGara}
           secondiGara={secondiGara}
           slotUsati={slotUsati}
@@ -1388,7 +1484,7 @@ export default function App() {
           societa={societaAttiva}
           campionato={stagioneSelezionata}
           annata={annataSelezionata}
-          onTornaIndietro={() => setFaseApp(partitaInfo ? 'distinta' : 'distinta')}
+          onTornaIndietro={() => setFaseApp('distinta')}
         />
       )}
 
@@ -1433,7 +1529,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  setRecupero(prev => prev + 1);
+                  incrementaRecuperoCorrente();
                   setModaleBloccoTempo(null);
                 }}
                 className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-xs uppercase transition cursor-pointer"
