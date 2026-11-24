@@ -485,55 +485,42 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
 }
 
 export async function registraEventoCloud(partitaId, evento, campionato, annata) {
-  if (!campionato || !annata) return;
+  if (!campionato || !annata || !evento) return;
 
-  const rigaCompleta = {
+  const dettagliConRecupero =
+    evento.minutoLabel &&
+    evento.minuto !== undefined &&
+    evento.minutoLabel !== `${evento.minuto}'` &&
+    !String(evento.dettagli || '').includes(evento.minutoLabel)
+      ? `${evento.dettagli || ''} [${evento.minutoLabel}]`.trim()
+      : evento.dettagli || '';
+
+  const rigaEvento = {
     id: evento.id,
     partita_id: partitaId,
     campionato: campionato,
     annata: annata,
     minuto: evento.minuto,
-    minuto_label: evento.minutoLabel || null,
-    minuto_recupero: evento.minutoRecupero ?? null,
     tempo: evento.tempo,
     tipo: evento.tipo,
-    dettagli: evento.dettagli,
+    dettagli: dettagliConRecupero,
     giocatoreId: evento.giocatoreId || null,
     esceId: evento.esceId || null,
     entraId: evento.entraId || null
   };
 
-  const { error } = await supabase.from('eventi').insert([rigaCompleta]);
+  const { error } = await supabase.from('eventi').insert([rigaEvento]);
 
   if (error) {
-    await supabase.from('eventi').insert([{
-      id: evento.id,
-      partita_id: partitaId,
-      campionato: campionato,
-      annata: annata,
-      minuto: evento.minuto,
-      tempo: evento.tempo,
-      tipo: evento.tipo,
-      dettagli: evento.dettagli,
-      giocatoreId: evento.giocatoreId || null,
-      esceId: evento.esceId || null,
-      entraId: evento.entraId || null
-    }]).catch(async () => {
-      await supabase.from('eventi').insert([{
-        id: evento.id,
-        partita_id: partitaId,
-        campionato: campionato,
-        annata: annata,
-        minuto: evento.minuto,
-        tempo: evento.tempo,
-        tipo: evento.tipo,
-        dettagli: evento.dettagli
-      }]);
-    });
+    console.error('Errore registraEventoCloud:', error);
+    return;
   }
 
   if (partitaId) {
-    await supabase.from('partite').update({ updated_at: new Date().toISOString() }).eq('id', partitaId);
+    await supabase
+      .from('partite')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', partitaId);
   }
 }
 
