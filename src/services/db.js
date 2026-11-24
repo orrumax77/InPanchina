@@ -155,8 +155,6 @@ export async function caricaRosaSocieta(societaId, campionato, annata) {
       .eq('societa_id', societaId)
       .eq('campionato', campionato)
       .eq('annata', annataPulita);
-      
-      //.order('numero', { ascending: true });
 
     if (!errG && gList && gList.length > 0) {
       const idsVisti = new Set();
@@ -448,7 +446,7 @@ export async function salvaBozzaKeepalive(societaId, partitaInfo, campionato, an
 
 export async function syncStatoPartitaSuDb(partitaId, dati) {
   if (!partitaId) return;
-  const updateData = {
+  const baseUpdate = {
     gol_casa: dati.golCasa,
     gol_ospite: dati.golOspiti,
     tempo: dati.tempoGara,
@@ -462,25 +460,40 @@ export async function syncStatoPartitaSuDb(partitaId, dati) {
     updated_at: new Date().toISOString()
   };
 
-  await supabase.from('partite').update(updateData).eq('id', partitaId);
+  const updateConRecuperi = { ...baseUpdate };
+  if (dati.recuperoPrimoTempo !== undefined) {
+    updateConRecuperi.recupero_primo_tempo = Number(dati.recuperoPrimoTempo) || 0;
+  }
+  if (dati.recuperoSecondoTempo !== undefined) {
+    updateConRecuperi.recupero_secondo_tempo = Number(dati.recuperoSecondoTempo) || 0;
+  }
+
+  const { error } = await supabase.from('partite').update(updateConRecuperi).eq('id', partitaId);
+  if (error) {
+    await supabase.from('partite').update(baseUpdate).eq('id', partitaId);
+  }
 }
 
 export async function registraEventoCloud(partitaId, evento, campionato, annata) {
   if (!campionato || !annata) return;
 
-  const { error } = await supabase.from('eventi').insert([{
+  const rigaCompleta = {
     id: evento.id,
     partita_id: partitaId,
     campionato: campionato,
     annata: annata,
     minuto: evento.minuto,
+    minuto_label: evento.minutoLabel || null,
+    minuto_recupero: evento.minutoRecupero ?? null,
     tempo: evento.tempo,
     tipo: evento.tipo,
     dettagli: evento.dettagli,
     giocatoreId: evento.giocatoreId || null,
     esceId: evento.esceId || null,
     entraId: evento.entraId || null
-  }]);
+  };
+
+  const { error } = await supabase.from('eventi').insert([rigaCompleta]);
 
   if (error) {
     await supabase.from('eventi').insert([{
@@ -491,8 +504,22 @@ export async function registraEventoCloud(partitaId, evento, campionato, annata)
       minuto: evento.minuto,
       tempo: evento.tempo,
       tipo: evento.tipo,
-      dettagli: evento.dettagli
-    }]);
+      dettagli: evento.dettagli,
+      giocatoreId: evento.giocatoreId || null,
+      esceId: evento.esceId || null,
+      entraId: evento.entraId || null
+    }]).catch(async () => {
+      await supabase.from('eventi').insert([{
+        id: evento.id,
+        partita_id: partitaId,
+        campionato: campionato,
+        annata: annata,
+        minuto: evento.minuto,
+        tempo: evento.tempo,
+        tipo: evento.tipo,
+        dettagli: evento.dettagli
+      }]);
+    });
   }
 
   if (partitaId) {
@@ -716,13 +743,10 @@ export const getDurataPartita = (stagione, annataStr) => {
   const eta = annoInizioStagione - annoNascita;
 
   if (eta <= 14) {
-    // Esordienti / Under 14 / Under 15: 70 minuti totali (2 tempi da 35')
     return { durataTotale: 70, durataTempo: 35 };
   } else if (eta === 15) {
-    // Under 16: 80 minuti totali (2 tempi da 40')
     return { durataTotale: 80, durataTempo: 40 };
   } else {
-    // Under 17, Under 18, Under 19, Adulti: 90 minuti totali (2 tempi da 45')
     return { durataTotale: 90, durataTempo: 45 };
   }
 };
@@ -732,17 +756,19 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
   try {
     const storicoId = `STORICO_${societaId}_${Date.now()}`;
 
-    // ⏱️ Durata dinamica (70', 80' o 90' in base all'annata)
     const { durataTotale } = getDurataPartita(campionato, annata);
-    let durataTotalePartita = durataTotale;
+    const rec1T = Number(datiGara?.recuperoPrimoTempo || 0);
+    const rec2T = Number(datiGara?.recuperoSecondoTempo || 0);
+
+    let durataTotalePartita = durataTotale + rec1T + rec2T;
     if (eventi && eventi.length > 0) {
-      const ultimoMinutoEvento = Math.max(...eventi.map(e => e.minuto || 0));
+      const ultimoMinutoEvento = Math.max(...eventi.map(e => Number(e.minuto) || 0));
       if (ultimoMinutoEvento > durataTotalePartita) {
         durataTotalePartita = ultimoMinutoEvento;
       }
     }
-    if (datiGara?.minutoCorrente && datiGara.minutoCorrente > durataTotalePartita) {
-      durataTotalePartita = datiGara.minutoCorrente;
+    if (datiGara?.minutoCorrente && Number(datiGara.minutoCorrente) > durataTotalePartita) {
+      durataTotalePartita = Number(datiGara.minutoCorrente);
     }
 
     const giocatoriDaArchiviare = giocatori.map(g => {
@@ -756,8 +782,8 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
         is_titolare: eraTitolare
       };
     });
-      
-    await supabase.from('partite').insert([{
+
+    const rigaStoricoBase = {
       id: storicoId,
       societa_id: societaId,
       squadra_casa: partitaInfo.squadraCasa,
@@ -780,7 +806,17 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       massaggiatore: partitaInfo.massaggiatore || '',
       preparatore_atletico: partitaInfo.preparatoreAtletico || '',
       preparatore_portieri: partitaInfo.preparatorePortieri || ''
+    };
+
+    const { error: errStorico } = await supabase.from('partite').insert([{
+      ...rigaStoricoBase,
+      recupero_primo_tempo: rec1T,
+      recupero_secondo_tempo: rec2T
     }]);
+
+    if (errStorico) {
+      await supabase.from('partite').insert([rigaStoricoBase]);
+    }
 
     await supabase
       .from('eventi')
@@ -799,7 +835,7 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       ''
     ).toUpperCase();
 
-    await supabase.from('partite').update({
+    const resetPartitaBase = {
       squadra_casa: nomeNostraSocieta,
       squadra_ospite: '',
       is_nostra_casa: true,
@@ -816,7 +852,17 @@ export async function archiviaPartitaEResettaLive(societaId, livePartitaId, part
       stato: 'bozza',
       data_gara: new Date().toISOString().split('T')[0],
       updated_at: new Date().toISOString()
+    };
+
+    const { error: errReset } = await supabase.from('partite').update({
+      ...resetPartitaBase,
+      recupero_primo_tempo: 0,
+      recupero_secondo_tempo: 0
     }).eq('id', livePartitaId);
+
+    if (errReset) {
+      await supabase.from('partite').update(resetPartitaBase).eq('id', livePartitaId);
+    }
 
     const campionatoPulito = (campionato || '').replace(/[^a-zA-Z0-9]/g, '_');
     const annataPulita = (annata || '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -928,7 +974,6 @@ export async function loginSistema(username, password, campionatoSelezionato, an
     .eq('username', u)
     .eq('password_chiaro', p);
 
-  // Se l'utente è registrato su Supabase con ruolo superadmin, entra come Admin
   const utenteAdminDb = (utentiTrovati || []).find(
     (usr) => (usr.ruolo || '').toLowerCase() === 'superadmin'
   );
@@ -1002,7 +1047,6 @@ export async function loginSistema(username, password, campionatoSelezionato, an
     societaNome: utente.societa.nome,
     username: u,
     azione: 'LOGIN_OK',
-    //dettagli: `Accesso dirigente effettuato (${campionatoScelto || utente.campionato || utente.stagione || 'N/D'})`
     dettagli: `Accesso dirigente effettuato (${campionatoScelto || utente.campionato || utente.stagione || 'N/D'} • Annata ${annataScel || 'N/D'})`
   });
 
@@ -1056,7 +1100,6 @@ export async function adminCreaUtente({ societaId, username, password, ruolo, ca
     stagione: valoreStagione
   };
 
-  // Proviamo a salvare sia campionato che stagione; se la colonna 'campionato' non esiste nel DB, salviamo su 'stagione'
   let { data, error } = await supabase
     .from('utenti_panchina')
     .insert([{ ...baseRow, campionato: valoreStagione }])
