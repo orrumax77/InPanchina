@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Play, Pause, Plus, Clock, ArrowRight, FastForward, RotateCcw } from 'lucide-react';
 
 // Generatore Audio Web Audio API del Fischio Arbitro
@@ -64,29 +64,57 @@ export default function Cronometro({
   secondi,
   setSecondi,
   inEsecuzione,
-  avviatoAlle,       // Timestamp ISO assoluto di avvio condiviso da Supabase
-  secondiBase,       // Secondi accumulati prima dell'ultimo avvio
+  avviatoAlle,          // Timestamp ISO assoluto di avvio condiviso da Supabase
+  secondiBase,          // Secondi accumulati prima dell'ultimo avvio
   durataTempo,
   durataTotale,
   onAvvia,
   onPausa,
-  onAvanzaTempo,     // Notifica ad App.jsx per l'avanzamento senza fermare il timer
+  onAvanzaTempo,        // Notifica ad App.jsx per l'avanzamento senza fermare il timer
   onFinePrimoTempo,
   onFinePartita,
-  recupero,
+  recupero = 0,
   setRecupero,
+  recuperoPrimoTempo = 0,
+  onAggiungiRecupero,
   onTick,
   onTriggerScadenzaTempo
 }) {
+  const recuperoAttivo = Math.max(0, Number(recupero) || 0);
+  const rec1T = Math.max(0, Number(recuperoPrimoTempo) || 0);
+
   const SECONDI_TEMPO = durataTempo * 60;
-  const LIMITE_MASSIMO_CON_RECUPERO = SECONDI_TEMPO + (recupero * 60);
+  const LIMITE_MASSIMO_CON_RECUPERO = SECONDI_TEMPO + (recuperoAttivo * 60);
 
   const secondiTrascorsi = Math.max(0, secondi);
   const minutiTempo = Math.floor(secondiTrascorsi / 60);
   const secondiTempo = secondiTrascorsi % 60;
 
-  const offsetMinutiPartita = tempo === 2 ? durataTempo : 0;
-  const minutoTotalePartita = offsetMinutiPartita + minutiTempo;
+  const baseRegolamentareTempo = tempo === 2 ? durataTempo + rec1T : 0;
+  const minutoTotalePartita = baseRegolamentareTempo + minutiTempo;
+
+  const calcolaDettaglioMinuto = (secTot) => {
+    const minFrazione = Math.floor(Math.max(0, secTot) / 60);
+    const minTot = baseRegolamentareTempo + minFrazione;
+
+    if (minFrazione > durataTempo) {
+      const extra = minFrazione - durataTempo;
+      const baseTempoLabel = tempo === 2 ? durataTempo + rec1T + durataTempo : durataTempo;
+      return {
+        minAttuale: minTot,
+        minutoRecupero: extra,
+        minutoLabel: `${baseTempoLabel}+${extra}'`
+      };
+    }
+
+    return {
+      minAttuale: minTot,
+      minutoRecupero: 0,
+      minutoLabel: `${minTot}'`
+    };
+  };
+
+  const dettaglioCorrente = calcolaDettaglioMinuto(secondiTrascorsi);
 
   const tempoScaduto = secondiTrascorsi >= LIMITE_MASSIMO_CON_RECUPERO;
   const fischioGiaEseguito = useRef(false);
@@ -116,7 +144,7 @@ export default function Cronometro({
     if (!tempoScaduto) {
       fischioGiaEseguito.current = false;
     }
-  }, [tempoScaduto, recupero]);
+  }, [tempoScaduto, recuperoAttivo]);
 
   // SINCRONIZZAZIONE AL SECONDO INTERO TRAMITE TIMESTAMP ASSOLUTO CONDIVISO
   useEffect(() => {
@@ -135,8 +163,13 @@ export default function Cronometro({
 
         setSecondi(tempoCalcolato);
 
-        const minAttuale = offsetMinutiPartita + Math.floor(tempoCalcolato / 60);
-        if (onTickRef.current) onTickRef.current(minAttuale);
+        const infoMin = calcolaDettaglioMinuto(tempoCalcolato);
+        if (onTickRef.current) {
+          onTickRef.current(infoMin.minAttuale, {
+            minutoRecupero: infoMin.minutoRecupero,
+            minutoLabel: infoMin.minutoLabel
+          });
+        }
 
         if (tempoCalcolato >= LIMITE_MASSIMO_CON_RECUPERO) {
           if (onPausaRef.current) onPausaRef.current(tempoCalcolato);
@@ -157,9 +190,17 @@ export default function Cronometro({
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [inEsecuzione, avviatoAlle, secondiBase, LIMITE_MASSIMO_CON_RECUPERO, offsetMinutiPartita, tempo, setSecondi]);
+  }, [inEsecuzione, avviatoAlle, secondiBase, LIMITE_MASSIMO_CON_RECUPERO, baseRegolamentareTempo, durataTempo, tempo, setSecondi]);
 
   const formatNumero = (num) => String(Math.floor(num)).padStart(2, '0');
+
+  const gestisciClickRecupero = () => {
+    if (onAggiungiRecupero) {
+      onAggiungiRecupero();
+    } else if (typeof setRecupero === 'function') {
+      setRecupero((prev) => (Number(prev) || 0) + 1);
+    }
+  };
 
   const avanzaSecondi = (secAggiuntivi) => {
     const nuovo = Math.min(LIMITE_MASSIMO_CON_RECUPERO, Math.floor(secondiTrascorsi + secAggiuntivi));
@@ -169,8 +210,13 @@ export default function Cronometro({
       onAvanzaTempoRef.current(secAggiuntivi, nuovo);
     }
 
-    const minAttuale = offsetMinutiPartita + Math.floor(nuovo / 60);
-    if (onTickRef.current) onTickRef.current(minAttuale);
+    const infoMin = calcolaDettaglioMinuto(nuovo);
+    if (onTickRef.current) {
+      onTickRef.current(infoMin.minAttuale, {
+        minutoRecupero: infoMin.minutoRecupero,
+        minutoLabel: infoMin.minutoLabel
+      });
+    }
 
     if (nuovo >= LIMITE_MASSIMO_CON_RECUPERO) {
       if (onPausaRef.current) onPausaRef.current(nuovo);
@@ -203,9 +249,14 @@ export default function Cronometro({
         </span>
 
         <div className="flex items-center gap-1.5 flex-wrap">
-          {recupero > 0 && (
+          {tempo === 2 && rec1T > 0 && (
+            <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold">
+              1T: +{rec1T}'
+            </span>
+          )}
+          {recuperoAttivo > 0 && (
             <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold">
-              +{recupero}' Rec
+              +{recuperoAttivo}' Rec
             </span>
           )}
         </div>
@@ -219,7 +270,12 @@ export default function Cronometro({
         </div>
 
         <p className="text-[11px] sm:text-xs text-slate-500 font-mono mt-1 uppercase font-semibold">
-          Minuto Totale Gara: <strong className="text-emerald-400">{minutoTotalePartita}'</strong>
+          Minuto Totale Gara:{' '}
+          <strong className="text-emerald-400">
+            {dettaglioCorrente.minutoRecupero > 0
+              ? dettaglioCorrente.minutoLabel
+              : `${minutoTotalePartita}'`}
+          </strong>
         </p>
       </div>
 
@@ -249,7 +305,7 @@ export default function Cronometro({
 
         <button
           type="button"
-          onClick={() => setRecupero((prev) => prev + 1)}
+          onClick={gestisciClickRecupero}
           className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-3 px-2 rounded-xl font-bold flex items-center justify-center gap-1 text-xs sm:text-sm uppercase cursor-pointer whitespace-nowrap"
           title="Aggiungi 1 minuto di recupero alla frazione"
         >
