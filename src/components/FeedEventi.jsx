@@ -6,15 +6,12 @@ function IconaPalloneCalcio() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5 drop-shadow-sm flex-shrink-0" fill="none">
       <circle cx="12" cy="12" r="10" fill="#f8fafc" stroke="#0f172a" strokeWidth="1.5" />
-      {/* Pentagono centrale */}
       <polygon points="12,7.5 15,9.8 13.8,13.5 10.2,13.5 9,9.8" fill="#0f172a" />
-      {/* Raggi verso i bordi */}
       <line x1="12" y1="7.5" x2="12" y2="2" stroke="#0f172a" strokeWidth="1.3" />
       <line x1="15" y1="9.8" x2="21" y2="7.5" stroke="#0f172a" strokeWidth="1.3" />
       <line x1="13.8" y1="13.5" x2="18.5" y2="19" stroke="#0f172a" strokeWidth="1.3" />
       <line x1="10.2" y1="13.5" x2="5.5" y2="19" stroke="#0f172a" strokeWidth="1.3" />
       <line x1="9" y1="9.8" x2="3" y2="7.5" stroke="#0f172a" strokeWidth="1.3" />
-      {/* Toppe periferiche */}
       <path d="M7 2.8 L12 2 L17 2.8" stroke="#0f172a" strokeWidth="1.2" fill="none" />
       <path d="M21 7.5 L21.8 12 L19.5 15" stroke="#0f172a" strokeWidth="1.2" fill="none" />
       <path d="M3 7.5 L2.2 12 L4.5 15" stroke="#0f172a" strokeWidth="1.2" fill="none" />
@@ -23,7 +20,7 @@ function IconaPalloneCalcio() {
   );
 }
 
-// Icona Cartellino Giallo Arbitrale (rettangolo arrotondato inclinato)
+// Icona Cartellino Giallo Arbitrale
 function IconaCartellinoGiallo() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5 drop-shadow-sm flex-shrink-0">
@@ -52,7 +49,7 @@ function IconaCartellinoGiallo() {
   );
 }
 
-// Icona Cartellino Rosso Arbitrale (rettangolo arrotondato inclinato)
+// Icona Cartellino Rosso Arbitrale
 function IconaCartellinoRosso() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5 drop-shadow-sm flex-shrink-0">
@@ -81,11 +78,10 @@ function IconaCartellinoRosso() {
   );
 }
 
-// Icona Sostituzione Tattica Calcio (Freccia Verde Entra / Freccia Rossa Esce)
+// Icona Sostituzione Tattica Calcio
 function IconaSostituzioneCalcio() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5 drop-shadow-sm flex-shrink-0" fill="none">
-      {/* Freccia Verde ENTRA */}
       <path
         d="M5 14 C5 9 8 5 14 5"
         stroke="#22c55e"
@@ -100,7 +96,6 @@ function IconaSostituzioneCalcio() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* Freccia Rossa ESCE */}
       <path
         d="M19 10 C19 15 16 19 10 19"
         stroke="#ef4444"
@@ -181,33 +176,34 @@ export default function FeedEventi({ eventi, onEliminaEvento }) {
       </div>
 
       <div className="divide-y divide-slate-800/80 max-h-64 overflow-y-auto pr-1">
-        {eventi.map((ev) => (
-          <div key={ev.id} className="py-2.5 flex items-center justify-between gap-3 text-sm hover:bg-slate-950/40 px-2 rounded-xl transition">
-            <div className="flex items-center gap-3 min-w-0">
-              {/* Icona Realistica */}
-              {renderIconaEvento(ev.tipo)}
+        {eventi.map((ev) => {
+          const minutoFormattato = ev.minutoLabel || `${ev.minuto}'`;
 
-              {/* Minuto e Tempo */}
-              <span className="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 font-mono text-xs font-bold text-emerald-400 flex-shrink-0">
-                {ev.minuto}' <span className="text-[10px] text-slate-500 font-normal">({ev.tempo}°T)</span>
-              </span>
+          return (
+            <div key={ev.id} className="py-2.5 flex items-center justify-between gap-3 text-sm hover:bg-slate-950/40 px-2 rounded-xl transition">
+              <div className="flex items-center gap-3 min-w-0">
+                {renderIconaEvento(ev.tipo)}
 
-              {/* Dettagli Evento */}
-              <span className="text-slate-200 uppercase font-semibold text-xs md:text-sm truncate">
-                {ev.dettagli}
-              </span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 font-mono text-xs font-bold text-emerald-400 flex-shrink-0">
+                  {minutoFormattato} <span className="text-[10px] text-slate-500 font-normal">({ev.tempo}°T)</span>
+                </span>
+
+                <span className="text-slate-200 uppercase font-semibold text-xs md:text-sm truncate">
+                  {ev.dettagli}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onEliminaEvento(ev.id)}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 border border-transparent hover:border-rose-900/50 transition flex-shrink-0 cursor-pointer"
+                title="Annulla evento"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
-
-            {/* Pulsante Elimina */}
-            <button
-              onClick={() => onEliminaEvento(ev.id)}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 border border-transparent hover:border-rose-900/50 transition flex-shrink-0"
-              title="Annulla evento"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
